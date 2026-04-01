@@ -281,7 +281,7 @@ xarray==0.19.0
 xgboost==1.4.2
 xlrd==2.0.1
 yellowbrick==1.2.1
-yfinance==0.1.63
+yfinance>=0.2.54
 zipline-reloaded==2.1.1
 zipp==3.5.0
 zope.interface==5.4.0
