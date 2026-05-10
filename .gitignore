@@ -2,6 +2,9 @@
 *.gz
 *.h5
 .env
+data/mnist/*
+data/fashion_mnist/*
+data/wiki_prices.csv
 package.json
 package-lock.json
 GEMINI.md

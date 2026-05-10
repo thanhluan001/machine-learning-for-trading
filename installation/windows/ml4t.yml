@@ -300,7 +300,7 @@ dependencies:
   - notebook-shim=0.1.0
   - numba=0.53.0
   - numexpr=2.7.3
-  - numpy<1.24
+  - numpy=1.18.2
   - oauthlib=3.2.0
   - opencv-python-headless=4.5.5.64
   - openjpeg=2.4.0
@@ -399,7 +399,7 @@ dependencies:
   - ruamel_yaml=0.15.80
   - scikit-image=0.19.2
   - scikit-learn=1.0.2
-  - scipy=1.8.0
+  - scipy=1.4.1
   - scrapy=2.6.1
   - seaborn=0.11.2
   - seaborn-base=0.11.2
@@ -499,7 +499,7 @@ dependencies:
   - yaml=0.2.5
   - yarl=1.7.2
   - yellowbrick=1.4
-  - yfinance>=0.2.54
+  - yfinance=1.2.0
   - zeromq=4.3.4
   - zfp=0.5.5
   - zipline-reloaded=2.2.0
