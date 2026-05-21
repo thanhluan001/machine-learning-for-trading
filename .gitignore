@@ -8,3 +8,5 @@ data/wiki_prices.csv
 package.json
 package-lock.json
 GEMINI.md
+04_alpha_factor_research/single_factor.pickle
+04_alpha_factor_research/factor_data.csv
