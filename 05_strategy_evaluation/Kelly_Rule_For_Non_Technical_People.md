@@ -320,3 +320,86 @@ In 1998, two hedge fund managers started with similar capital:
 ---
 
 **Remember**: Kelly is like **nitrous oxide** for your portfolio—powerful, but use the wrong amount and you crash. Most people are better off with a **regular engine** that reliably gets them to their destination.
+
+# Appendix: Kelly Rule for Negative Edge
+
+---
+
+## **What If the Edge Is Negative?**
+
+### **Scenario:**
+- You analyze an asset and find a **55% chance of losing money** (negative edge).
+- Example: A stock has a **45% chance of going up** and a **55% chance of going down**.
+
+---
+
+## **How the Kelly Rule Handles Negative Edge**
+
+### **1. Kelly Formula Recap**
+The Kelly formula is:
+```
+Kelly % = (p × b - q) / b
+```
+- **p**: Probability of winning
+- **q**: Probability of losing (`q = 1 - p`)
+- **b**: Payout (profit per dollar bet)
+
+---
+
+### **2. Negative Edge Calculation**
+- If **p = 0.45** (45% win rate) and **q = 0.55** (55% lose rate), the formula gives:
+  ```
+  Kelly % = (0.45 × 1 - 0.55) / 1 = -0.10 → -10%
+  ```
+- A **negative Kelly %** means you should **bet against the asset** (short it).
+
+---
+
+## **What to Do with a Negative Edge?**
+
+### **1. If You Can Short the Asset**
+- **Flip the sign**: Short **10% of your portfolio** (since Kelly % = -10%).
+- **Why?** A 55% chance of losing on a long position = **55% chance of winning on a short position**.
+
+### **2. If You Cannot Short**
+- **Avoid the trade entirely** (Kelly % = 0).
+- Look for other opportunities where you have a **positive edge**.
+
+---
+
+## **Example: Shorting a Stock**
+
+### **Scenario:**
+- **Stock X** has:
+  - **45% chance of going up** (win for longs, lose for shorts).
+  - **55% chance of going down** (win for shorts, lose for longs).
+  - If it goes down, it drops by **10%**.
+  - If it goes up, it rises by **10%**.
+
+### **Kelly Calculation for Shorting:**
+- **Edge for shorts**: 55% win rate (`p = 0.55`).
+- **Payout (b)**: If you short \$1 and win, you gain \$0.10 (10% of \$1).
+- **Formula:**
+  ```
+  Kelly % = (0.55 × 0.10 - 0.45 × 0.10) / 0.10 = 0.10 → 10%
+  ```
+
+### **Action:**
+- **Short 10% of your portfolio** in Stock X.
+
+---
+
+## **Key Takeaways**
+
+| Scenario               | Kelly %  | Action                          |
+|------------------------|----------|---------------------------------|
+| Positive Edge (55% win) | +10%    | Buy 10% of portfolio            |
+| Negative Edge (55% lose) | -10%    | Short 10% of portfolio          |
+| Cannot Short            | Negative | Avoid the bet                   |
+
+---
+
+## **Final Advice**
+- **Negative edge?** Short the asset if possible.
+- **Cannot short?** Avoid the trade.
+- **Always manage risk**: Use **Fractional Kelly** (e.g., half-Kelly) to reduce volatility.
