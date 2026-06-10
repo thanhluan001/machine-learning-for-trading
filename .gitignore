@@ -10,3 +10,5 @@ package-lock.json
 GEMINI.md
 04_alpha_factor_research/single_factor.pickle
 04_alpha_factor_research/factor_data.csv
+luan_bot_trading/offset.txt
+luan_bot_trading/sp400_tickers.json
