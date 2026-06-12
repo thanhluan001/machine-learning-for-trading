@@ -2,36 +2,36 @@
 """
 Data Gathering - S&P 400 Mid-Cap Universe
 ==========================================
-Maintains an HDF5 database of adjusted OHLCV prices for all S&P 400 Mid-Cap
-companies. Fetches 15 years of history incrementally, detecting corporate
-actions that require full history refresh.
 
-Runs in BATCHES of 45 requests per invocation. Controlled by offset.txt.
-Run multiple times throughout the day to stay within Tiingo's rate limits.
+Rules:
+    - New ticker or gap >= 14 days: Fetch full history from Tiingo
+    - Gap < 14 days: Use yfinance for the gap
+    - When using Tiingo, always fetch full history (not partial date range)
 
 Tiingo free tier: 50 requests/hour, 1000 requests/day, ~30 years history.
 
 Usage:
     python data_gathering.py [--reset-offset]
-
-Output Files:
-    db.h5               (HDF5 file with group /sp400 for equities)
-    sp400_tickers.json  (cached list of S&P 400 tickers)
-    offset.txt          (tracks position in ticker list across runs)
-
-Stored columns per ticker (all adjusted for splits/dividends):
-    Date, Open, High, Low, Close, Volume
 """
 
-import os
 import argparse
 import json
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+
+yfinance = None
+try:
+    import yfinance as yf
+    yfinance = yf
+except ImportError:
+    pass
+
+import os
 
 # ==============================================================================
 # CONFIGURATION
@@ -49,19 +49,18 @@ WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
 
 HISTORY_YEARS = 15
 START_DATE = (datetime.now() - timedelta(days=HISTORY_YEARS * 365)).strftime("%Y-%m-%d")
-END_DATE = datetime.now().strftime("%Y-%m-%d")
+END_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 H5_GROUP = "sp400"
 BATCH_SIZE = 45
+WEEK_GAP_DAYS = 14
 
-# All adjusted columns from Tiingo (splits/dividends already applied)
+# Market benchmark: iShares Core S&P Mid-Cap ETF
+IJH_TICKER = "IJH"
+MACRO_GROUP = "macros"
+
 ADJ_COLUMNS = [
-    "date",
-    "adjOpen",
-    "adjHigh",
-    "adjLow",
-    "adjClose",
-    "adjVolume",
+    "date", "adjOpen", "adjHigh", "adjLow", "adjClose", "adjVolume",
 ]
 OUTPUT_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
 
@@ -70,9 +69,7 @@ OUTPUT_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
 # PART 1: OFFSET TRACKING
 # ==============================================================================
 
-
 def get_offset() -> int:
-    """Read current offset from file. Returns 0 if file doesn't exist."""
     if OFFSET_FILE.exists():
         with open(OFFSET_FILE, "r") as f:
             try:
@@ -83,7 +80,6 @@ def get_offset() -> int:
 
 
 def save_offset(offset: int):
-    """Save current offset to file."""
     with open(OFFSET_FILE, "w") as f:
         f.write(str(offset))
 
@@ -92,10 +88,8 @@ def save_offset(offset: int):
 # PART 2: RETRIEVE S&P 400 MID-CAP TICKERS
 # ==============================================================================
 
-
 def get_sp400_tickers(force_refresh: bool = False) -> list:
-    """Fetch current S&P 400 Mid-Cap constituents from Wikipedia."""
-    REFRESH_DAYS = 75  # ~2.5 months, less than quarterly
+    REFRESH_DAYS = 75
 
     if not force_refresh and TICKER_CACHE.exists():
         cache_age_days = (
@@ -125,17 +119,37 @@ def get_sp400_tickers(force_refresh: bool = False) -> list:
 
 
 # ==============================================================================
-# PART 3: INCREMENTAL DATA FETCHING WITH ADJUSTMENT DETECTION
+# PART 3: DATA FETCHERS
 # ==============================================================================
 
+def fetch_from_yfinance(ticker: str, start: str, end: str) -> pd.DataFrame:
+    if yfinance is None:
+        return pd.DataFrame()
 
-def _group_path(ticker: str) -> str:
-    """Return the full HDF5 path for a ticker under its group."""
-    return f"/{H5_GROUP}/{ticker}"
+    try:
+        stock = yf.Ticker(ticker)
+        end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+        df = stock.history(start=start, end=end_dt.strftime("%Y-%m-%d"))
+
+        if df.empty:
+            return pd.DataFrame()
+
+        df = df.reset_index()
+        df.columns = [c.replace(' ', '_') for c in df.columns]
+
+        # Ensure timezone-naive
+        try:
+            df['Date'] = df['Date'].dt.tz_localize(None)
+        except TypeError:
+            pass  # Already timezone-naive
+
+        return df[["Date", "Open", "High", "Low", "Close", "Volume"]]
+    except Exception as e:
+        print(f"      yfinance fetch failed for {ticker}: {e}")
+        return pd.DataFrame()
 
 
-def fetch_ticker_data(ticker: str, start: str, end: str) -> pd.DataFrame:
-    """Fetch adjusted OHLCV data from Tiingo."""
+def fetch_from_tiingo(ticker: str, start: str, end: str) -> pd.DataFrame:
     url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices"
     params = {
         "startDate": start,
@@ -160,170 +174,141 @@ def fetch_ticker_data(ticker: str, start: str, end: str) -> pd.DataFrame:
     df_clean = df[ADJ_COLUMNS].copy()
     df_clean.columns = OUTPUT_COLUMNS
 
+    # Ensure timezone-naive
+    if df_clean["Date"].dt.tz is not None:
+        df_clean["Date"] = df_clean["Date"].dt.tz_localize(None)
+
     return df_clean
 
 
-def ticker_exists_in_db(ticker: str) -> bool:
-    """Check if a ticker already has data in the database."""
+# ==============================================================================
+# PART 4: STORAGE HELPERS
+# ==============================================================================
+
+def store_data(ticker: str, data: pd.DataFrame, group: str = H5_GROUP):
+    h5_path = f"/{group}/{ticker}"
+    with pd.HDFStore(DB_FILE, mode="a") as store:
+        store.put(h5_path, data, format='table', data_columns=["Date"])
+
+
+def ticker_exists(ticker: str, group: str = H5_GROUP) -> bool:
     if not DB_FILE.exists():
         return False
     with pd.HDFStore(DB_FILE, mode="r") as store:
-        return _group_path(ticker) in store.keys()
+        return f"/{group}/{ticker}" in store.keys()
 
 
-def get_latest_date(ticker: str) -> pd.Timestamp:
-    """Get the most recent date for a ticker in the database."""
+def get_latest_date(ticker: str, group: str = H5_GROUP) -> pd.Timestamp:
     with pd.HDFStore(DB_FILE, mode="r") as store:
-        db_df = store[_group_path(ticker)]
-        return db_df["Date"].max()
+        df = store[f"/{group}/{ticker}"]
+        latest = df["Date"].max()
+    if hasattr(latest, "tz") and latest.tz is not None:
+        latest = latest.tz_localize(None)
+    return latest
 
 
-def store_data(ticker: str, data: pd.DataFrame, mode="a"):
-    """Store data for a ticker. mode='w' for new file, 'a' for append."""
-    h5_path = _group_path(ticker)
-    # For initial write when no DB exists, use 'w'
-    if mode == "w":
-        with pd.HDFStore(DB_FILE, mode="w") as store:
-            store.put(h5_path, data, format='table', data_columns=["Date"])
-    else:
-        with pd.HDFStore(DB_FILE, mode="a") as store:
-            store.put(h5_path, data, format='table', data_columns=["Date"])
+# ==============================================================================
+# PART 5: UPDATE LOGIC
+# ==============================================================================
 
-
-def append_data(ticker: str, new_data: pd.DataFrame):
-    """Append new data to existing ticker table."""
-    h5_path = _group_path(ticker)
-    with pd.HDFStore(DB_FILE, mode="a") as store:
-        store.append(h5_path, new_data)
-
-
-def needs_full_refresh(ticker: str, latest_db_date: str) -> bool:
+def update_ticker(ticker: str, group: str = H5_GROUP):
     """
-    Check if the adjClose for the most recent DB date has changed on Tiingo.
-    If yes, a corporate action occurred and the entire history was adjusted.
+    Update rules:
+        - New DB or new ticker: fetch full history from Tiingo
+        - Gap < 14 days: use yfinance for gap
+        - Gap >= 14 days: fetch full history from Tiingo
     """
-    try:
-        df_latest = fetch_ticker_data(ticker, latest_db_date, END_DATE)
-        if df_latest.empty:
-            return False
-
-        db_date = pd.to_datetime(latest_db_date)
-        match = df_latest[df_latest["Date"] == db_date]
-
-        if match.empty:
-            return True
-
-        with pd.HDFStore(DB_FILE, mode="r") as store:
-            db_df = store[_group_path(ticker)]
-            db_row = db_df[db_df["Date"] == db_date]
-
-            if db_row.empty:
-                return True
-
-            db_close = float(db_row.iloc[0]["Close"])
-            tiingo_close = float(match.iloc[0]["Close"])
-
-            if abs(db_close - tiingo_close) > 1e-6:
-                print(f"    [ADJUSTMENT] {ticker}: adjClose changed for {latest_db_date}")
-                print(f"      DB: {db_close:.6f}, Tiingo: {tiingo_close:.6f}")
-                return True
-
-            return False
-
-    except Exception as e:
-        print(f"      Warning: Could not verify {ticker}: {e}")
-        return True
-
-
-def update_ticker(ticker: str):
-    """Update a single ticker. Incremental or full refresh if needed."""
 
     # Case 1: No database exists yet
     if not DB_FILE.exists():
-        print(f"  {ticker}: Fetching full history...")
-        data = fetch_ticker_data(ticker, START_DATE, END_DATE)
+        print(f"  {ticker}: Initial fetch from Tiingo...")
+        data = fetch_from_tiingo(ticker, START_DATE, END_DATE)
         if not data.empty:
-            store_data(ticker, data, mode="w")
+            with pd.HDFStore(DB_FILE, mode="w") as store:
+                store.put(f"/{group}/{ticker}", data, format='table', data_columns=["Date"])
         return
 
     # Case 2: New ticker not yet in DB
-    if not ticker_exists_in_db(ticker):
-        print(f"  {ticker}: New ticker, fetching full history...")
-        data = fetch_ticker_data(ticker, START_DATE, END_DATE)
+    if not ticker_exists(ticker, group=group):
+        print(f"  {ticker}: New ticker. Fetching full history from Tiingo...")
+        data = fetch_from_tiingo(ticker, START_DATE, END_DATE)
         if not data.empty:
-            store_data(ticker, data, mode="a")
+            store_data(ticker, data, group=group)
         return
 
-    # Case 3: Existing ticker - check if full refresh needed
-    latest_date = get_latest_date(ticker)
+    # Case 3: Existing ticker - check gap
+    latest_date = get_latest_date(ticker, group=group)
     latest_date_str = latest_date.strftime("%Y-%m-%d")
-
-    if needs_full_refresh(ticker, latest_date_str):
-        print(f"  {ticker}: Refetching full history (corporate action detected)...")
-        data = fetch_ticker_data(ticker, START_DATE, END_DATE)
-        if not data.empty:
-            store_data(ticker, data, mode="a")
-        return
-
-    # Case 4: Incremental update
     next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
+
     if next_date > END_DATE:
         print(f"  {ticker}: Up to date.")
         return
 
-    print(f"  {ticker}: Incremental ({next_date} to {END_DATE})...")
-    new_data = fetch_ticker_data(ticker, next_date, END_DATE)
+    gap = (datetime.strptime(END_DATE, "%Y-%m-%d") - latest_date).days
 
-    if new_data.empty:
-        print(f"  {ticker}: No new data.")
-        return
+    # Small gap: use yfinance
+    if gap < WEEK_GAP_DAYS:
+        print(f"  {ticker}: Gap {gap} days. Filling with yfinance...")
+        yf_data = fetch_from_yfinance(ticker, next_date, END_DATE)
+        if not yf_data.empty:
+            store_data(ticker, yf_data, group=group)
+            print(f"      yfinance: {len(yf_data)} rows")
+            return
+        else:
+            print(f"  {ticker}: yfinance failed. Falling back to Tiingo.")
 
-    append_data(ticker, new_data)
-
-    print(f"  {ticker}: Added {len(new_data)} rows.")
+    # Large gap or yfinance failed: fetch full history from Tiingo
+    print(f"  {ticker}: Fetching full history from Tiingo (gap={gap}d)...")
+    data = fetch_from_tiingo(ticker, START_DATE, END_DATE)
+    if not data.empty:
+        store_data(ticker, data, group=group)
+        print(f"      Tiingo: {len(data)} rows")
 
 
 # ==============================================================================
 # MAIN: BATCH PROCESSING
 # ==============================================================================
 
-
 def main():
-    parser = argparse.ArgumentParser(description="Fetch S&P 400 Mid-Cap price data from Tiingo")
-    parser.add_argument("--reset-offset", action="store_true", help="Reset offset to 0 and start from beginning")
+    parser = argparse.ArgumentParser(description="Fetch S&P 400 Mid-Cap price data")
+    parser.add_argument("--reset-offset", action="store_true", help="Reset to beginning")
     args = parser.parse_args()
 
     print("=" * 60)
     print("  DATA GATHERING - S&P 400 Mid-Cap Universe")
     print("=" * 60)
-    print(f"  History: {HISTORY_YEARS} years")
-    print(f"  Stored:  Date, Open, High, Low, Close, Volume (all adj)")
-    print(f"  Batch:   {BATCH_SIZE} requests per run")
+    print(f"  History:  {HISTORY_YEARS} years")
+    print(f"  Sources:  yfinance (gap < {WEEK_GAP_DAYS} days), Tiingo (full history)")
+    print(f"  Market:   {IJH_TICKER} (fetched each run)")
+    print(f"  Batch:    {BATCH_SIZE} tickers per run")
     print("=" * 60)
 
-    # Handle reset flag
     if args.reset_offset:
-        print("[INFO] --reset-offset specified. Starting from beginning.")
+        print("[INFO] --reset-offset specified.")
         save_offset(0)
 
-    # Get all tickers
+    # Update market benchmark (IJH) using same yfinance/Tiingo logic
+    print(f"\n[INFO] Updating market benchmark {IJH_TICKER}...")
+    try:
+        update_ticker(IJH_TICKER, group=MACRO_GROUP)
+    except Exception as e:
+        print(f"  [ERROR] Failed to update {IJH_TICKER}: {e}")
+
     all_tickers = get_sp400_tickers()
     n_total = len(all_tickers)
     print(f"\n[INFO] Universe: {n_total} tickers")
 
-    # Get current offset and determine batch
     offset = get_offset()
     print(f"[INFO] Current offset: {offset}")
 
-    # Determine batch range (wrap around at end)
     if offset >= n_total:
-        print("[INFO] All tickers processed. Wrapping to start for next cycle.")
+        print("[INFO] All tickers processed. Wrapping to start.")
         offset = 0
 
     end_idx = min(offset + BATCH_SIZE, n_total)
     batch = all_tickers[offset:end_idx]
 
-    # Handle wrap-around case (offset + batch > total)
     if end_idx == n_total and len(batch) < BATCH_SIZE:
         remaining = BATCH_SIZE - len(batch)
         batch += all_tickers[:remaining]
@@ -331,7 +316,6 @@ def main():
 
     print(f"[INFO] Processing {len(batch)} tickers: {offset+1} to {end_idx} of {n_total}")
 
-    # Process batch
     for i, ticker in enumerate(batch):
         try:
             update_ticker(ticker)
@@ -340,15 +324,15 @@ def main():
 
         if (i + 1) % 10 == 0 or (i + 1) == len(batch):
             print(f"      Progress: {i + 1}/{len(batch)}")
+        time.sleep(1)
 
-    # Save offset for next run
     new_offset = end_idx if end_idx < n_total else 0
     save_offset(new_offset)
-    print(f"\n[INFO] Saved offset: {new_offset} (run again later for next batch)")
+    print(f"\n[INFO] Saved offset: {new_offset} (run again for next batch)")
 
     print("\n" + "=" * 60)
     print(f"  Done. Database: {DB_FILE}")
-    print(f"  Load data with: pd.read_hdf('db.h5', 'sp400/TICKER')")
+    print(f"  Load ETF with:  pd.read_hdf('db.h5', 'macros/IJH')")
     print("=" * 60)
 
 

@@ -96,3 +96,33 @@
 * **Data Sourcing:** The data pipeline must query a structured estimates API (e.g., Finnhub or Financial Modeling Prep) to pull historical quarterly timelines of `Actual_EPS`, `Estimated_EPS`, and `Report_Date`.
 * **HDF5 Alignment:** Store the parsed earnings metrics under a secondary dataset named `/earnings_history` inside each respective ticker node.
 * **Feature Calculation Rule:** Do not pass raw surprise dollar values to XGBoost. The pipeline must compute cross-sectional rolling features (`SUE_trend_1Y`, etc.) by dividing the historical deviations by the rolling 4-quarter standard deviation of past surprises to stabilize the feature variance.
+
+
+## 12. Feature Lookback vs. Training Horizon Slicing
+* **Global History Constraint:** The data engine utilizes a strict 15-year historical data runway.
+* **Feature Context Window:** All rolling historical features (`SUE_trend`, momentum vectors, macro baselines) are capped at a maximum lookback window of 5 years (20 quarters).
+* **Active Training Horizon:** The XGBoost training engine must discard the first 5 years of the global history timeline, using them exclusively to populate the initial feature contexts. The active target training matrix ($y$) must be strictly drawn from the remaining 10-year deep history window.
+* **Target Density Goal:** The resulting filtered matrix must optimize for a target density of ~12,000 clean, point-in-time compliant mid-cap earnings rows to maximize regularization and guard against tree-depth overfitting.
+* **Index Membership vs. Feature Lookback Separation:** The 5-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 5 years of trading history available, its rows are fully eligible for training immediately after the 270-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
+
+
+## 13. Calendar Scheduling & Live Watchlist Ingestion
+* **Schedule Provider:** The Sunday scheduling module queries the Financial Modeling Prep (FMP) `/earnings-calendar` REST endpoint, passing a 5-day forward-looking date array (`from` to `to`).
+* **Cross-Sectional Filtering:** The fetched raw global calendar must immediately be cross-referenced against the local HDF5 `in_index_clean` array for that specific calendar date. Any reporting ticker not actively clearing the S&P 400 point-in-time membership filter must be instantly pruned from memory.
+* **Pre-Earnings Ingestion Matrix:** For the remaining valid weekly candidates, parse the `epsEstimated` and `date` strings. Save this structure to a temporary runtime matrix (`weekly_schedule_queue`) to dictate the active weekday activation order and seed the placeholder values for Sunday's point-estimation simulator.
+
+## 14. Data Sourcing, Index Proxies, and Market-Adjusted CAR
+* **Dual-API Ingestion Architecture:** The data pipeline utilizes a split responsibilities framework to optimize data high-fidelity and costs:
+  * **Tiingo API:** Retained exclusively for 15+ years of continuous split-adjusted daily equity prices, volume metrics, and historical volatility calculations.
+  * **Financial Modeling Prep (FMP) Premium:** Utilized for all forward-looking corporate event scheduling, historical pre-report analyst consensus estimates, and real-time/bulk earnings surprise metrics.
+* **Broad Market Benchmark Proxy (`IJH`):** To calculate the broad market return baseline ($R_{m,t}$) without dealing with spot index availability bugs in Tiingo, the pipeline must query the historical price series for the **iShares Core S&P Mid-Cap ETF (`IJH`)**. 
+* **Adjusted Return Constraint:** The feature engine must strictly use the `adjClose` (Adjusted Close) column for both individual assets and the `IJH` proxy to eliminate artificial price drops caused by dividend distributions or fund splits.
+* **Streamlined Market-Adjusted Calculation:** Replace any complex sector-matching lookups with a flat Market-Adjusted Model against the S&P 400 proxy. The daily abnormal return for an asset is calculated as:
+    $$AR_{i,t} = \ln\left(\frac{\text{Asset AdjClose}_{t}}{\text{Asset AdjClose}_{t-1}}\right) - \ln\left(\frac{\text{IJH AdjClose}_{t}}{\text{IJH AdjClose}_{t-1}}\right)$$
+  The target variable $CAR_i$ is the simple sum of $AR_{i,t}$ across the $T+1$ to $T+11$ holding horizon.
+
+## 15. Operational Pipeline Interfacing
+* **Sunday Schedule Parsing:** Every Sunday, the engine queries the FMP `/earnings-calendar` endpoint for the upcoming week. The resulting array is filtered against the local HDF5 `in_index_clean` array to build the localized `weekly_schedule_queue`.
+* **The SUE Normalization Feature:** When loading data from the FMP `/earnings-surprises` endpoint, the data script must not pass raw surprise amounts to XGBoost. It must compute the Standardized Unanticipated Earnings ($SUE$) feature by dividing the surprise deviation by the rolling 4-quarter standard deviation of the asset's historical earnings surprises:
+    $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{\text{Historical Surprise}}}$$
+* **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow XGBoost to learn the optimal default splitting direction during the training phase.
