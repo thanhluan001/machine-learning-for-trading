@@ -2,6 +2,7 @@
 *.gz
 *.h5
 .env
+__pycache__/
 data/mnist/*
 data/fashion_mnist/*
 data/wiki_prices.csv

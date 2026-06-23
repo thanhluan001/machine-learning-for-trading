@@ -42,9 +42,9 @@ TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 if not TIINGO_API_KEY:
     raise ValueError("TIINGO_API_KEY not found. Please check your .env file.")
 
-DB_FILE = Path("db.h5")
-TICKER_CACHE = Path("sp400_tickers.json")
-OFFSET_FILE = Path("offset.txt")
+DB_FILE = Path(__file__).parent / "db.h5"
+TICKER_CACHE = Path(__file__).parent / "sp400_tickers.json"
+OFFSET_FILE = Path(__file__).parent / "stock_offset.txt"
 WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
 
 HISTORY_YEARS = 15

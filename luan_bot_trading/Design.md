@@ -78,17 +78,26 @@
 
 ---
 
-## 9. Data Pipeline & Survivorship Bias Architecture
+## 9. Data Pipeline & Survivorship Bias Architecture (REVISED)
 * **Storage Framework:** Data must be saved in an unified HDF5 storage format (`.h5`) organized hierarchically by ticker nodes or a unified tabular format optimized for time-series querying.
 * **Historical Membership Resolution:** The data ingestion script must parse the Wikipedia S&P 400 Revision History/Changes matrix to map the exact historical entry and exit windows for all historical constituents over a 15-year lookback.
-* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 270\text{ days}$ (3 quarters) past its official index addition date. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
+* **Multi-Interval Residency Map:** * Do **NOT** store index membership as flat scalar keys (`added_date`, `removed_date`). 
+    * The `/metadata/sp400` table must store a structured **Interval Array** (list of dicts) for every ticker to fully capture stocks that exited and re-entered the index over their lifecycles.
+    * *Example Structure:* `intervals = [{"added": "2014-03-15", "removed": "2018-06-20"}, {"added": "2022-09-01", "removed": "None"}]`
+* **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For constituents whose initial `added_date` is missing from the changes table, backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
+* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 270\text{ days}$ (3 quarters) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
+* **Tiingo Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
+    * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local Tiingo store.
+    * The exact date where the daily adjusted close and trading volume flatlines or permanently ceases to print is the definitive `removed_date` for that interval block.
 
-----
+---
 
-## 10. Training Matrix Extraction Protocol
+## 10. Training Matrix Extraction Protocol (REVISED)
 * **The Row Selection Filter:** When constructing the training matrix (`X`, `y`) for the XGBoost model, the dataset generator must iterate through the historical timelines and only select rows where `in_index_clean == True`.
-* **Dynamic Historical Matching:** * If a company was added in 2022, its rows prior to 2022 + 270 days must be excluded from training.
-  * If a company was deleted in 2022, its rows prior to 2022 (and after its original inclusion date) must be included in training, while all rows post-2022 must be completely ignored.
+* **Dynamic Historical Matching & Interval Validation:**
+    * The feature engine must evaluate the timestamp of each historical earnings event against the *entire* interval array of the corresponding asset.
+    * If a company was in the index from 2014 to 2018, and then re-added in 2022, rows from 2014+270 days up to the 2018 removal date **MUST be included** in training. Rows between 2018 and 2022+270 days must be dropped. 
+    * If a company was deleted via bankruptcy/merger in 2018 (resolved via the Tiingo price-flatline fallback), all rows prior to its 2018 delisting (and after its original inclusion date + 270 days) **MUST be preserved** to teach the model downside tail-risk.
 
 ---
 
@@ -126,3 +135,39 @@
 * **The SUE Normalization Feature:** When loading data from the FMP `/earnings-surprises` endpoint, the data script must not pass raw surprise amounts to XGBoost. It must compute the Standardized Unanticipated Earnings ($SUE$) feature by dividing the surprise deviation by the rolling 4-quarter standard deviation of the asset's historical earnings surprises:
     $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{\text{Historical Surprise}}}$$
 * **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow XGBoost to learn the optimal default splitting direction during the training phase.
+
+---
+
+## 16. Implementation Reference: Interval Validation Layer
+
+The bot can use this core logic block to generate the precise boolean array mask for daily historical tracking:
+
+```python
+def calculate_in_index_clean_mask(ticker_history_df, intervals):
+    """
+    Evaluates every historical trading row against an array of index residency 
+    intervals to prevent multi-residency blind spots and survivorship bias.
+    """
+    # Initialize index mask to False
+    in_index_clean = pd.Series(False, index=ticker_history_df.index)
+    
+    for interval in intervals:
+        added_dt = pd.to_datetime(interval['added'])
+        # If 'removed' is None or active, evaluate up to the current runtime date
+        removed_dt = pd.to_datetime(interval['removed']) if interval['removed'] != "None" else pd.Timestamp.now()
+        
+        # Enforce the 270-day stabilization window post-addition
+        buffer_end_dt = added_dt + pd.Timedelta(days=270)
+        
+        # Create mask for rows falling cleanly inside this specific residency block
+        interval_mask = (ticker_history_df.index >= buffer_end_dt) & (ticker_history_df.index <= removed_dt)
+        
+        # Bitwise OR to combine across all historical residencies
+        in_index_clean = in_index_clean | interval_mask
+        
+    return in_index_clean
+
+
+> **CRITICAL CODE REVIEW UPDATE:** This document overrides and patches the previous data ingestion and index residency rules in **Section 9** and **Section 10**. 
+> - Fixed the single-scalar `added_date`/`removed_date` bug to support multi-interval residency rows (preventing the accidental deletion of historical mid-cap training rows for "boomerang" stocks).
+> - Patched the "Missing Removal Date" rule to eliminate active survivorship bias by using Tiingo flatline price actions to find actual delisting dates.
