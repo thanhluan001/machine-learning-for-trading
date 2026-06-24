@@ -157,7 +157,7 @@ def calculate_in_index_clean_mask(ticker_history_df, intervals):
         removed_dt = pd.to_datetime(interval['removed']) if interval['removed'] != "None" else pd.Timestamp.now()
         
         # Enforce the 90-day stabilization window post-addition
-        buffer_end_dt = added_dt + pd.Timedelta(days=270)
+        buffer_end_dt = added_dt + pd.Timedelta(days=90)
         
         # Create mask for rows falling cleanly inside this specific residency block
         interval_mask = (ticker_history_df.index >= buffer_end_dt) & (ticker_history_df.index <= removed_dt)
