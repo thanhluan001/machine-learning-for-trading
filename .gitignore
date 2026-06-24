@@ -14,3 +14,8 @@ GEMINI.md
 04_alpha_factor_research/factor_data.csv
 luan_bot_trading/offset.txt
 luan_bot_trading/sp400_tickers.json
+luan_bot_trading/data/stock_offset.txt
+luan_bot_trading/data/earnings_offset.txt
+luan_bot_trading/sp400_sector_metadata.csv
+luan_bot_trading/data/sp400_sector_metadata.csv
+luan_bot_trading/data/sp400_tickers.json

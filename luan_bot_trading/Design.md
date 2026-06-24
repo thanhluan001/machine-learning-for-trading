@@ -84,8 +84,8 @@
 * **Multi-Interval Residency Map:** * Do **NOT** store index membership as flat scalar keys (`added_date`, `removed_date`). 
     * The `/metadata/sp400` table must store a structured **Interval Array** (list of dicts) for every ticker to fully capture stocks that exited and re-entered the index over their lifecycles.
     * *Example Structure:* `intervals = [{"added": "2014-03-15", "removed": "2018-06-20"}, {"added": "2022-09-01", "removed": "None"}]`
-* **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For constituents whose initial `added_date` is missing from the changes table, backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
-* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 270\text{ days}$ (3 quarters) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
+* **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For all tickers whose initial `added_date` is missing from the changes table (including historically removed constituents), backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. This prevents survivorship bias by ensuring removed constituents can still contribute to training. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
+* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 90 days (1 quarter)) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
 * **Tiingo Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
     * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local Tiingo store.
     * The exact date where the daily adjusted close and trading volume flatlines or permanently ceases to print is the definitive `removed_date` for that interval block.
@@ -96,8 +96,8 @@
 * **The Row Selection Filter:** When constructing the training matrix (`X`, `y`) for the XGBoost model, the dataset generator must iterate through the historical timelines and only select rows where `in_index_clean == True`.
 * **Dynamic Historical Matching & Interval Validation:**
     * The feature engine must evaluate the timestamp of each historical earnings event against the *entire* interval array of the corresponding asset.
-    * If a company was in the index from 2014 to 2018, and then re-added in 2022, rows from 2014+270 days up to the 2018 removal date **MUST be included** in training. Rows between 2018 and 2022+270 days must be dropped. 
-    * If a company was deleted via bankruptcy/merger in 2018 (resolved via the Tiingo price-flatline fallback), all rows prior to its 2018 delisting (and after its original inclusion date + 270 days) **MUST be preserved** to teach the model downside tail-risk.
+    * If a company was in the index from 2014 to 2018, and then re-added in 2022, rows from 2014+90 days up to the 2018 removal date **MUST be included** in training. Rows between 2018 and 2022+90 days must be dropped. 
+    * If a company was deleted via bankruptcy/merger in 2018 (resolved via the Tiingo price-flatline fallback), all rows prior to its 2018 delisting (and after its original inclusion date + 90 days) **MUST be preserved** to teach the model downside tail-risk.
 
 ---
 
@@ -112,7 +112,7 @@
 * **Feature Context Window:** All rolling historical features (`SUE_trend`, momentum vectors, macro baselines) are capped at a maximum lookback window of 5 years (20 quarters).
 * **Active Training Horizon:** The XGBoost training engine must discard the first 5 years of the global history timeline, using them exclusively to populate the initial feature contexts. The active target training matrix ($y$) must be strictly drawn from the remaining 10-year deep history window.
 * **Target Density Goal:** The resulting filtered matrix must optimize for a target density of ~12,000 clean, point-in-time compliant mid-cap earnings rows to maximize regularization and guard against tree-depth overfitting.
-* **Index Membership vs. Feature Lookback Separation:** The 5-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 5 years of trading history available, its rows are fully eligible for training immediately after the 270-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
+* **Index Membership vs. Feature Lookback Separation:** The 5-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 5 years of trading history available, its rows are fully eligible for training immediately after the 90-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
 
 
 ## 13. Calendar Scheduling & Live Watchlist Ingestion
@@ -156,7 +156,7 @@ def calculate_in_index_clean_mask(ticker_history_df, intervals):
         # If 'removed' is None or active, evaluate up to the current runtime date
         removed_dt = pd.to_datetime(interval['removed']) if interval['removed'] != "None" else pd.Timestamp.now()
         
-        # Enforce the 270-day stabilization window post-addition
+        # Enforce the 90-day stabilization window post-addition
         buffer_end_dt = added_dt + pd.Timedelta(days=270)
         
         # Create mask for rows falling cleanly inside this specific residency block
