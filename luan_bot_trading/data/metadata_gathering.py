@@ -99,7 +99,6 @@ def fetch_changes() -> pd.DataFrame:
                 }
             )
     df = pd.DataFrame(rows)
-    # Replace empty strings with NaN so they do not create phantom tickers
     df["added_ticker"] = df["added_ticker"].replace("", pd.NA)
     df["removed_ticker"] = df["removed_ticker"].replace("", pd.NA)
     return df
@@ -127,16 +126,22 @@ def build_unified_metadata() -> pd.DataFrame:
         .str.strip()
     )
     changes["date"] = pd.to_datetime(changes["date"], errors="coerce")
+    changes = changes.dropna(subset=["date"])
 
     changes = changes.sort_values("date").reset_index(drop=True)
     ticker_intervals = {}
 
+    # Step 1: Build raw intervals from the Wikipedia changes table.
+    # - Every "added_ticker" opens a new open-ended interval.
+    # - Every "removed_ticker" closes the most recent open interval.
+    # - If a ticker appears only as removed with no prior open interval,
+    #   it means it was in the index before Wikipedia history starts.
+    #   We record the removal as a terminal interval with added=NaT,
+    #   and let the backfill step fill in the missing added date.
     for _, row in changes.iterrows():
         added_ticker = row["added_ticker"]
         removed_ticker = row["removed_ticker"]
         date = row["date"]
-        if pd.isna(date):
-            continue
 
         if pd.notna(added_ticker):
             t = str(added_ticker)
@@ -152,17 +157,53 @@ def build_unified_metadata() -> pd.DataFrame:
             ):
                 ticker_intervals[rt][-1]["removed"] = date
             else:
+                # Ticker appears only as removed with no prior open interval.
+                # Record as: {"added": NaT, "removed": date}
+                # This will be backfilled to 2012-01-01 later.
                 ticker_intervals[rt].append(
-                    {"added": date, "removed": date}
+                    {"added": pd.NaT, "removed": date}
                 )
 
-    now = pd.Timestamp.today().normalize()
-    for t in constituents.index:
-        intervals = ticker_intervals.setdefault(t, [])
-        if not intervals or pd.notna(intervals[-1].get("removed")):
-            intervals.append(
-                {"added": now - pd.Timedelta(days=365), "removed": pd.NaT}
-            )
+    # Step 2: Backfill missing added dates for ALL tickers.
+    # Wikipedia history cuts off before 2012. Three cases need backfill:
+    # 1) Ticker is a current constituent with NO intervals in ticker_intervals.
+    # 2) Ticker has empty interval list in ticker_intervals.
+    # 3) Earliest interval has added=NaT (removed-only ticker from Step 1).
+    # For all cases, assign the conservative 2012-01-01 start date and
+    # preserve any captured removed date.
+    # Design.md says: backfill for ALL tickers, including removed ones.
+    backfill_start = pd.Timestamp("2012-01-01")
+    all_tickers = set(constituents.index) | set(ticker_intervals.keys())
+    for t in all_tickers:
+        intervals = ticker_intervals.get(t, [])
+        if not intervals:
+            ticker_intervals[t] = [
+                {"added": backfill_start, "removed": pd.NaT}
+            ]
+        elif pd.isna(intervals[0].get("added")):
+            # Preserve the captured removed date; only fill added.
+            intervals[0]["added"] = backfill_start
+
+    # Step 2b: Merge null-added intervals into the previous interval.
+    # Some removed-only tickers from Step 1 created terminal intervals with
+    # added=NaT. If such an interval is NOT the first interval, it means the
+    # stock was in the index between the two captured removal events. We merge
+    # by extending the previous interval's removed date to this one's removed.
+    for t in list(ticker_intervals.keys()):
+        intervals = ticker_intervals[t]
+        merged = []
+        for iv in intervals:
+            added = iv.get("added")
+            if pd.isna(added):
+                if merged:
+                    merged[-1]["removed"] = iv["removed"]
+                else:
+                    # Orphan at position 0 => backfill to 2012-01-01
+                    iv["added"] = backfill_start
+                    merged.append(iv)
+            else:
+                merged.append(iv)
+        ticker_intervals[t] = merged
 
     def serialize(intervals):
         out = []
@@ -179,6 +220,7 @@ def build_unified_metadata() -> pd.DataFrame:
             )
         return out
 
+    # Step 3: Build one row per ticker for storage in /metadata/sp400.
     rows = []
     for t in sorted(set(list(constituents.index) + list(ticker_intervals.keys()))):
         name = (
@@ -197,8 +239,6 @@ def build_unified_metadata() -> pd.DataFrame:
             else ""
         )
         intervals = ticker_intervals.get(t, [])
-        if not intervals:
-            intervals = [{"added": pd.Timestamp("2012-01-01"), "removed": pd.NaT}]
         rows.append(
             {
                 "ticker": str(t),
@@ -233,4 +273,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

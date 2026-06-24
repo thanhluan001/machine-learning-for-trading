@@ -3,6 +3,7 @@
 *.h5
 .env
 __pycache__/
+settings.json
 data/mnist/*
 data/fashion_mnist/*
 data/wiki_prices.csv

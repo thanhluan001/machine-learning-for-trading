@@ -18,6 +18,11 @@ repeatedly with ever-changing exact-match blocks. After one or two failed
 edits, write the updated file to a new path and ask the user to overwrite
 the original. Do not burn turns on brittle exact-match churn.
 
+## On Tables
+
+Always put a blank line before a markdown table. Without a preceding blank
+line, the table may not render correctly.
+
 ## On Discrepancies
 
 If you notice a data discrepancy (e.g. removed_date before added_date, suggesting
