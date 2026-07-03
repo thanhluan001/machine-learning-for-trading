@@ -2,6 +2,8 @@
 *.gz
 *.h5
 .env
+*.zip
+*.txt
 __pycache__/
 settings.json
 data/mnist/*

@@ -257,7 +257,12 @@ def store_metadata(df: pd.DataFrame):
     if df.index.name == "ticker" or "ticker" not in df.columns:
         df = df.reset_index()
     df["ticker"] = df["ticker"].astype(str)
-    df.to_hdf(DB_FILE, key=h5_path, mode="w", format="table")
+    # Append mode + drop only the metadata node; never wipe the rest of db.h5
+    # (the old `mode="w"` truncated the entire file, deleting /sp400, /macros, /earnings).
+    with pd.HDFStore(DB_FILE, mode="a") as store:
+        if h5_path in store:
+            store.remove(h5_path)
+        store.put(h5_path, df, format="table")
     print(f"Stored {len(df)} rows to {h5_path}")
 
 

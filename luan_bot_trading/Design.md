@@ -85,6 +85,7 @@
     * The `/metadata/sp400` table must store a structured **Interval Array** (list of dicts) for every ticker to fully capture stocks that exited and re-entered the index over their lifecycles.
     * *Example Structure:* `intervals = [{"added": "2014-03-15", "removed": "2018-06-20"}, {"added": "2022-09-01", "removed": "None"}]`
 * **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For all tickers whose initial `added_date` is missing from the changes table (including historically removed constituents), backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. This prevents survivorship bias by ensuring removed constituents can still contribute to training. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
+n* **SEC SIC Sector Standard:** Use the SEC EDGAR SIC classification as the authoritative sector taxonomy (stored in `/metadata/sp400_sic`). This replaces the Wikipedia GICS fields for constituents added to the index before 2012 or where Wikipedia history is incomplete, ensuring consistent sector labels across the full 15-year lookback.
 * **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 90 days (1 quarter)) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
 * **Tiingo Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
     * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local Tiingo store.
@@ -135,6 +136,8 @@
 * **The SUE Normalization Feature:** When loading data from the FMP `/earnings-surprises` endpoint, the data script must not pass raw surprise amounts to XGBoost. It must compute the Standardized Unanticipated Earnings ($SUE$) feature by dividing the surprise deviation by the rolling 4-quarter standard deviation of the asset's historical earnings surprises:
     $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{\text{Historical Surprise}}}$$
 * **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow XGBoost to learn the optimal default splitting direction during the training phase.
+
+* **Short Interest Metric Omission:** The feature `short_interest_pct_float` has been officially deprecated and removed from the active feature matrix. To maintain a strict 15-year historical data runway without lookahead data contamination, the feature engine relies entirely on the cross-sectional interaction of `SUV_day_1` (volume shocks) and `opening_gap_t1` (opening price gaps) to proxy institutional short-covering velocity and localized structural supply scarcity.fea
 
 ---
 

@@ -25,7 +25,6 @@ These features identify the execution environment, institutional presence, and p
 
 * `is_bmo` (Binary: 0 or 1): Execution timing tag. `1` if the report dropped Before Market Open. `0` if it dropped After Market Close.
 * `volume_vma20_ratio_pre_event` (Float): Trading volume on Day T relative to its rolling 20-day average. Measures pre-announcement positioning intensity.
-* `short_interest_pct_float` (Float): The percentage of the company's floating shares currently held short. Captures short-squeeze potential during the drift.
 * **`suv_day_1`** (Float): **`[ Volume(T) / mean(Volume T-20 to T-1) ]`** - the Standardized Unexpected Volume, measuring abnormal volume on the event day itself. A proxy for hidden institutional flow - **promoted to core**.
 * **`pre_event_idiosyncratic_vol`** (Float): **`std( stock_ret - IJH_ret )`** over the 20-day window `(T-20 to T-1)`. Captures the stock's risk profile after stripping out broad mid-cap market volatility - **promoted to core**.
 * **`opening_gap_t1`** (Float): **`(Open_{T+1} - Close_T) / Close_T`** - the overnight price gap after the earnings announcement. Encodes the market's first-pass surprise assessment.
@@ -35,7 +34,7 @@ These features identify the execution environment, institutional presence, and p
 ### Block 3: Multi-Horizon Market & Sector-Adjusted Technicals
 These features measure the stock's absolute and relative velocity across multiple timeframes leading into the event. Sector metrics are relative to the company's mapped GICS Sector ETF.
 
-* `rel_ret_3d` / `5d` / `10d` / `20d` / `30d` / `60d` (Float): Cumulative log returns of the stock minus the cumulative log returns of the mid-cap index proxy (`IJH`) over the respective lookback days.
+* `rel_ret_3d` / `5d` / `10d` / `20d` / `30d` (Float): Cumulative log returns of the stock minus the cumulative log returns of the mid-cap index proxy (`IJH`) over the respective lookback days.
 * `sector_adjusted_ret_20d` (Float): The stock's 20-day cumulative return minus its corresponding GICS Sector ETF return (e.g., `XLK`, `XLF`, `XLI`) over the exact same window. Isolates idiosyncratic strength from industry-wide momentum.
 
 ### Block 4: Macro Environment & Regime Filters
@@ -132,7 +131,7 @@ def build_feature_matrix(event_df, market_prices, sector_prices, macro_df):
     # 3. Block 3: Multi-Horizon Market & Sector-Adjusted Technicals
     # -----------------------------------------------------------------------
     # IJH-relative momentum at multiple lookbacks
-    horizons = [3, 5, 10, 20, 30, 60]
+    horizons = [3, 5, 10, 20, 30]
     for h in horizons:
         features[f'rel_ret_{h}d'] = (
             event_df[f'stock_ret_{h}d'] - event_df[f'ijh_ret_{h}d']
@@ -189,16 +188,15 @@ Any missing column will invalidate the DMatrix state and cause the `model.predic
 | 8 | 1 | `rev_growth_yoy` | YoY revenue change | **Must** |
 | 9 | 2 | `is_bmo` | 1 if report BMO, 0 if AMC | **Must** |
 | 10 | 2 | `volume_vma20_ratio_pre_event` | `Vol(T)` / MA20(Vol) | **Must** |
-| 11 | 2 | `short_interest_pct_float` | Short interest / float | **Must** |
 | 12 | 2 | `suv_day_1` | `Vol(T)` / trailing 20d avg | **Must** |
 | 13 | 2 | `pre_event_idiosyncratic_vol` | std(stock_ret - IJH_ret, 20d) | **Must** |
 | 14 | 2 | `opening_gap_t1` | `(Open_{T+1} - Close_T) / Close_T` | **Try** |
 | 15 | 2 | `intraday_range_t` | `(High_T - Low_T) / Close_T` | **Try** |
 | 16 | 2 | `pre_event_volume_trend` | Slope of volume T-10 to T-1 | **Try** |
-| 17 | 3 | `rel_ret_{3,5,10,20,30,60}d` | Stock log return - IJH log return | **Must** |
+| 17 | 3 | `rel_ret_{3,5,10,20,30}d` | Stock log return - IJH log return | **Must** |
 | 18 | 3 | `sector_adjusted_ret_20d` | Stock return - Sector ETF return | **Must** |
 | 19 | 4 | `vix_close` / `fed_funds_rate` / `yield_curve_spread` / `spy_momentum_20d` | Macro snapshots at T-1 | **Must** |
 | 20 | 5 | `sue_abs_x_inverse_vol` | `abs(sue_score) / pre_event_idiosyncratic_vol` - promoted to core | **Must** |
 | 21 | 5 | `sue_x_momentum_5d` / `volume_ratio_x_sue` | Cross-product interactions (remaining optional) | **Optional** |
 
-*Total base features: **24**. With optional Block 5: **26**.*
+*Total base features: **23**. With optional Block 5: **25**.*

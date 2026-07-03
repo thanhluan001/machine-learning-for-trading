@@ -34,8 +34,21 @@ END_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 TARGET_GROUP = "macros"
 
 TICKERS = [
-    "XLK", "XLF", "XLI", "XLY", "XLP", "XLV", "XLU", "XLE", "XLB", "XLRE", "XLC",
-    "IJH", "SPY", "VIXY",
+    # iShares S&P Mid-Cap 400 style ETFs -- referenced in /metadata/sp400
+    # `index_ref` via get_index_ref() in SEC_sector_gathering.py.
+    "IJH",  # S&P MidCap 400 base (default style blend)
+    "IJJ",  # S&P MidCap 400 Value
+    "IJK",  # S&P MidCap 400 Growth
+    "IJS",  # S&P SmallCap 600 Value (used for Energy bucket per SIC_code_to_index.md)
+    # Select Sector SPDRs -- the sector buckets referenced in `index_ref`.
+    "XLB",  # Materials
+    "XLF",  # Financials
+    "XLRE", # Real Estate
+    "XLU",  # Utilities
+    # Additional Select Sector SPDRs kept for breadth / cross-check
+    "XLK", "XLI", "XLY", "XLP", "XLV", "XLE", "XLC",
+    # Market / volatility benchmarks
+    "SPY", "VIXY",
 ]
 
 ADJ_COLUMNS = ["date", "adjOpen", "adjHigh", "adjLow", "adjClose", "adjVolume"]
