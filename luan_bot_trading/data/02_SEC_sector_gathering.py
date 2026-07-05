@@ -262,6 +262,11 @@ def _cache_paths_for_year(year: int, base: Path):
 
 
 def _download_and_extract_sub(year: int) -> pd.DataFrame | None:
+    """Download (with cache) and extract a DERA Q4 sub.txt for the given year.
+
+    Returns a DataFrame with columns ['cik', 'instance', 'sic'] (all strings).
+    The cached sub_{year}.txt is preferred over re-extracting the zip.
+    """
     zip_path, sub_path = _cache_paths_for_year(year, Path(__file__).parent / "sec_cache" / "dera")
     if sub_path.exists():
         try:
@@ -294,6 +299,73 @@ def _download_and_extract_sub(year: int) -> pd.DataFrame | None:
         return None
 
 
+def _normalize_sub_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a 'ticker' column derived from the 'instance' field (format:
+    '{ticker}-{period}.xml'). CIK is zero-padded to 10 digits.
+    """
+    df = df.dropna(subset=["instance", "cik"])
+    df["ticker"] = (
+        df["instance"]
+        .astype(str)
+        .str.split("-")
+        .str[0]
+        .str.upper()
+        .str.strip()
+    )
+    df["cik"] = df["cik"].astype(str).str.zfill(10)
+    return df
+
+
+def build_ticker_to_cik_history() -> dict:
+    """Build a historical ticker -> CIK map by unioning two SEC sources:
+
+      1. Current `sec_cache/ticker.txt` (active SEC registrants)
+      2. All cached DERA `sec_cache/dera/sub_{year}.txt` snapshots, where the
+         ticker is extracted from the `instance` column's leading token
+         (format ``{ticker}-{period}.xml``).
+
+    Only already-cached DERA snapshots are read; this function does NOT trigger
+    new DERA downloads (those are driven by `build_historical_sic_map`). If a
+    year is not yet downloaded, it is simply skipped here.
+
+    Returns:
+        dict[str, str]: mapping of normalized UPPERCASE ticker -> 10-digit CIK.
+    """
+    mapping: dict[str, str] = {}
+
+    # Source 1: current active SEC registrant ticker.txt
+    try:
+        active_map = fetch_sec_ticker_map()
+        for t, cik in active_map.items():
+            mapping[t.upper().strip()] = str(cik).zfill(10)
+    except Exception as e:
+        print(f"  [build_ticker_to_cik_history] active ticker.txt failed: {e}")
+
+    # Source 2: cached DERA sub_{year}.txt snapshots (no download here)
+    dera_dir = Path(__file__).parent / "sec_cache" / "dera"
+    if dera_dir.exists():
+        sub_files = sorted(dera_dir.glob("sub_*.txt"))
+        for sub_path in sub_files:
+            try:
+                df = pd.read_csv(sub_path, sep="\t", dtype=str, usecols=["cik", "instance", "sic"])
+            except Exception as e:
+                print(f"  [build_ticker_to_cik_history] skip {sub_path.name}: {e}")
+                continue
+            df = _normalize_sub_df(df)
+            for ticker, cik in zip(df["ticker"].values, df["cik"].values):
+                if not isinstance(ticker, str) or not ticker:
+                    continue
+                t = ticker.upper().strip()
+                if t and t not in mapping:
+                    mapping[t] = str(cik).zfill(10)
+        print(f"  [build_ticker_to_cik_history] merged {len(sub_files)} DERA snapshots "
+              f"-> {len(mapping)} total ticker->CIK entries")
+    else:
+        print(f"  [build_ticker_to_cik_history] no DERA cache dir at {dera_dir}")
+
+    return mapping
+
+
 def build_historical_sic_map(target_tickers: list[str], meta_df: pd.DataFrame, years: list[int] | None = None) -> dict:
     """Build ticker -> {cik, sic} from historical SEC DERA snapshots.
     Uses the latest active year from metadata intervals to order lookups.
@@ -323,23 +395,15 @@ def build_historical_sic_map(target_tickers: list[str], meta_df: pd.DataFrame, y
     for year in needed_years:
         year_to_df[year] = _download_and_extract_sub(year)
 
-    # Normalize each loaded snapshot: derive ticker from the instance column, clean it.
-    # The 'instance' field has the format "{ticker}-{period}.xml" (e.g. "logi-20100930.xml"),
-    # so the leading token (split on '-') is the historical ticker used by the company.
+    # Normalize each loaded snapshot: derive ticker from the instance column (via
+    # the shared helper). The 'instance' field has the format
+    # "{ticker}-{period}.xml" (e.g. "logi-20100930.xml"), so the leading token
+    # (split on '-') is the historical ticker used by the company.
     for year, df in year_to_df.items():
         if df is None:
             continue
-        df = df.dropna(subset=["instance", "cik"])
-        df["ticker"] = (
-            df["instance"]
-            .astype(str)
-            .str.split("-")
-            .str[0]
-            .str.upper()
-            .str.strip()
-        )
+        df = _normalize_sub_df(df)
         df["ticker_clean"] = df["ticker"].str.replace(r"[-._/]", "-", regex=True)
-        df["cik"] = df["cik"].astype(str).str.zfill(10)
         year_to_df[year] = df
 
     cleaned_targets = {t.upper().strip().replace(".", "-"): t for t in target_tickers}
