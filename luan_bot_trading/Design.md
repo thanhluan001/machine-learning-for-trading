@@ -85,11 +85,29 @@
     * The `/metadata/sp400` table must store a structured **Interval Array** (list of dicts) for every ticker to fully capture stocks that exited and re-entered the index over their lifecycles.
     * *Example Structure:* `intervals = [{"added": "2014-03-15", "removed": "2018-06-20"}, {"added": "2022-09-01", "removed": "None"}]`
 * **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For all tickers whose initial `added_date` is missing from the changes table (including historically removed constituents), backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. This prevents survivorship bias by ensuring removed constituents can still contribute to training. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
-n* **SEC SIC Sector Standard:** Use the SEC EDGAR SIC classification as the authoritative sector taxonomy (stored in `/metadata/sp400_sic`). This replaces the Wikipedia GICS fields for constituents added to the index before 2012 or where Wikipedia history is incomplete, ensuring consistent sector labels across the full 15-year lookback.
-* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 90 days (1 quarter)) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
+* **SEC SIC Sector Standard:** Use the SEC EDGAR SIC classification as the authoritative sector taxonomy (stored in `/metadata/sp400` as `sic` and `index_ref` columns, replacing the old `/metadata/sp400_sic`). This replaces the Wikipedia GICS fields for constituents added to the index before 2012 or where Wikipedia history is incomplete, ensuring consistent sector labels across the full 15-year lookback.
+* **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 90$ days (1 quarter) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
 * **Tiingo Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
     * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local Tiingo store.
     * The exact date where the daily adjusted close and trading volume flatlines or permanently ceases to print is the definitive `removed_date` for that interval block.
+
+## 9b. Company-Level Merge & Canonical Ticker Layer (NEW)
+
+The feature matrix has **one row per earnings event** (not per ticker symbol; each company contributes many rows over its S&P 400 membership window). Companies change ticker symbols over time (rebrands, mergers, bankruptcy-Q suffixes) while staying continuously in the index. Treating each ticker symbol as a separate company fragments price history, drops pre-rebrand earnings events, and creates phantom "still in the index" rows.
+
+* **Canonical Anchor: SEC CIK.** CIK is the stable company identifier that survives renames, rebrands, bankruptcy-Q suffix delistings, and delistings. All ticker aliases of the same company map to the same CIK.
+    * Build the historical `ticker -> CIK` map by unioning (a) current `sec_cache/ticker.txt` and (b) cached DERA `sub_{year}.txt` snapshots, where ticker is extracted from the `instance` column's leading token.
+    * Spinoffs create new CIKs and are treated as new companies in v1 (intentional scope cut).
+    * Tickers with no recoverable CIK become singletons (canonical = self).
+* **Pipeline Step:** A new `02b_build_company_map.py` runs after `02_SEC_sector_gathering.py` and before `03_data_gathering.py`. See `company_merge_design.md` for full spec.
+* **Outputs in `db.h5`:**
+    * `/metadata/sp400` is extended with `cik` and `canonical_ticker` columns (per-ticker view retained; each alias points to the canonical).
+    * New `/metadata/sp400_companies` table: one row per company (CIK), with columns `canonical_ticker`, `cik`, `aliases` (JSON), `name`, `sic`, `index_ref`, `combined_intervals` (JSON merged span), `per_ticker_intervals` (JSON audit), `price_unavailable` (bool).
+* **Canonical Selection Priority:** (1) ticker in current `ticker.txt` AND verified on Tiingo; (2) else, ticker with most-recent `removed` date AND verified on Tiingo; (3) else, most-recently-added ticker regardless of Tiingo (flagged `price_unavailable=True`).
+* **Interval Merge:** For each company, collect all aliases' intervals, sort by `added`, merge overlapping or abutting (gap $\le 7$ days) spans. Real gaps (>7 days) kept as separate spans. Result is a single membership span per company, usually 1 span.
+* **Data Fetcher (`03_data_gathering.py`):** Iterates per company (not per ticker). Tries `aliases` in priority order on Tiingo; first non-empty response stored under `/sp400/{canonical_ticker}`. Companies with `price_unavailable=True` are skipped entirely with a log line (v1 keeps it simple; revisit if many pile up). The checkpoint `stock_offset.txt` advances per company and is reset to 0 when the new per-company iteration model goes live.
+* **Earnings Alignment:** The feature builder reads `/metadata/sp400_companies`, gathers **all earnings dates** stored under any alias in `/earnings/calendar`, and collapses them into one company-level earnings timeline. The canonical ticker's `/sp400/{canonical}` price series (which Tiingo retro-adjusts across rebrands so it spans the alias periods) is used for all feature calculations, including pre-rebrand earnings events. Combined intervals gate each event with the 90-day exclusion buffer.
+* **Result:** One company in `/metadata/sp400_companies` $\rightarrow$ many earnings events $\rightarrow$ many feature rows in the final matrix.
 
 ---
 

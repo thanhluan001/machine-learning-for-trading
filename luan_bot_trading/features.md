@@ -2,6 +2,8 @@
 
 This document outlines the strict feature schema for training and Sunday inference pipelines.
 
+**Feature Row Granularity (Company / CIK Level):** Each row of the feature matrix corresponds to **one earnings event** of one company. A company (identified by its SEC CIK — see `Design.md` §9b and `company_merge_design.md`) contributes many rows over its S&P 400 membership window, one per earnings announcement. Ticker renames/rebrands are collapsed via `/metadata/sp400_companies`: the feature builder gathers all earnings dates stored under **any alias** of a company in `/earnings/calendar`, aligns them onto the **canonical ticker's** price series (`/sp400/{canonical_ticker}`, which Tiingo retro-adjusts across rebrands), and gates each event with the merged `combined_intervals` membership span (plus the 90-day rebalance buffer). Pre-rebrand earnings events are recoverable because the canonical price series already spans the alias periods.
+
 **Important:** The **3-year rolling eligibility window** means that when constructing a training example for an event in 2024-Q2, you may only use historical data back to 2021-Q2. This is a **data availability constraint** (to avoid regime-contaminated old data), **not** a feature lookback. Most features use only the most recent quarter or a short trailing window within that 3-year boundary.
 
 ---
@@ -75,10 +77,14 @@ def build_feature_matrix(event_df, market_prices, sector_prices, macro_df):
     Enforces a strict historical feature construction format.
     
     Args:
-        event_df (pd.DataFrame):            Columns include ['Date', 'ticker',
+        event_df (pd.DataFrame):            Columns include ['Date', 'canonical_ticker',
                                              'sue_score', 'eps_surprise_pct', 
                                              'consecutive_surprises', 'rev_growth_yoy',
                                              'is_bmo', 'vol_ratio_t0', ...]
+                                             where 'canonical_ticker' is the CIK-merged
+                                             company ticker from /metadata/sp400_companies.
+                                             Per-event row is keyed by (canonical_ticker, Date);
+                                             a single company has many rows (one per earnings event).
         market_prices (pd.DataFrame):       IJH daily OHLCV for all dates in scope.
         sector_prices (dict[str, pd.DF]):   Mapping of GICS Sector ETF ticker to 
                                              daily OHLCV.
@@ -97,17 +103,19 @@ def build_feature_matrix(event_df, market_prices, sector_prices, macro_df):
     features['eps_surprise_pct']       = event_df['eps_surprise_pct']
     features['consecutive_surprises']  = event_df['consecutive_surprises']
 
-    # SUE Acceleration: Q-on-Q change (use .shift() within grouped ticker)
+    # SUE Acceleration: Q-on-Q change. Group by canonical_ticker (CIK-merged
+    # company) so that rebrands/aliases within the same company do not break
+    # the consecutive-quarter timeline.
     features['sue_acceleration'] = (
-        event_df.groupby('ticker')['sue_score'].diff().values
+        event_df.groupby('canonical_ticker')['sue_score'].diff().values
     )
 
     # SUE lag features (lagged by 1 and 2 quarters)
-    features['sue_lag_1'] = event_df.groupby('ticker')['sue_score'].shift(1)
-    features['sue_lag_2'] = event_df.groupby('ticker')['sue_score'].shift(2)
+    features['sue_lag_1'] = event_df.groupby('canonical_ticker')['sue_score'].shift(1)
+    features['sue_lag_2'] = event_df.groupby('canonical_ticker')['sue_score'].shift(2)
 
     # Historical PEAD signature (previous quarter's actual CAR)
-    features['car_drift_historical_q1'] = event_df.groupby('ticker')['car'].shift(1)
+    features['car_drift_historical_q1'] = event_df.groupby('canonical_ticker')['car'].shift(1)
 
     # -----------------------------------------------------------------------
     # 2. Block 2: Microstructure & Technical Context

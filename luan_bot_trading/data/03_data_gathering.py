@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-Data Gathering - S&P 400 Mid-Cap Universe
-==========================================
+Data Gathering - S&P 400 Mid-Cap Universe (Historical)
+=======================================================
+
+Fetches full Tiingo adjusted OHLCV history for every ticker that has ever
+been a constituent of the S&P 400 (current + removed), per /metadata/sp400
+in db.h5. This avoids survivorship bias by including delisted/removed names.
 
 Rules:
-    - New ticker or gap >= 14 days: Fetch full history from Tiingo
-    - Gap < 14 days: Use yfinance for the gap
-    - When using Tiingo, always fetch full history (not partial date range)
+    - Always fetch full history from Tiingo (no partial-range logic).
+    - Uses adjusted close for split/dividend consistency.
+    - Splits universe equally across batches via stock_offset.txt checkpoint.
 
 Tiingo free tier: 50 requests/hour, 1000 requests/day, ~30 years history.
 
@@ -15,7 +19,6 @@ Usage:
 """
 
 import argparse
-import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,13 +26,6 @@ from pathlib import Path
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-
-yfinance = None
-try:
-    import yfinance as yf
-    yfinance = yf
-except ImportError:
-    pass
 
 import os
 
@@ -43,9 +39,8 @@ if not TIINGO_API_KEY:
     raise ValueError("TIINGO_API_KEY not found. Please check your .env file.")
 
 DB_FILE = Path(__file__).parent / "db.h5"
-TICKER_CACHE = Path(__file__).parent / "sp400_tickers.json"
 OFFSET_FILE = Path(__file__).parent / "stock_offset.txt"
-WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
+METADATA_KEY = "/metadata/sp400"
 
 HISTORY_YEARS = 15
 START_DATE = (datetime.now() - timedelta(days=HISTORY_YEARS * 365)).strftime("%Y-%m-%d")
@@ -53,11 +48,6 @@ END_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 H5_GROUP = "sp400"
 BATCH_SIZE = 45
-WEEK_GAP_DAYS = 14
-
-# Market benchmark: iShares Core S&P Mid-Cap ETF
-IJH_TICKER = "IJH"
-MACRO_GROUP = "macros"
 
 ADJ_COLUMNS = [
     "date", "adjOpen", "adjHigh", "adjLow", "adjClose", "adjVolume",
@@ -85,69 +75,23 @@ def save_offset(offset: int):
 
 
 # ==============================================================================
-# PART 2: RETRIEVE S&P 400 MID-CAP TICKERS
+# PART 2: TICKER UNIVERSE FROM /metadata/sp400
 # ==============================================================================
 
-def get_sp400_tickers(force_refresh: bool = False) -> list:
-    REFRESH_DAYS = 75
-
-    if not force_refresh and TICKER_CACHE.exists():
-        cache_age_days = (
-            datetime.now() - datetime.fromtimestamp(TICKER_CACHE.stat().st_mtime)
-        ).days
-        if cache_age_days < REFRESH_DAYS:
-            print(f"[INFO] Using cached S&P 400 tickers (age: {cache_age_days} days).")
-            with open(TICKER_CACHE) as f:
-                return json.load(f)
-        else:
-            print(f"[INFO] Cache is {cache_age_days} days old. Refreshing...")
-
-    print("[INFO] Fetching S&P 400 Mid-Cap constituents from Wikipedia...")
-    resp = requests.get(WIKI_URL, headers={'User-Agent': 'Mozilla/5.0'})
-    resp.raise_for_status()
-    tables = pd.read_html(resp.content)
-    df = tables[0]
-    df.columns = [c.strip().replace(' ', '_') for c in df.columns]
-
-    tickers = df['Symbol'].tolist()
-    print(f"      Retrieved {len(tickers)} tickers.")
-
-    with open(TICKER_CACHE, 'w') as f:
-        json.dump(tickers, f, indent=2)
-
+def get_all_tickers() -> list:
+    """Return the full historical S&P 400 universe (current + removed) from
+    /metadata/sp400 in db.h5. Includes survivorship-bias-safe removed names.
+    """
+    meta_df = pd.read_hdf(DB_FILE, key=METADATA_KEY)
+    if "ticker" not in meta_df.columns:
+        meta_df = meta_df.reset_index()
+    tickers = meta_df["ticker"].astype(str).tolist()
     return tickers
 
 
 # ==============================================================================
 # PART 3: DATA FETCHERS
 # ==============================================================================
-
-def fetch_from_yfinance(ticker: str, start: str, end: str) -> pd.DataFrame:
-    if yfinance is None:
-        return pd.DataFrame()
-
-    try:
-        stock = yf.Ticker(ticker)
-        end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
-        df = stock.history(start=start, end=end_dt.strftime("%Y-%m-%d"))
-
-        if df.empty:
-            return pd.DataFrame()
-
-        df = df.reset_index()
-        df.columns = [c.replace(' ', '_') for c in df.columns]
-
-        # Ensure timezone-naive
-        try:
-            df['Date'] = df['Date'].dt.tz_localize(None)
-        except TypeError:
-            pass  # Already timezone-naive
-
-        return df[["Date", "Open", "High", "Low", "Close", "Volume"]]
-    except Exception as e:
-        print(f"      yfinance fetch failed for {ticker}: {e}")
-        return pd.DataFrame()
-
 
 def fetch_from_tiingo(ticker: str, start: str, end: str) -> pd.DataFrame:
     url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices"
@@ -213,10 +157,8 @@ def get_latest_date(ticker: str, group: str = H5_GROUP) -> pd.Timestamp:
 
 def update_ticker(ticker: str, group: str = H5_GROUP):
     """
-    Update rules:
-        - New DB or new ticker: fetch full history from Tiingo
-        - Gap < 14 days: use yfinance for gap
-        - Gap >= 14 days: fetch full history from Tiingo
+    Always fetch full history from Tiingo, regardless of gap size.
+    Tiingo is the sole data source (no yfinance fallback).
     """
 
     # Case 1: No database exists yet
@@ -238,27 +180,11 @@ def update_ticker(ticker: str, group: str = H5_GROUP):
 
     # Case 3: Existing ticker - check gap
     latest_date = get_latest_date(ticker, group=group)
-    latest_date_str = latest_date.strftime("%Y-%m-%d")
-    next_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    if next_date > END_DATE:
+    if latest_date.strftime("%Y-%m-%d") >= END_DATE:
         print(f"  {ticker}: Up to date.")
         return
 
     gap = (datetime.strptime(END_DATE, "%Y-%m-%d") - latest_date).days
-
-    # Small gap: use yfinance
-    if gap < WEEK_GAP_DAYS:
-        print(f"  {ticker}: Gap {gap} days. Filling with yfinance...")
-        yf_data = fetch_from_yfinance(ticker, next_date, END_DATE)
-        if not yf_data.empty:
-            store_data(ticker, yf_data, group=group)
-            print(f"      yfinance: {len(yf_data)} rows")
-            return
-        else:
-            print(f"  {ticker}: yfinance failed. Falling back to Tiingo.")
-
-    # Large gap or yfinance failed: fetch full history from Tiingo
     print(f"  {ticker}: Fetching full history from Tiingo (gap={gap}d)...")
     data = fetch_from_tiingo(ticker, START_DATE, END_DATE)
     if not data.empty:
@@ -276,11 +202,10 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  DATA GATHERING - S&P 400 Mid-Cap Universe")
+    print("  DATA GATHERING - S&P 400 Historical Universe")
     print("=" * 60)
     print(f"  History:  {HISTORY_YEARS} years")
-    print(f"  Sources:  yfinance (gap < {WEEK_GAP_DAYS} days), Tiingo (full history)")
-    print(f"  Market:   {IJH_TICKER} (fetched each run)")
+    print(f"  Source:   Tiingo (full history)")
     print(f"  Batch:    {BATCH_SIZE} tickers per run")
     print("=" * 60)
 
@@ -288,16 +213,9 @@ def main():
         print("[INFO] --reset-offset specified.")
         save_offset(0)
 
-    # Update market benchmark (IJH) using same yfinance/Tiingo logic
-    print(f"\n[INFO] Updating market benchmark {IJH_TICKER}...")
-    try:
-        update_ticker(IJH_TICKER, group=MACRO_GROUP)
-    except Exception as e:
-        print(f"  [ERROR] Failed to update {IJH_TICKER}: {e}")
-
-    all_tickers = get_sp400_tickers()
+    all_tickers = get_all_tickers()
     n_total = len(all_tickers)
-    print(f"\n[INFO] Universe: {n_total} tickers")
+    print(f"\n[INFO] Universe: {n_total} tickers (from {METADATA_KEY})")
 
     offset = get_offset()
     print(f"[INFO] Current offset: {offset}")
@@ -332,7 +250,7 @@ def main():
 
     print("\n" + "=" * 60)
     print(f"  Done. Database: {DB_FILE}")
-    print(f"  Load ETF with:  pd.read_hdf('db.h5', 'macros/IJH')")
+    print(f"  Load ticker with: pd.read_hdf('db.h5', 'sp400/{all_tickers[0]}')")
     print("=" * 60)
 
 
