@@ -13,7 +13,7 @@ import pandas as pd
 from fredapi import Fred
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "db.h5"

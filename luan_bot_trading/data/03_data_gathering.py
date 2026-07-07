@@ -1,28 +1,55 @@
 #!/usr/bin/env python3
 """
-Data Gathering - S&P 400 Mid-Cap Universe (Company-Level, Tiingo-only)
+Data Gathering - S&P 400 Mid-Cap Universe (Company-Level, EODHD)
 =======================================================================
 
-Fetches full Tiingo adjusted OHLCV history for every company that has ever
+Fetches full EODHD adjusted OHLCV history for every company that has ever
 been a constituent of the S&P 400 (current + removed), per
-/metadata/sp400_companies in db.h5. This avoids survivorship bias by including
-delisted/removed names AND correctly handles ticker renames by anchoring on
-the company-level canonical ticker (built by 02b_build_company_map.py).
+/metadata/sp400_companies in db.h5. This avoids survivorship bias by
+including delisted/removed names AND correctly handles ticker renames by
+anchoring on the company-level canonical ticker (built by
+02b_build_company_map.py).
 
 Rules:
     - Iterate per **company** (not per ticker).
-    - For each company, try the canonical ticker first, then the other aliases
-      in priority order, on Tiingo. The first non-empty response is stored
-      under /sp400/{canonical_ticker}; aliases are not stored individually.
-    - Companies flagged `price_unavailable=True` are skipped + logged (no empty
-      placeholder node is created).
-    - Always fetch full history from Tiingo (no partial-range logic).
-    - Uses adjusted close for split/dividend consistency.
+    - For each company, try the canonical ticker first (as {ticker}.US on
+      EODHD), then the other aliases in priority order. The first non-empty
+      response is stored under /sp400/{canonical_ticker}; aliases are not
+      stored individually.
+    - Companies flagged `price_unavailable=True` are skipped + logged
+      (no empty placeholder node is created).
+    - Always fetch full 15-year history (no partial-range logic).
 
-Tiingo free tier: 50 requests/hour, 1000 requests/day, ~30 years history.
+EODHD schema adaptation
+------------------------
+EODHD's /api/eod/{TICKER}.US endpoint returns rows shaped:
+    {date, open, high, low, close, adjusted_close, volume}
+
+It does NOT expose adj_open / adj_high / adj_low / adj_volume directly. We
+derive all four locally via the close/adjusted_close ratio, which encodes the
+cumulative split + dividend reinvestment factor. This is exactly how Tiingo
+computes `adjVolume` (same convention). Validated empirically in
+`validate_eodhd_adjclose.py` (7/7 probe tickers PASS -- EODHD
+`close/adj_close` is internally consistent with `/api/splits/`).
+
+Local derivation (per row):
+    adj_factor  = close / adjusted_close   # cumulative split+div factor
+    adj_open    = open    / adj_factor     # = open    * adjusted_close / close
+    adj_high    = high    / adj_factor
+    adj_low     = low     / adj_factor
+    adj_close   = adjusted_close
+    adj_volume  = volume  * adj_factor      # split+dividend adjusted
+
+Storage columns (matches prior Tiingo-era output for downstream feature
+builder compatibility):
+    Date, Open, High, Low, Close, Volume,            # raw
+    Adj_Open, Adj_High, Adj_Low, Adj_Close, Adj_Volume
+
+EODHD subscription: 1000 req/min, 100000 req/day. Per-ticker cost = 1 call.
+Full backfill of ~962 companies takes ~16 minutes single invocation.
 
 Usage:
-    python 03_data_gathering.py [--reset-offset]
+    python 03_data_gathering.py [--reset-offset] [--batch N]
 """
 
 import argparse
@@ -43,9 +70,13 @@ import os
 
 # Explicit .env path so the script works regardless of CWD (matches 02b).
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
-TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
-if not TIINGO_API_KEY:
-    raise ValueError("TIINGO_API_KEY not found. Please check your .env file.")
+EODHD_API_KEY = os.getenv("EODHD_API_KEY")
+if not EODHD_API_KEY:
+    raise ValueError(
+        "EODHD_API_KEY not found in .env. The new 03 fetches price history "
+        "from EODHD (replacing Tiingo) for schema/stability alignment with the "
+        "earnings pipeline and a 1000x speed-up on full backfill."
+    )
 
 DB_FILE = Path(__file__).parent / "db.h5"
 OFFSET_FILE = Path(__file__).parent / "stock_offset.txt"
@@ -56,12 +87,22 @@ START_DATE = (datetime.now() - timedelta(days=HISTORY_YEARS * 365)).strftime("%Y
 END_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 H5_GROUP = "sp400"
-BATCH_SIZE = 45
+# EODHD: 1000/min ~= 16/sec. 0.05s sleep keeps us comfortably under that.
+EODHD_INTER_CALL_DELAY = 0.05
+# Batch size larger than before since EODHD limit is 1000/min vs Tiingo's 50/hr.
+# Default 500 per run still finishes ~25 sec of clock-time, capped by 0.05s sleep
+# at ~20 req/sec, so ~25 sec per 500 tickers.
+DEFAULT_BATCH_SIZE = 500
 
-ADJ_COLUMNS = [
-    "date", "adjOpen", "adjHigh", "adjLow", "adjClose", "adjVolume",
+# Output column order matches the prior Tiingo-era storage so downstream
+# feature builder / discovery notebooks can read /sp400/{TICKER} unchanged.
+# EODHD returns raw OHLC + adjusted_close + raw volume only; we derive the
+# 4 adjusted columns locally (validated by validate_eodhd_adjclose.py).
+OUTPUT_COLUMNS = [
+    "Date",
+    "Open", "High", "Low", "Close", "Volume",
+    "Adj_Open", "Adj_High", "Adj_Low", "Adj_Close", "Adj_Volume",
 ]
-OUTPUT_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
 
 
 # ==============================================================================
@@ -134,51 +175,101 @@ def get_all_companies() -> list[dict]:
 
 
 # ==============================================================================
-# PART 3: DATA FETCHER
+# PART 3: DATA FETCHER (EODHD)
 # ==============================================================================
 
-def fetch_from_tiingo(ticker: str, start: str, end: str) -> pd.DataFrame:
-    url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices"
-    params = {
-        "startDate": start,
-        "endDate": end,
-        "token": TIINGO_API_KEY
-    }
-    headers = {"Content-Type": "application/json"}
+def fetch_from_eodhd(ticker: str, start: str, end: str) -> pd.DataFrame:
+    """Fetch EOD daily rows from EODHD and derive adjusted OHLC+Volume locally.
 
+    EODHD returns: {date, open, high, low, close, adjusted_close, volume}
+    We compute:    {Date, Open..Volume (raw), Adj_Open..Adj_Volume (derived)}
+
+    Returns an empty DataFrame if EODHD responds with no rows / errors --
+    the caller iterates to the next alias.
+    """
+    url = f"https://eodhd.com/api/eod/{ticker}.US"
+    params = {
+        "from": start,
+        "to": end,
+        "api_token": EODHD_API_KEY,
+        "fmt": "json",
+        "period": "d",
+    }
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        # Don't log here at high verbosity; callers decide based on whether any
-        # alias succeeded.
+        response = requests.get(url, params=params, timeout=60)
+    except Exception:
         return pd.DataFrame()
 
-    if not data:
+    if response.status_code != 200:
+        # 404 (ticker not found), 4xx (bad request), 5xx (server) -- try next alias
+        return pd.DataFrame()
+
+    try:
+        data = response.json()
+    except Exception:
+        return pd.DataFrame()
+
+    if not isinstance(data, list) or not data:
         return pd.DataFrame()
 
     df = pd.DataFrame(data)
-    df["date"] = pd.to_datetime(df["date"])
-    df_clean = df[ADJ_COLUMNS].copy()
-    df_clean.columns = OUTPUT_COLUMNS
+    # EODHD guarantees date + open + high + low + close + adjusted_close + volume columns
+    for col in ("open", "high", "low", "close", "adjusted_close", "volume"):
+        if col not in df.columns:
+            return pd.DataFrame()
+    df["date"] = pd.to_datetime(df["date"])  # already 'YYYY-MM-DD' strings
 
-    # Ensure timezone-naive
+    # Build the local-derivation rows.
+    df_clean = pd.DataFrame()
+    df_clean["Date"] = df["date"]
+    df_clean["Open"]  = df["open"].astype(float)
+    df_clean["High"]  = df["high"].astype(float)
+    df_clean["Low"]   = df["low"].astype(float)
+    df_clean["Close"] = df["close"].astype(float)
+    df_clean["Volume"] = df["volume"].astype(float)
+
+    # Per-row split+dividend adjustment factor (validated by validate_eodhd_adjclose.py)
+    # adj_factor = close / adjusted_close
+    #   pre-split / pre-dividend rows: factor > 1 (raw is larger than adjusted)
+    #   post-adjustment rows: factor ~= 1
+    # Guard against zero / NaN adjusted_close to avoid div-by-zero corruption.
+    adj_close = df["adjusted_close"].astype(float)
+    adj_close_safe = adj_close.where(adj_close > 0)
+    df_clean["adj_factor"] = (df_clean["Close"] / adj_close_safe).astype(float)
+
+    # Adjusted OHLC (price) -- divide by adj_factor (= multiply by adj_close/close)
+    df_clean["Adj_Open"]   = df_clean["Open"]   / df_clean["adj_factor"]
+    df_clean["Adj_High"]   = df_clean["High"]   / df_clean["adj_factor"]
+    df_clean["Adj_Low"]    = df_clean["Low"]    / df_clean["adj_factor"]
+    df_clean["Adj_Close"]  = adj_close
+
+    # Adjusted Volume -- multiply by adj_factor (= volume * close / adj_close)
+    df_clean["Adj_Volume"] = df_clean["Volume"] * df_clean["adj_factor"]
+
+    # Drop the intermediate column so final storage matches OUTPUT_COLUMNS
+    df_clean = df_clean[OUTPUT_COLUMNS]
+
+    # Ensure timezone-naive (EODHD dates are calendar days already, no tz)
     if df_clean["Date"].dt.tz is not None:
         df_clean["Date"] = df_clean["Date"].dt.tz_localize(None)
+
+    # Drop rows with NaN in critical adjusted columns (shouldn't happen but
+    # defensive: catches any row with adj_close=0 from EODHD's response).
+    df_clean = df_clean.dropna(subset=["Adj_Close", "Adj_Volume"]).reset_index(drop=True)
 
     return df_clean
 
 
-def fetch_first_alias_from_tiingo(aliases: list[str]) -> tuple[str | None, pd.DataFrame]:
+def fetch_first_alias_from_eodhd(aliases: list[str]) -> tuple[str | None, pd.DataFrame]:
     """Try each alias in priority order; return (alias_used, df) of the first
     non-empty response. If none succeed, return (None, empty df).
     """
     for alias in aliases:
-        data = fetch_from_tiingo(alias, START_DATE, END_DATE)
+        data = fetch_from_eodhd(alias, START_DATE, END_DATE)
         if not data.empty:
             return alias, data
-        # 404 / network error -> try next alias
+        # 404 / empty / network error -> try next alias
+        time.sleep(EODHD_INTER_CALL_DELAY)
     return None, pd.DataFrame()
 
 
@@ -216,21 +307,22 @@ def get_latest_date(canonical_ticker: str, group: str = H5_GROUP) -> pd.Timestam
 # ==============================================================================
 
 def update_company(company: dict, group: str = H5_GROUP):
-    """Fetch + store full Tiingo history for one company (canonical)
+    """Fetch + store full EODHD history for one company (canonical)
     using alias fallback. See module docstring for rules.
     """
     canonical = company["canonical_ticker"]
     aliases = company["aliases"] or [canonical]
 
-    # Skip companies with no Tiingo-available alias (per Design 9b / company_merge_design.md)
+    # Skip companies flagged as having no EODHD-available price data
+    # (per Design 9b / company_merge_design.md)
     if company.get("price_unavailable"):
         print(f"  {canonical}: SKIP (price_unavailable=True). aliases={aliases}")
         return
 
-    # Case 1: No database exists yet
+    # Case 1: No database exists yet -- create it (safe: DB_FILE does not exist)
     if not DB_FILE.exists():
         print(f"  {canonical}: Initial fetch (aliases: {aliases})...")
-        alias_used, data = fetch_first_alias_from_tiingo(aliases)
+        alias_used, data = fetch_first_alias_from_eodhd(aliases)
         if not data.empty:
             with pd.HDFStore(DB_FILE, mode="w") as store:
                 store.put(f"/{group}/{canonical}", data, format='table', data_columns=["Date"])
@@ -242,7 +334,7 @@ def update_company(company: dict, group: str = H5_GROUP):
     # Case 2: New company not yet stored
     if not canonical_exists(canonical, group=group):
         print(f"  {canonical}: New company. Fetching (aliases: {aliases})...")
-        alias_used, data = fetch_first_alias_from_tiingo(aliases)
+        alias_used, data = fetch_first_alias_from_eodhd(aliases)
         if not data.empty:
             store_data(canonical, data, group=group)
             print(f"      Stored {len(data)} rows via {alias_used}")
@@ -258,7 +350,7 @@ def update_company(company: dict, group: str = H5_GROUP):
 
     gap = (datetime.strptime(END_DATE, "%Y-%m-%d") - latest_date).days
     print(f"  {canonical}: Refetch full history (gap={gap}d, aliases: {aliases})...")
-    alias_used, data = fetch_first_alias_from_tiingo(aliases)
+    alias_used, data = fetch_first_alias_from_eodhd(aliases)
     if not data.empty:
         store_data(canonical, data, group=group)
         print(f"      Stored {len(data)} rows via {alias_used}")
@@ -269,16 +361,19 @@ def update_company(company: dict, group: str = H5_GROUP):
 # ==============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Fetch S&P 400 Mid-Cap price data (per company)")
+    parser = argparse.ArgumentParser(description="Fetch S&P 400 Mid-Cap price data (per company, EODHD)")
     parser.add_argument("--reset-offset", action="store_true", help="Reset to beginning")
+    parser.add_argument("--batch", type=int, default=DEFAULT_BATCH_SIZE, help="Companies per run")
     args = parser.parse_args()
+    batch_size = args.batch
 
     print("=" * 60)
-    print("  DATA GATHERING - S&P 400 Historical Universe (per-COMPANY)")
+    print("  DATA GATHERING - S&P 400 Historical Universe (per-COMPANY, EODHD)")
     print("=" * 60)
-    print(f"  History:  {HISTORY_YEARS} years")
-    print(f"  Source:   Tiingo (full history, alias fallback)")
-    print(f"  Batch:    {BATCH_SIZE} companies per run")
+    print(f"  History:  {HISTORY_YEARS} years ({START_DATE} .. {END_DATE})")
+    print(f"  Source:   EODHD /api/eod (full history, alias fallback)")
+    print(f"  Throttle: {EODHD_INTER_CALL_DELAY}s between calls (limit 1000/min)")
+    print(f"  Batch:    {batch_size} companies per run")
     print("=" * 60)
 
     if args.reset_offset:
@@ -296,11 +391,11 @@ def main():
         print("[INFO] All companies processed. Wrapping to start.")
         offset = 0
 
-    end_idx = min(offset + BATCH_SIZE, n_total)
+    end_idx = min(offset + batch_size, n_total)
     batch = companies[offset:end_idx]
 
-    if end_idx == n_total and len(batch) < BATCH_SIZE:
-        remaining = BATCH_SIZE - len(batch)
+    if end_idx == n_total and len(batch) < batch_size:
+        remaining = batch_size - len(batch)
         batch += companies[:remaining]
         end_idx = remaining
 
@@ -314,7 +409,7 @@ def main():
 
         if (i + 1) % 10 == 0 or (i + 1) == len(batch):
             print(f"      Progress: {i + 1}/{len(batch)}")
-        time.sleep(1)
+        time.sleep(EODHD_INTER_CALL_DELAY)
 
     new_offset = end_idx if end_idx < n_total else 0
     save_offset(new_offset)

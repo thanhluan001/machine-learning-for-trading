@@ -16,6 +16,44 @@ DB_FILE = Path(__file__).parent / "db.h5"
 WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
 
 
+def _split_slash_ticker(cell: str) -> list[str]:
+    """Split a magnet ticker table cell into one or more ticker symbols.
+
+    Wikipedia's S&P 400 pages sometimes pack two tickers into a single cell
+    separated by '/'. The most prominent case is Under Armour's dual-class
+    shares, written as 'UA/UAA' on the changes table and 'UAA/UA' elsewhere.
+    Both refer to a single company with two tradeable ticker symbols; for our
+    per-ticker metadata model we must emit one row per ticker.
+
+    IMPORTANT: Hyphens (e.g. 'MOG-A') are legitimate ticker characters used
+    for preferred shares and dual-class securities. We only split on '/'
+    (never on '-' or whitespace) to avoid corrupting real tickers.
+    """
+    if cell is None:
+        return []
+    out = []
+    for part in str(cell).split("/"):
+        s = part.strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def _split_tickers_or_empty(cell: str) -> list[str]:
+    """Like _split_slash_ticker but always returns at least one element.
+
+    Returns `['']` if the cell is empty/None, so that callers emitting
+    DataFrame rows preserve the empty-slot (which downstream code converts
+    to NaN). This is important because Wikipedia's S&P 400 changes table
+    marks spin-off / market-cap-only events by leaving either Added or
+    Removed ticker blank. We MUST record the date+security fields on the
+    **non-empty** side even when the other side is blank, so the interval
+    build loop captures them.
+    """
+    out = _split_slash_ticker(cell)
+    return out if out else [""]
+
+
 def fetch_constituents() -> pd.DataFrame:
     """Fetch current S&P 400 constituents (Table 1)."""
     headers = {
@@ -31,14 +69,16 @@ def fetch_constituents() -> pd.DataFrame:
     for row in table.find_all("tr")[1:]:
         cols = row.find_all("td")
         if len(cols) >= 4:
-            rows.append(
-                {
-                    "ticker": cols[0].text.strip().replace(".", "-"),
-                    "name": cols[1].text.strip(),
-                    "gics_sector": cols[2].text.strip(),
-                    "gics_sub_industry": cols[3].text.strip(),
-                }
-            )
+            ticker_cell = cols[0].text.strip().replace(".", "-")
+            for t in _split_slash_ticker(ticker_cell):
+                rows.append(
+                    {
+                        "ticker": t,
+                        "name": cols[1].text.strip(),
+                        "gics_sector": cols[2].text.strip(),
+                        "gics_sub_industry": cols[3].text.strip(),
+                    }
+                )
     df = pd.DataFrame(rows).set_index("ticker")
     return df
 
@@ -69,35 +109,61 @@ def fetch_changes() -> pd.DataFrame:
         if rs > 1 or len(cols) >= 6:
             current_date = cols[0].text.strip()
             if len(cols) >= 6:
-                rows.append(
-                    {
-                        "date": current_date,
-                        "added_ticker": cols[1].text.strip().replace(".", "-"),
-                        "added_security": cols[2].text.strip(),
-                        "removed_ticker": cols[3].text.strip().replace(".", "-"),
-                        "removed_security": cols[4].text.strip(),
-                    }
-                )
+                # Wikipedia's changes table can leave Added OR Removed blank
+                # to record pure spin-offs / market-cap-only events.
+                # _split_tickers_or_empty ensures we always write at least
+                # one row, preserving the date + the non-empty side.
+                for atk in _split_tickers_or_empty(cols[1].text.strip().replace(".", "-")):
+                    for rtk in _split_tickers_or_empty(cols[3].text.strip().replace(".", "-")):
+                        rows.append(
+                            {
+                                "date": current_date,
+                                "added_ticker": atk,
+                                "added_security": cols[2].text.strip(),
+                                "removed_ticker": rtk,
+                                "removed_security": cols[4].text.strip(),
+                            }
+                        )
         elif len(cols) == 4 and current_date:
-            rows.append(
-                {
-                    "date": current_date,
-                    "added_ticker": cols[0].text.strip().replace(".", "-"),
-                    "added_security": cols[1].text.strip(),
-                    "removed_ticker": cols[2].text.strip().replace(".", "-"),
-                    "removed_security": cols[3].text.strip(),
-                }
-            )
+            # row-span-removed-date continuation rows: cols layout is
+            # added_ticker | added_security | removed_ticker | removed_security
+            for atk in _split_tickers_or_empty(cols[0].text.strip().replace(".", "-")):
+                for rtk in _split_tickers_or_empty(cols[2].text.strip().replace(".", "-")):
+                    rows.append(
+                        {
+                            "date": current_date,
+                            "added_ticker": atk,
+                            "added_security": cols[1].text.strip(),
+                            "removed_ticker": rtk,
+                            "removed_security": cols[3].text.strip(),
+                        }
+                    )
+
         elif len(cols) == 5 and current_date:
-            rows.append(
-                {
-                    "date": current_date,
-                    "added_ticker": cols[0].text.strip().replace(".", "-"),
-                    "added_security": cols[1].text.strip(),
-                    "removed_ticker": cols[2].text.strip().replace(".", "-"),
-                    "removed_security": cols[3].text.strip(),
-                }
-            )
+            for atk in _split_tickers_or_empty(cols[0].text.strip().replace(".", "-")):
+                for rtk in _split_tickers_or_empty(cols[2].text.strip().replace(".", "-")):
+                    rows.append(
+                        {
+                            "date": current_date,
+                            "added_ticker": atk,
+                            "added_security": cols[1].text.strip(),
+                            "removed_ticker": rtk,
+                            "removed_security": cols[3].text.strip(),
+                        }
+                    )
+
+    # Wikipedia's S&P 400 changes table uses two cell layouts:
+    #   - 6-col rows: date | added_ticker | added_security | removed_ticker |
+    #     removed_security | reason. (Sometimes added_ticker OR removed_ticker
+    #     is left blank to indicate spin-offs / market-cap-only changes;
+    #     those rows still get stored, with the blank side as empty string.)
+    #   - 4-or-5-col rows: continuation rows under a rowspan'd date cell,
+    #     layout = added_ticker | added_security | removed_ticker |
+    #     removed_security (| note). 5-col variant carries an extra trailing note.
+    #
+    # The '/'-based splitting (e.g. 'UA/UAA' for Under Armour dual-class) is
+    # applied to BOTH the added and removed sides here at fetch time, so the
+    # Step 1 interval-build loop below can stay simple (one ticker per row).
     df = pd.DataFrame(rows)
     df["added_ticker"] = df["added_ticker"].replace("", pd.NA)
     df["removed_ticker"] = df["removed_ticker"].replace("", pd.NA)
@@ -145,24 +211,35 @@ def build_unified_metadata() -> pd.DataFrame:
 
         if pd.notna(added_ticker):
             t = str(added_ticker)
-            ticker_intervals.setdefault(t, []).append(
-                {"added": date, "removed": pd.NaT}
-            )
+            # Skip exact duplicate (added_ticker, date) pairs: these arise
+            # when Wikipedia packs both a multi-ticker removed cell (e.g.
+            # 'UA/UAA') and a non-empty added cell on the same event date
+            # (e.g. PINS, which the slash-split duplicatd across the two
+            # generated rows). The intent is one add-event per ticker per
+            # date; deduping here keeps the interval list clean.
+            existing = ticker_intervals.get(t, [])
+            if not existing or existing[-1].get("added") != date:
+                ticker_intervals.setdefault(t, []).append(
+                    {"added": date, "removed": pd.NaT}
+                )
 
         if pd.notna(removed_ticker):
-            rt = str(removed_ticker)
-            ticker_intervals.setdefault(rt, [])
-            if ticker_intervals[rt] and pd.isna(
-                ticker_intervals[rt][-1]["removed"]
-            ):
-                ticker_intervals[rt][-1]["removed"] = date
-            else:
-                # Ticker appears only as removed with no prior open interval.
-                # Record as: {"added": NaT, "removed": date}
-                # This will be backfilled to 2012-01-01 later.
-                ticker_intervals[rt].append(
-                    {"added": pd.NaT, "removed": date}
-                )
+            # A Wikipedia removed_ticker cell may pack multiple tickers with
+            # '/' (e.g. 'UA/UAA'). Split into one per-ticker removal event.
+            rt_cell = str(removed_ticker)
+            for rt in _split_slash_ticker(rt_cell):
+                ticker_intervals.setdefault(rt, [])
+                if ticker_intervals[rt] and pd.isna(
+                    ticker_intervals[rt][-1]["removed"]
+                ):
+                    ticker_intervals[rt][-1]["removed"] = date
+                else:
+                    # Ticker appears only as removed with no prior open interval.
+                    # Record as: {"added": NaT, "removed": date}
+                    # This will be backfilled to 2012-01-01 later.
+                    ticker_intervals[rt].append(
+                        {"added": pd.NaT, "removed": date}
+                    )
 
     # Step 2: Backfill missing added dates for ALL tickers.
     # Wikipedia history cuts off before 2012. Three cases need backfill:

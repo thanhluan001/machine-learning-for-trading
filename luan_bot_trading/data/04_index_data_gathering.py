@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 import os
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 if not TIINGO_API_KEY:
     raise ValueError("TIINGO_API_KEY not found. Please check your .env file.")

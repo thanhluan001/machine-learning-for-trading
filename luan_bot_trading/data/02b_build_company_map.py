@@ -67,10 +67,35 @@ META_KEY = "/metadata/sp400"
 COMPANIES_KEY = "/metadata/sp400_companies"
 
 TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
+EODHD_API_KEY = os.getenv("EODHD_API_KEY")
+if not EODHD_API_KEY:
+    raise ValueError(
+        "EODHD_API_KEY not found in .env. The 02b availability probe uses "
+        "EODHD (paid subscription, 100k/day, 1000/min) so we don't consume "
+        "the 50 req/hour Tiingo free-tier limit during probing."
+    )
 # Abutting intervals within this many days are merged into one span.
 ABUT_DAYS = 7
-# Tiingo verification throttle (the /daily/{ticker} metadata endpoint).
-TIINGO_PROBE_DELAY = 0.4
+# EODHD probe throttle. EODHD limit is 1000/min ~= 16/sec, so 0.05s sleep
+# keeps us comfortably under that and finishes ~993 tickers in <1 minute.
+EODHD_PROBE_DELAY = 0.05
+# Per-ticker probe window length (days). Each ticker is probed over a
+# window ending at its latest-known-active date (removed date from
+# /metadata/sp400, or today if removed is null). A small window keeps
+# responses minimal; 30 days is enough to ensure at least a few trading
+# days exist even for tickers that had irregular daily data.
+EODHD_PROBE_WINDOW_DAYS = 30
+
+# Full-history window for the second-pass fallback probe. Used only for the
+# small set of companies marked `price_unavailable=True` after the initial
+# per-ticker-interval probe. Wikipedia sometimes misses a company's name
+# change or exit (incomplete `removed` date, or wrong `removed` date), so the
+# interval window can land on a date where the ticker had no trading data.
+# Re-probing with the full 15-year window catches these cases. Trivial cost:
+# 1 EODHD call per unavailable company (typically 30-60 calls), within the
+# 100k/day EODHD subscription limit.
+EODHD_FALLBACK_FROM = "2012-01-01"
+EODHD_FALLBACK_TO = pd.Timestamp.now().strftime("%Y-%m-%d")
 
 # Hardcoded overrides for residual cases where:
 #  - CIK lookup fails entirely (singleton), or
@@ -231,35 +256,221 @@ def merge_intervals(intervals: list[dict]) -> list[dict]:
 # Tiingo availability probe
 # ------------------------------------------------------------------
 
-def verify_tickers_on_tiingo(tickers: list[str], progress_every: int = 50) -> dict[str, bool]:
-    """Probe Tiingo /daily/{ticker} metadata endpoint for each ticker.
+def _latest_active_date(intervals_raw) -> pd.Timestamp | None:
+    """Extract the latest active (removed or currently-in-index) date from a
+    ticker's interval list in /metadata/sp400.
 
-    Cheap probe: returns 200 if Tiingo has the ticker, 404 otherwise. Does NOT
-    consume the price-history request quota.
+    Returns:
+        - pd.Timestamp of latest `removed` date if any intervals have one
+        - pd.Timestamp.now() if any interval has `removed` == None
+          (currently in index -> probe recent dates)
+        - pd.Timestamp of latest `added` date as fallback if only added known
+        - None if no parseable intervals
+    """
+    if intervals_raw is None or (isinstance(intervals_raw, float) and pd.isna(intervals_raw)):
+        return None
+    try:
+        data = intervals_raw
+        if isinstance(data, str):
+            data = json.loads(data)
+        if not isinstance(data, list) or not data:
+            return None
+    except Exception:
+        return None
+
+    has_open = False
+    best_removed = None
+    best_added = None
+    for iv in data:
+        if not isinstance(iv, dict):
+            continue
+        r = iv.get("removed")
+        a = iv.get("added")
+        if r is None or (isinstance(r, str) and r.lower() in {"null", "none", "nan", ""}):
+            has_open = True
+        else:
+            try:
+                rts = pd.Timestamp(r)
+                if not pd.isna(rts) and (best_removed is None or rts > best_removed):
+                    best_removed = rts
+            except Exception:
+                pass
+        if a is not None and not (isinstance(a, float) and pd.isna(a)):
+            try:
+                ats = pd.Timestamp(a)
+                if not pd.isna(ats) and (best_added is None or ats > best_added):
+                    best_added = ats
+            except Exception:
+                pass
+
+    if has_open:
+        return pd.Timestamp.now().normalize()
+    if best_removed is not None:
+        return best_removed
+    return best_added
+
+
+def _probe_window_for(latest_active: pd.Timestamp | None) -> tuple[str, str] | None:
+    """Compute the (from, to) probe window ending at `latest_active`.
+
+    Returns None if latest_active is None (no usable date).
+    """
+    if latest_active is None or pd.isna(latest_active):
+        return None
+    to_ts = latest_active
+    from_ts = to_ts - pd.Timedelta(days=EODHD_PROBE_WINDOW_DAYS)
+    # Clamp to not exceed today
+    if to_ts > pd.Timestamp.now().normalize():
+        to_ts = pd.Timestamp.now().normalize()
+    if from_ts > pd.Timestamp.now().normalize():
+        from_ts = pd.Timestamp.now().normalize() - pd.Timedelta(days=EODHD_PROBE_WINDOW_DAYS)
+    return (from_ts.strftime("%Y-%m-%d"), to_ts.strftime("%Y-%m-%d"))
+
+
+def verify_tickers_on_tiingo(tickers: list[str], progress_every: int = 50, ticker_intervals: dict[str, object] | None = None) -> dict[str, bool]:
+    """Probe ticker availability via EODHD /api/eod/{TICKER}.US.
+
+    Function name is retained for backward compatibility with the rest of
+    the module; the actual probe now uses EODHD's End-Of-Day endpoint, NOT
+    Tiingo. This avoids burning Tiingo's 50 req/hour free-tier quota on
+    ~993 existence probes (which alone would lock us out for ~20 hours).
+
+    Per-ticker probe window (live-verified fix):
+        Delisted rebrand tickers (e.g. AAXN, APY, OZRK) returned empty arrays
+        when probed over a recent window (2024-01), even though they have
+        data during their actual trading era. So we compute each ticker's
+        probe window from its /metadata/sp400 interval data:
+          - if any interval has removed==None -> probe recent dates
+            (latest_active = today)
+          - else latest_active = max(removed) across intervals
+          - probe window = [latest_active - 30d, latest_active]
+        This catches both currently-trading and delisted tickers in one pass.
+
+    EODHD contract (live-verified on multiple tickers):
+        HTTP 404               -> ticker does not exist on EODHD -> False
+        HTTP 200 + "[]" (empty)-> no historical data in window -> False
+        HTTP 200 + non-empty   -> True
 
     Returns:
         dict[ticker -> bool] of availability.
     """
-    if not TIINGO_API_KEY:
-        print("  [verify_tickers_on_tiingo] TIINGO_API_KEY missing; marking all unknown")
-        return {t: False for t in tickers}
-
     results: dict[str, bool] = {}
     for i, t in enumerate(tickers, 1):
+        if ticker_intervals is None:
+            latest_active = None
+        else:
+            latest_active = _latest_active_date(ticker_intervals.get(t))
+        window = _probe_window_for(latest_active)
+        if window is None:
+            # No usable date in metadata; fall back to a recent window
+            # (likely catches currently-trading cases only).
+            window = ("2024-01-02", "2024-01-05")
+        url = f"https://eodhd.com/api/eod/{t}.US"
         try:
             r = requests.get(
-                f"https://api.tiingo.com/tiingo/daily/{t}",
-                params={"token": TIINGO_API_KEY},
-                timeout=15,
+                url,
+                params={
+                    "from": window[0],
+                    "to": window[1],
+                    "api_token": EODHD_API_KEY,
+                    "fmt": "json",
+                    "period": "d",
+                },
+                timeout=20,
             )
-            results[t] = (r.status_code == 200)
+            if r.status_code == 200:
+                try:
+                    body = r.json()
+                    results[t] = isinstance(body, list) and len(body) > 0
+                except Exception:
+                    results[t] = False
+            elif r.status_code == 404:
+                results[t] = False
+            else:
+                print(f"   {t}: unexpected probe status {r.status_code}: {r.text[:80]}")
+                results[t] = False
         except Exception as e:
             print(f"   {t}: probe error: {e}")
             results[t] = False
-        time.sleep(TIINGO_PROBE_DELAY)
+        time.sleep(EODHD_PROBE_DELAY)
         if i % progress_every == 0:
-            print(f"   probe progress: {i}/{len(tickers)}")
+            print(f"   probe progress: {i}/{len(tickers)} (avail={sum(1 for v in results.values() if v)})")
     return results
+
+
+def reprobe_unavailable_canonicals(
+    companies: list[dict],
+    tiingo_available: dict[str, bool],
+) -> tuple[list[dict], dict[str, bool]]:
+    """Second-pass probe for companies marked price_unavailable=True.
+
+    For each such company, query EODHD with the full 15-year window
+    ([EODHD_FALLBACK_FROM, EODHD_FALLBACK_TO]) on the canonical ticker.
+    If data comes back, flip the company's `price_unavailable` flag to
+    False and update `tiingo_available` so the data-gathering downstream
+    step will include the company in its iteration.
+
+    Rationale (per user, doctored after audit):
+        Wikipedia sometimes misses a company's name change / exit date.
+        The initial probe uses the per-ticker interval window, which can
+        land on a date range where no trading data exists even though the
+        ticker was clearly trading at some point in the 15-year window.
+        With EODHD's 100k/day quota, doing one more call per unavailable
+        company is trivial and recovers these cases.
+
+    Args:
+        companies: list of company-row dicts from build_company_map().
+        tiingo_available: ticker -> bool availability map (mutated in place
+            for recovered canonicals).
+
+    Returns:
+        (companies, tiingo_available) -- same objects, mutated in place
+        for convenience.
+    """
+    unavail = [c for c in companies if c.get("price_unavailable")]
+    if not unavail:
+        return companies, tiingo_available
+
+    print(
+        f"\n[3b/4] Re-probing {len(unavail)} unavailable canonicals with the full "
+        f"15-year window ({EODHD_FALLBACK_FROM}..{EODHD_FALLBACK_TO})..."
+    )
+    recovered = 0
+    for i, c in enumerate(unavail, 1):
+        canonical = c["canonical_ticker"]
+        url = f"https://eodhd.com/api/eod/{canonical}.US"
+        try:
+            r = requests.get(
+                url,
+                params={
+                    "from": EODHD_FALLBACK_FROM,
+                    "to": EODHD_FALLBACK_TO,
+                    "api_token": EODHD_API_KEY,
+                    "fmt": "json",
+                    "period": "d",
+                },
+                timeout=30,
+            )
+            ok = False
+            if r.status_code == 200:
+                try:
+                    body = r.json()
+                    ok = isinstance(body, list) and len(body) > 0
+                except Exception:
+                    pass
+            if ok:
+                c["price_unavailable"] = False
+                tiingo_available[canonical] = True
+                recovered += 1
+                print(f"   recovered: {canonical}")
+        except Exception as e:
+            print(f"   {canonical}: fallback probe error: {e}")
+        time.sleep(EODHD_PROBE_DELAY)
+    print(
+        f"   fallback recovered {recovered} / {len(unavail)} companies. "
+        f"Still unavailable: {len(unavail) - recovered}."
+    )
+    return companies, tiingo_available
 
 
 # ------------------------------------------------------------------
@@ -521,14 +732,24 @@ def main():
     # done inside build_company_map; just declare intent here
     print("   (will use union of ticker.txt + cached DERA sub_*.txt snapshots)")
 
-    print("\n[3/4] Probing Tiingo availability for ALL tickers in /metadata/sp400...")
+    print("\n[3/4] Probing ticker availability via EODHD (not Tiingo; saves 50/hr quota)...")
     all_tickers = sorted(set(meta_df["ticker"].astype(str).tolist()), key=str.upper)
-    tiingo_av = verify_tickers_on_tiingo(all_tickers)
+    # Pass per-ticker interval data so the probe window is computed from each
+    # ticker's latest-active date (critical for delisted tickers like ASNA,
+    # OZRK, GMCR which would falsely return [] if probed against recent dates).
+    ticker_intervals = dict(zip(meta_df["ticker"].astype(str), meta_df["intervals"]))
+    tiingo_av = verify_tickers_on_tiingo(all_tickers, ticker_intervals=ticker_intervals)
     avail_ct = sum(1 for v in tiingo_av.values() if v)
-    print(f"   {avail_ct} / {len(all_tickers)} tickers available on Tiingo")
+    print(f"   {avail_ct} / {len(all_tickers)} tickers available on EODHD")
 
     print("\n[4/4] Building company groups, merging intervals ...")
     extended, companies = build_company_map(meta_df, tiingo_av)
+
+    # Second-pass fallback: re-probe unavailable canonicals with the full
+    # 15-year window. Recovers companies whose per-ticker interval probe
+    # window landed on an empty-data range due to incomplete Wikipedia
+    # metadata (missing/wrong removed date).
+    reprobe_unavailable_canonicals(companies, tiingo_av)
 
     print("\n Writing outputs to db.h5 ...")
     write_outputs(extended, companies)
