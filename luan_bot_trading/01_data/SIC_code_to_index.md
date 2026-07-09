@@ -10,10 +10,10 @@ This file contains the definitive structural rules for mapping individual equiti
 | `10xx-14xx`, `24xx-26xx`, `28xx`, `33xx` *(excl. 283x)* | Materials | **XLB** | Uses the SPDR Materials Select Sector ETF for core industrial commodity pricing. |
 | `15xx-17xx`, `34xx`, `35xx`, `37xx`, `40xx-47xx` *(excl. 357x)* | Industrials & Cyclicals | **IJJ** | Captures asset-heavy, value-driven industrial risk profiles via iShares S&P MidCap 400 Value. |
 | `20xx-23xx`, `30xx-31xx`, `36xx`, `39xx`, `51xx`, `54xx`, `52xx-59xx`, `70xx-72xx`, `75xx-77xx` *(excl. 367x)* | Consumer Staples & Discretionary (Value) | **IJJ** | Consolidates asset-heavy consumer value and cyclical risk exposures into a liquid proxy. |
-| `60xx-64xx`, `67xx` *(excl. 6770)* | Financials | **XLF** | Employs the Financial Select Sector SPDR to ensure deep historical data liquidity on Tiingo. |
+| `60xx-64xx`, `67xx` *(excl. 6770)* | Financials | **XLF** | Employs the Financial Select Sector SPDR to ensure deep historical data liquidity on EODHD. |
 | `65xx` | Real Estate | **XLRE** | Isolates pure-play real estate and REIT performance via the Real Estate Select Sector SPDR. |
 | `38xx`, `48xx`, `73xx`, `78xx`, `79xx`, `80xx`, `27xx` *(incl. overrides)* | Technology, Healthcare & Growth Services | **IJK** | Captures systemic high-beta growth momentum, software, tech-platforms, and high-multiple entertainment services. |
-| `49xx` | Utilities | **XLU** | Employs the Utilities Select Sector SPDR to ensure robust historical data continuity on Tiingo. |
+| `49xx` | Utilities | **XLU** | Employs the Utilities Select Sector SPDR to ensure robust historical data continuity on EODHD. |
 
 ## Structural Classification Overrides
 *The following specific rules take execution precedence over the broad range mappings above:*

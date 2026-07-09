@@ -7,7 +7,7 @@ Fetches full 15-year historical earnings (per company) from EODHD's
 `/api/calendar/earnings` endpoint and stores raw rows under
 `/earnings/raw` in db.h5. One row per (canonical_ticker, report_date).
 
-Per the design in `luan_bot_trading/earnings_gathering_design.md`:
+Per the design in `luan_bot_trading/01_data/earnings_gathering_design.md`:
     - Iterate per COMPANY from /metadata/sp400_companies (not per ticker).
     - For each company, fetch by `symbols=` with ALL its aliases appended
       `.US` (e.g. `AAXN.US,AXON.US`).

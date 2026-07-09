@@ -34,7 +34,7 @@ Also resets `stock_offset.txt` to 0 (the next `03_data_gathering.py` run
 iterates the new per-company space; the checkpoint switches from per-ticker
 to per-company index space).
 
-See `luan_bot_trading/company_merge_design.md` for the full design.
+See `luan_bot_trading/01_data/company_merge_design.md` for the full design.
 """
 
 import json

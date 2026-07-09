@@ -8,7 +8,7 @@
     $$CAR_{i} = \sum_{t=T+1}^{T+11} \left( R_{i,t} - R_{m,t} \right)$$
     *   $R_{i,t}$: Daily log return of stock $i$ on day $t$.
     *   $R_{m,t}$: Daily log return of the stock’s corresponding sector ETF or broad market proxy on day $t$.
-*   **Model Type:** XGBoost Regressor (Continuous point estimation of $CAR$). Do not use classification frameworks; optimization gradients must reflect the precise magnitude of structural anomalies.
+*   **Model Type:** **XGBoost Ranker (Listwise Learning-to-Rank)**. See §17 for full architecture. The model evaluates all earnings announcements within a calendar week as a single cross-sectional group, optimizing for relative outperformance via NDCG. Raw rank scores are mapped back to absolute expected return ($\mu$) via Isotonic calibration (§17.3) before being passed to the Kelly sizing engine. Do not use pointwise regression or classification frameworks; the minority-class imbalance (~6% base rate) and cross-sectional macro noise are neutralized structurally by the listwise architecture.
 
 ---
 
@@ -87,8 +87,8 @@
 * **Pre-2012 Backfill:** Wikipedia change history cuts off before 2012. For all tickers whose initial `added_date` is missing from the changes table (including historically removed constituents), backfill `added_date = 2012-01-01` as a conservative lower bound inside the first interval dict. This prevents survivorship bias by ensuring removed constituents can still contribute to training. Use this backfilled date only for training inclusion eligibility; do not treat it as a precise addition date.
 * **SEC SIC Sector Standard:** Use the SEC EDGAR SIC classification as the authoritative sector taxonomy (stored in `/metadata/sp400` as `sic` and `index_ref` columns, replacing the old `/metadata/sp400_sic`). This replaces the Wikipedia GICS fields for constituents added to the index before 2012 or where Wikipedia history is incomplete, ensuring consistent sector labels across the full 15-year lookback.
 * **The Rebalance Exclusion Rule:** Implement a strict rolling timeline guardrail. A stock's row data is only valid for XGBoost training or weekday signal generation if the current date is $\ge 90$ days (1 quarter) past the closest active index addition date (`added`) inside its interval log. Mark this eligibility using a boolean flag `in_index_clean` inside the HDF5 matrix.
-* **Tiingo Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
-    * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local Tiingo store.
+* **EODHD Delisting Fallback Rule (Overriding Previous Drop Rule):** If a stock has no `removed_date` recorded in the Wikipedia changes table AND is not present in the current S&P 400 constituents table, the bot **must not drop the ticker**. 
+    * To prevent active survivorship bias (ignoring bankruptcies, fire sales, or defaults), the bot must look up the ticker's historical end-of-day price data in the local EODHD store.
     * The exact date where the daily adjusted close and trading volume flatlines or permanently ceases to print is the definitive `removed_date` for that interval block.
 
 ## 9b. Company-Level Merge & Canonical Ticker Layer (NEW)
@@ -99,14 +99,15 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
     * Build the historical `ticker -> CIK` map by unioning (a) current `sec_cache/ticker.txt` and (b) cached DERA `sub_{year}.txt` snapshots, where ticker is extracted from the `instance` column's leading token.
     * Spinoffs create new CIKs and are treated as new companies in v1 (intentional scope cut).
     * Tickers with no recoverable CIK become singletons (canonical = self).
-* **Pipeline Step:** A new `02b_build_company_map.py` runs after `02_SEC_sector_gathering.py` and before `03_data_gathering.py`. See `company_merge_design.md` for full spec.
+* **Pipeline Step:** A new `02b_build_company_map.py` runs after `02_SEC_sector_gathering.py` and before `03_data_gathering.py`. See `01_data/company_merge_design.md` for full spec.
 * **Outputs in `db.h5`:**
     * `/metadata/sp400` is extended with `cik` and `canonical_ticker` columns (per-ticker view retained; each alias points to the canonical).
     * New `/metadata/sp400_companies` table: one row per company (CIK), with columns `canonical_ticker`, `cik`, `aliases` (JSON), `name`, `sic`, `index_ref`, `combined_intervals` (JSON merged span), `per_ticker_intervals` (JSON audit), `price_unavailable` (bool).
-* **Canonical Selection Priority:** (1) ticker in current `ticker.txt` AND verified on Tiingo; (2) else, ticker with most-recent `removed` date AND verified on Tiingo; (3) else, most-recently-added ticker regardless of Tiingo (flagged `price_unavailable=True`).
+* **Canonical Selection Priority:** (1) ticker in current `ticker.txt` AND verified on EODHD; (2) else, ticker with most-recent `removed` date AND verified on EODHD; (3) else, most-recently-added ticker regardless of EODHD (flagged `price_unavailable=True`).
 * **Interval Merge:** For each company, collect all aliases' intervals, sort by `added`, merge overlapping or abutting (gap $\le 7$ days) spans. Real gaps (>7 days) kept as separate spans. Result is a single membership span per company, usually 1 span.
-* **Data Fetcher (`03_data_gathering.py`):** Iterates per company (not per ticker). Tries `aliases` in priority order on Tiingo; first non-empty response stored under `/sp400/{canonical_ticker}`. Companies with `price_unavailable=True` are skipped entirely with a log line (v1 keeps it simple; revisit if many pile up). The checkpoint `stock_offset.txt` advances per company and is reset to 0 when the new per-company iteration model goes live.
-* **Earnings Alignment:** The feature builder reads `/metadata/sp400_companies`, gathers **all earnings dates** stored under any alias in `/earnings/calendar`, and collapses them into one company-level earnings timeline. The canonical ticker's `/sp400/{canonical}` price series (which Tiingo retro-adjusts across rebrands so it spans the alias periods) is used for all feature calculations, including pre-rebrand earnings events. Combined intervals gate each event with the 90-day exclusion buffer.
+* **Data Fetcher (`03_data_gathering.py`):** Iterates per company (not per ticker). Tries `aliases` in priority order on EODHD (`/api/eod/{ticker}.US`); first non-empty response stored under `/sp400/{canonical_ticker}`. Companies with `price_unavailable=True` are skipped entirely with a log line (v1 keeps it simple; revisit if many pile up). EODHD subscription is effectively unlimited, so there is **no throttle, no batching, and no offset checkpoint** — a single invocation processes the full universe.
+* **Adj-OHLCV Derivation:** EODHD's `/api/eod` endpoint returns raw OHLC + `adjusted_close` + raw volume only. The pipeline derives `Adj_Open/Adj_High/Adj_Low/Adj_Volume` locally via the `close/adjusted_close` ratio (cumulative split+dividend factor), and sets `Adj_Close = adjusted_close`. Validated empirically (`validate_eodhd_adjclose.py`, 7/7 probe tickers PASS).
+* **Earnings Alignment:** The feature builder reads `/metadata/sp400_companies`, gathers **all earnings dates** stored under any alias in `/earnings/raw`, and collapses them into one company-level earnings timeline. The canonical ticker's `/sp400/{canonical}` price series (which EODHD retro-adjusts across rebrands so it spans the alias periods) is used for all feature calculations, including pre-rebrand earnings events. Combined intervals gate each event with the 90-day exclusion buffer.
 * **Result:** One company in `/metadata/sp400_companies` $\rightarrow$ many earnings events $\rightarrow$ many feature rows in the final matrix.
 
 ---
@@ -116,14 +117,14 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
 * **Dynamic Historical Matching & Interval Validation:**
     * The feature engine must evaluate the timestamp of each historical earnings event against the *entire* interval array of the corresponding asset.
     * If a company was in the index from 2014 to 2018, and then re-added in 2022, rows from 2014+90 days up to the 2018 removal date **MUST be included** in training. Rows between 2018 and 2022+90 days must be dropped. 
-    * If a company was deleted via bankruptcy/merger in 2018 (resolved via the Tiingo price-flatline fallback), all rows prior to its 2018 delisting (and after its original inclusion date + 90 days) **MUST be preserved** to teach the model downside tail-risk.
+    * If a company was deleted via bankruptcy/merger in 2018 (resolved via the EODHD price-flatline fallback), all rows prior to its 2018 delisting (and after its original inclusion date + 90 days) **MUST be preserved** to teach the model downside tail-risk.
 
 ---
 
 ## 11. Earnings Surprise Ingestion Protocol
-* **Data Sourcing:** The data pipeline must query a structured estimates API (e.g., Finnhub or Financial Modeling Prep) to pull historical quarterly timelines of `Actual_EPS`, `Estimated_EPS`, and `Report_Date`.
-* **HDF5 Alignment:** Store the parsed earnings metrics under a secondary dataset named `/earnings_history` inside each respective ticker node.
-* **Feature Calculation Rule:** Do not pass raw surprise dollar values to XGBoost. The pipeline must compute cross-sectional rolling features (`SUE_trend_1Y`, etc.) by dividing the historical deviations by the rolling 4-quarter standard deviation of past surprises to stabilize the feature variance.
+* **Data Sourcing:** The data pipeline queries the **EODHD Earnings API** (`/api/calendar/earnings`) to pull historical quarterly timelines of `Actual_EPS`, `Estimated_EPS`, and `Report_Date`. Earnings events are stored in `/earnings/raw` with `difference = actual - estimate` and `percent` (surprise percentage) precomputed by EODHD.
+* **HDF5 Alignment:** Store the parsed earnings metrics in a single consolidated `/earnings/raw` table, keyed by `(canonical_ticker, report_date)` with `cik` for company-level alignment. (The prior per-ticker-node `/earnings_history` design is deprecated.)
+* **Feature Calculation Rule:** Do not pass raw surprise dollar values to the model. The pipeline must compute the Standardized Unanticipated Earnings (`sue_score`) by dividing the surprise deviation by the rolling 12-quarter standard deviation of the asset's historical surprises (per §15).
 
 
 ## 12. Feature Lookback vs. Training Horizon Slicing
@@ -135,27 +136,26 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
 
 
 ## 13. Calendar Scheduling & Live Watchlist Ingestion
-* **Schedule Provider:** The Sunday scheduling module queries the Financial Modeling Prep (FMP) `/earnings-calendar` REST endpoint, passing a 5-day forward-looking date array (`from` to `to`).
+* **Schedule Provider:** The Sunday scheduling module queries the **EODHD Earnings Calendar API** (`/api/calendar/earnings`), passing a 5-day forward-looking date array (`from` to `to`).
 * **Cross-Sectional Filtering:** The fetched raw global calendar must immediately be cross-referenced against the local HDF5 `in_index_clean` array for that specific calendar date. Any reporting ticker not actively clearing the S&P 400 point-in-time membership filter must be instantly pruned from memory.
 * **Pre-Earnings Ingestion Matrix:** For the remaining valid weekly candidates, parse the `epsEstimated` and `date` strings. Save this structure to a temporary runtime matrix (`weekly_schedule_queue`) to dictate the active weekday activation order and seed the placeholder values for Sunday's point-estimation simulator.
 
 ## 14. Data Sourcing, Index Proxies, and Market-Adjusted CAR
-* **Dual-API Ingestion Architecture:** The data pipeline utilizes a split responsibilities framework to optimize data high-fidelity and costs:
-  * **Tiingo API:** Retained exclusively for 15+ years of continuous split-adjusted daily equity prices, volume metrics, and historical volatility calculations.
-  * **Financial Modeling Prep (FMP) Premium:** Utilized for all forward-looking corporate event scheduling, historical pre-report analyst consensus estimates, and real-time/bulk earnings surprise metrics.
-* **Broad Market Benchmark Proxy (`IJH`):** To calculate the broad market return baseline ($R_{m,t}$) without dealing with spot index availability bugs in Tiingo, the pipeline must query the historical price series for the **iShares Core S&P Mid-Cap ETF (`IJH`)**. 
-* **Adjusted Return Constraint:** The feature engine must strictly use the `adjClose` (Adjusted Close) column for both individual assets and the `IJH` proxy to eliminate artificial price drops caused by dividend distributions or fund splits.
+* **EODHD-Centric Ingestion Architecture:** The data pipeline consolidates **all** data sourcing on **EODHD**. EODHD provides 15+ years of continuous split-adjusted daily equity prices, volume metrics, historical earnings actuals/estimates, forward-looking earnings calendar, and bulk earnings surprise metrics through a single subscription.
+* **Broad Market Benchmark Proxy (`IJH`):** To calculate the broad market return baseline ($R_{m,t}$) without dealing with spot index availability bugs, the pipeline must query the historical price series for the **iShares Core S&P Mid-Cap ETF (`IJH`)**. 
+* **Adjusted Return Constraint:** The feature engine must strictly use the `Adj_Close` column (EODHD `adjusted_close`, locally derived per §9b) for both individual assets and the `IJH` proxy to eliminate artificial price drops caused by dividend distributions or fund splits.
 * **Streamlined Market-Adjusted Calculation:** Replace any complex sector-matching lookups with a flat Market-Adjusted Model against the S&P 400 proxy. The daily abnormal return for an asset is calculated as:
     $$AR_{i,t} = \ln\left(\frac{\text{Asset AdjClose}_{t}}{\text{Asset AdjClose}_{t-1}}\right) - \ln\left(\frac{\text{IJH AdjClose}_{t}}{\text{IJH AdjClose}_{t-1}}\right)$$
   The target variable $CAR_i$ is the simple sum of $AR_{i,t}$ across the $T+1$ to $T+11$ holding horizon.
 
 ## 15. Operational Pipeline Interfacing
-* **Sunday Schedule Parsing:** Every Sunday, the engine queries the FMP `/earnings-calendar` endpoint for the upcoming week. The resulting array is filtered against the local HDF5 `in_index_clean` array to build the localized `weekly_schedule_queue`.
-* **The SUE Normalization Feature:** When loading data from the FMP `/earnings-surprises` endpoint, the data script must not pass raw surprise amounts to XGBoost. It must compute the Standardized Unanticipated Earnings ($SUE$) feature by dividing the surprise deviation by the rolling 4-quarter standard deviation of the asset's historical earnings surprises:
-    $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{\text{Historical Surprise}}}$$
-* **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow XGBoost to learn the optimal default splitting direction during the training phase.
+* **Sunday Schedule Parsing:** Every Sunday, the engine queries the EODHD `/api/calendar/earnings` endpoint for the upcoming week. The resulting array is filtered against the local HDF5 `in_index_clean` array to build the localized `weekly_schedule_queue`.
+* **The SUE Normalization Feature:** When loading data from the EODHD `/earnings/raw` table, the data script must not pass raw surprise amounts to the model. It must compute the Standardized Unanticipated Earnings (`sue_score`) by dividing the surprise deviation by the **rolling 12-quarter standard deviation** of the asset's historical earnings surprises (per company CIK, across all prior quarters, `min_periods=12`):
+    $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{12Q}(\text{Historical Surprise})}$$
+    Where `difference = actual - estimate` is the per-quarter EODHD-provided surprise. Events where `estimate` is NaN have EODHD-set `difference = 0.0` and are retained in the rolling std window (Option B, per `features.md`).
+* **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow the model to learn the optimal default splitting direction during the training phase. XGBoost (both Regressor and Ranker) handles NaN natively.
 
-* **Short Interest Metric Omission:** The feature `short_interest_pct_float` has been officially deprecated and removed from the active feature matrix. To maintain a strict 15-year historical data runway without lookahead data contamination, the feature engine relies entirely on the cross-sectional interaction of `SUV_day_1` (volume shocks) and `opening_gap_t1` (opening price gaps) to proxy institutional short-covering velocity and localized structural supply scarcity.fea
+* **Short Interest Metric Omission:** The feature `short_interest_pct_float` has been officially deprecated and removed from the active feature matrix. To maintain a strict 15-year historical data runway without lookahead data contamination, the feature engine relies entirely on the cross-sectional interaction of `SUV_day_1` (volume shocks) and `opening_gap_t1` (opening price gaps) to proxy institutional short-covering velocity and localized structural supply scarcity.
 
 ---
 
@@ -191,4 +191,47 @@ def calculate_in_index_clean_mask(ticker_history_df, intervals):
 
 > **CRITICAL CODE REVIEW UPDATE:** This document overrides and patches the previous data ingestion and index residency rules in **Section 9** and **Section 10**. 
 > - Fixed the single-scalar `added_date`/`removed_date` bug to support multi-interval residency rows (preventing the accidental deletion of historical mid-cap training rows for "boomerang" stocks).
-> - Patched the "Missing Removal Date" rule to eliminate active survivorship bias by using Tiingo flatline price actions to find actual delisting dates.
+> - Patched the "Missing Removal Date" rule to eliminate active survivorship bias by using EODHD flatline price actions to find actual delisting dates.
+
+## 17. Model Architecture: Cross-Sectional Listwise Ranking (XGBRanker)
+
+> **Impacted Pipeline Steps:** `02b_build_company_map.py`, `03_data_gathering.py`, `07_train_model.py`, `08_backtest_execution.py`  
+> **Status:** Approved for Implementation (2026-07-08). Replaces the prior pointwise XGBoost Regressor architecture (which suffered from ~6% base-rate class imbalance and could not neutralize cross-sectional macro noise).
+
+### 17.1 Motivation & Structural Pivot
+To completely eliminate severe minority class imbalance (~6% base rate) and mathematically neutralize macro-market directional noise, the machine learning pipeline uses a **Listwise Learning-to-Rank (LTR)** architecture (not pointwise regression). 
+
+Instead of treating each earnings event as an isolated data point, the model evaluates all earnings announcements within a given calendar week as a single cross-sectional group, directly optimizing for relative outperformance.
+
+### 17.2 Label and Feature Matrix Restructuring
+*   **The Target Label (`car_10d`):** Remains the continuous 10-day Cumulative Abnormal Return (CAR) percentage. **Do not** convert this to discrete ordinal ranks (1, 2, 3) in the dataset. Maintaining continuous labels is required for the Listwise Gain function.
+*   **Group Anchor (`calendar_week_group`):** A new structural column must be added to the feature matrix representing the calendar week of the earnings date (e.g., `2026_W27`).
+*   **Sorting Requirement:** Before feeding data into the model training loop, the training and validation dataframes **must** be sorted chronologically and clustered explicitly by `calendar_week_group`.
+
+### 17.3 Model Architecture Changes (`07_train_model.py`)
+*   **Model Class:** Replace `XGBRegressor` or `LGBMRegressor` with **`XGBRanker`** (or LightGBM equivalent).
+*   **Objective Function:** Hardcode `objective="rank:ndcg"`.
+*   **Evaluation Metric:** Set `eval_metric="ndcg@3"` (or match your portfolio's target weekly slot capacity) to focus optimization entirely on the top of the funnel.
+*   **Group Dimension Array:** Extract group sizes using `.groupby('calendar_week_group').size().values` and pass this array explicitly into the `.fit(X, y, group=groups)` method.
+
+### 17.4 The Sizing Bridge: Isotonic Score Calibration
+Because `XGBRanker` outputs arbitrary, unitless ordinal marginal utility scores, these scores cannot be passed directly into the Continuous-Time Kelly (Merton's Fraction) sizing engine. A non-parametric calibration layer is introduced to map scores back to absolute expected return ($\mu$).
+
+*   **Implementation:** Fit a `sklearn.isotonic.IsotonicRegression(out_of_bounds='clip')` on the **validation set** immediately after training.
+    *   **Input ($X$):** Raw validation output scores from `ranker.predict(X_val)`.
+    *   **Target ($y$):** Actual historical continuous `car_10d` percentages.
+*   **Monotonic Guarantee:** Isotonic regression is strictly monotonic; it scales the values into realistic return percentages without altering the model's chosen sorting sequence.
+
+### 17.5 Live Inference & Sizing Execution Engine (`08_backtest_execution.py`)
+During live trading weeks or backtest steps:
+1.  Assemble features for the week's reporting stocks, assigning them to the same query batch.
+2.  Generate raw ranking utility scores: `df['raw_rank_score'] = ranker.predict(X_live)`.
+3.  Calibrate scores to define expected return: `df['mu'] = calibrator.predict(df['raw_rank_score'])`.
+4.  Apply an **Absolute Quality Handbrake Filter**:
+    ```python
+    MINIMUM_EXPECTED_CAR = 0.01  # 1% hurdle rate
+    df['is_viable_trade'] = df['mu'] >= MINIMUM_EXPECTED_CAR
+    ```
+5.  Execute **Continuous-Time Kelly Sizing** (Merton's Fraction) on chosen winners:
+    $$K^* = \frac{1}{\gamma} \cdot \frac{\mu}{\sigma^2}$$
+    Where $\gamma = 2$ (Half-Kelly boundary). For unviable trades failing the handbrake filter, assign a hardcoded size of `0.0` (or a nominal `0.01` test allocation if explicitly desired).

@@ -56,7 +56,7 @@ db.h5
 - Sector ETFs and market indices used for relative-return and market-adjusted
   CAR calculations (per `features.md` Block 3 and `Design.md` §14).
 - Current universe: `IJH, IJJ, IJK, IJS, XLB, XLF, XLRE, XLU` (mapped via
-  `index_ref` per `SIC_code_to_index.md`) + broad SPDRs `XLK, XLI, XLY, XLP,
+  `index_ref` per `01_data/SIC_code_to_index.md`) + broad SPDRs `XLK, XLI, XLY, XLP,
   XLV, XLE, XLC, SPY, VIXY`.
 - Same OHLCV schema as `/sp400/*`.
 
@@ -115,7 +115,7 @@ db.h5
   | `gics_sub_industry` | `01` Wikipedia | GICS sub-industry |
   | `intervals` | `01` Wikipedia changes table | JSON list of `{"added", "removed"}` memberships (multi-interval captures "boomerang" stocks) |
   | `sic` | `02` SEC EDGAR | SEC SIC code (3-tier lookup: ticker.txt → DERA historical → `SIC_PATCH`) |
-  | `index_ref` | `02` derived | sector index ticker from SIC per `SIC_code_to_index.md` |
+  | `index_ref` | `02` derived | sector index ticker from SIC per `01_data/SIC_code_to_index.md` |
   | `cik` | `02b` derived | SEC CIK or `None` (no-CIK → singleton) |
   | `canonical_ticker` | `02b` derived | the canonical this alias belongs to |
 
