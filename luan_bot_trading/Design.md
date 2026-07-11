@@ -129,10 +129,9 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
 
 ## 12. Feature Lookback vs. Training Horizon Slicing
 * **Global History Constraint:** The data engine utilizes a strict 15-year historical data runway.
-* **Feature Context Window:** All rolling historical features (`SUE_trend`, momentum vectors, macro baselines) are capped at a maximum lookback window of 5 years (20 quarters).
-* **Active Training Horizon:** The XGBoost training engine must discard the first 5 years of the global history timeline, using them exclusively to populate the initial feature contexts. The active target training matrix ($y$) must be strictly drawn from the remaining 10-year deep history window.
-* **Target Density Goal:** The resulting filtered matrix must optimize for a target density of ~12,000 clean, point-in-time compliant mid-cap earnings rows to maximize regularization and guard against tree-depth overfitting.
-* **Index Membership vs. Feature Lookback Separation:** The 5-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 5 years of trading history available, its rows are fully eligible for training immediately after the 90-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
+* **Feature Context Window:** All rolling historical features (`SUE_trend`, momentum vectors, macro baselines) are capped at a maximum lookback window of 3 years (12 quarters) — this matches the `sue_score` 12Q rolling-std baseline, which is the longest lookback in the active feature set. No other feature requires a longer window.
+* **Active Training Horizon:** The XGBoost training engine must discard the first 3 years of the global history timeline, using them exclusively to populate the initial feature contexts. The active target training matrix ($y$) must be strictly drawn from the remaining 12-year deep history window (2015-01-01 onward, given the 2012-01-01 backfill boundary).
+* **Index Membership vs. Feature Lookback Separation:** The 3-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 3 years of trading history available, its rows are fully eligible for training immediately after the 90-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
 
 
 ## 13. Calendar Scheduling & Live Watchlist Ingestion
@@ -153,7 +152,7 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
 * **The SUE Normalization Feature:** When loading data from the EODHD `/earnings/raw` table, the data script must not pass raw surprise amounts to the model. It must compute the Standardized Unanticipated Earnings (`sue_score`) by dividing the surprise deviation by the **rolling 12-quarter standard deviation** of the asset's historical earnings surprises (per company CIK, across all prior quarters, `min_periods=12`):
     $$SUE = \frac{\text{Actual EPS} - \text{Estimated EPS}}{\sigma_{12Q}(\text{Historical Surprise})}$$
     Where `difference = actual - estimate` is the per-quarter EODHD-provided surprise. Events where `estimate` is NaN have EODHD-set `difference = 0.0` and are retained in the rolling std window (Option B, per `features.md`).
-* **Missing Value Routing:** In cases where an asset has been trading for the required 5-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow the model to learn the optimal default splitting direction during the training phase. XGBoost (both Regressor and Ranker) handles NaN natively.
+* **Missing Value Routing:** In cases where an asset has been trading for the required 3-year lookback window but lacks older earnings estimates (e.g., due to limited analyst coverage early in its lifecycle), the feature engine must preserve the resulting missing data as a `NaN`. Do not drop the row; allow the model to learn the optimal default splitting direction during the training phase. XGBoost (both Regressor and Ranker) handles NaN natively.
 
 * **Short Interest Metric Omission:** The feature `short_interest_pct_float` has been officially deprecated and removed from the active feature matrix. To maintain a strict 15-year historical data runway without lookahead data contamination, the feature engine relies entirely on the cross-sectional interaction of `SUV_day_1` (volume shocks) and `opening_gap_t1` (opening price gaps) to proxy institutional short-covering velocity and localized structural supply scarcity.
 
@@ -204,7 +203,7 @@ To completely eliminate severe minority class imbalance (~6% base rate) and math
 Instead of treating each earnings event as an isolated data point, the model evaluates all earnings announcements within a given calendar week as a single cross-sectional group, directly optimizing for relative outperformance.
 
 ### 17.2 Label and Feature Matrix Restructuring
-*   **The Target Label (`car_10d`):** Remains the continuous 10-day Cumulative Abnormal Return (CAR) percentage. **Do not** convert this to discrete ordinal ranks (1, 2, 3) in the dataset. Maintaining continuous labels is required for the Listwise Gain function.
+*   **The Target Label (`car_10d`):** Stored as the continuous **log CAR** — the sum of daily log excess returns `Σ_{t=T+1}^{T+11} (log R_stock − log R_IJH)` — across the 10-day post-event window. **Do not** convert this to discrete ordinal ranks (1, 2, 3) in the dataset. Maintaining continuous labels is required for the Listwise Gain function. Storing in log units is safe for the ranker because NDCG is invariant to monotonic transforms of the gain values; only the *ranking* within each group matters.
 *   **Group Anchor (`calendar_week_group`):** A new structural column must be added to the feature matrix representing the calendar week of the earnings date (e.g., `2026_W27`).
 *   **Sorting Requirement:** Before feeding data into the model training loop, the training and validation dataframes **must** be sorted chronologically and clustered explicitly by `calendar_week_group`.
 
@@ -219,14 +218,14 @@ Because `XGBRanker` outputs arbitrary, unitless ordinal marginal utility scores,
 
 *   **Implementation:** Fit a `sklearn.isotonic.IsotonicRegression(out_of_bounds='clip')` on the **validation set** immediately after training.
     *   **Input ($X$):** Raw validation output scores from `ranker.predict(X_val)`.
-    *   **Target ($y$):** Actual historical continuous `car_10d` percentages.
+    *   **Target ($y$):** Actual historical `car_10d` converted from **log units to arithmetic** via `np.expm1(y_log)` before fitting. This conversion is mandatory: Stage 2 (`02_build_feature_matrix.py`) stores `car_10d` in log units (see §17.1), but the isotonic calibrator's output must be in true percentage units so it can be consumed directly by the Kelly sizing engine (§17.5).
 *   **Monotonic Guarantee:** Isotonic regression is strictly monotonic; it scales the values into realistic return percentages without altering the model's chosen sorting sequence.
 
 ### 17.5 Live Inference & Sizing Execution Engine (`08_backtest_execution.py`)
 During live trading weeks or backtest steps:
 1.  Assemble features for the week's reporting stocks, assigning them to the same query batch.
 2.  Generate raw ranking utility scores: `df['raw_rank_score'] = ranker.predict(X_live)`.
-3.  Calibrate scores to define expected return: `df['mu'] = calibrator.predict(df['raw_rank_score'])`.
+3.  Calibrate scores to define expected return: `df['mu'] = calibrator.predict(df['raw_rank_score'])`. Because the calibrator was fit on arithmetic-converted `car_10d` (per §17.4), `df['mu']` is in true percentage units — feed directly to Kelly with NO further conversion.
 4.  Apply an **Absolute Quality Handbrake Filter**:
     ```python
     MINIMUM_EXPECTED_CAR = 0.01  # 1% hurdle rate

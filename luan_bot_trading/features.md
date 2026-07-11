@@ -44,9 +44,16 @@ group structure, isotonic calibration, live sizing) this schema feeds into.
   * `calendar_week_group` — ISO week of `report_date` in `YYYY-Www` form
     (e.g., `2026-W27`). All rows sharing the same group are evaluated by the
     ranker as one cross-sectional cohort.
-  * `car_10d` — the continuous 10-day Cumulative Abnormal Return percentage,
-    used as the **listwise gain target**. **Do not convert to discrete ordinal
-    ranks**; the NDCG gain function reads raw continuous values.
+  * `car_10d` — the continuous 10-day Cumulative Abnormal Return, stored in
+    **log units** (`Σ_{t=T+1}^{T+11} (log R_stock − log R_IJH)`), used as the
+    **listwise gain target**. **Do not convert to discrete ordinal ranks**;
+    the NDCG gain function reads raw continuous values. NDCG is invariant
+    to monotonic transforms of the gain, so log-units are safe at the ranker
+    stage. The **arithmetic-percentage** conversion happens once, at the §17.4
+    isotonic calibration bridge (Stage 3): the calibrator's fit target is
+    `np.expm1(car_10d_log)`, after which the calibrator's output `mu` is in
+    true per-position percent units and feeds Kelly directly (no further
+    conversion).
 
 * **Strict Sorting Rule:** Before constructing the `DMatrix`, the training and
   validation frames **must** be sorted via
@@ -54,6 +61,22 @@ group structure, isotonic calibration, live sizing) this schema feeds into.
   the same `calendar_week_group` occupy contiguous index blocks. Group sizes
   are then `.groupby('calendar_week_group').size().values` and passed as the
   `group=` argument to `XGBRanker.fit`.
+
+* **Training-Horizon Priming Cutoff (§12):** Stage 2 (`02_build_feature_matrix.py`)
+  stores ALL 21,853 gated rows at `/features/train_matrix` (including the
+  3-year priming window rows — these are needed as feature-context neighbors for
+  the `sue_score` 12Q rolling std of later training-window rows). The training
+  script (Stage 3, in `03_model/...`) applies the §12 priming-runway cut at
+  training time, never at storage time, by filtering
+  `train_df = train_df[train_df.report_date >= pd.Timestamp('2015-01-01')]`
+  before constructing the `DMatrix`. This drops the first 3 years of the global
+  timeline (2012-01-01 -> 2014-12-31) from `y` training eligibility — they are
+  feature-priming only — and keeps the active training window from
+  **2015-01-01 to 2026-12-31 (12 years)**. Apply this filter BEFORE the
+  sparse-week (`<3` events) cutoff so both rules compose cleanly. (See
+  `Design.md §12` for the full rationale — the 3-year priming window matches
+  the `sue_score` 12Q rolling-std baseline, which is the longest actual
+  feature lookback in the v1 schema.)
 
 ---
 
@@ -100,6 +123,15 @@ All per-company sequential features (`sue_*`, `consecutive_surprises`,
   signature: some companies consistently drift while others mean-revert.
   *Implementation note:* requires a two-pass build — compute every event's own
   post-event CAR first, then `shift(1)` per canonical.
+  *Units note:* Stored in **log units** — same as `car_60d_pass1` (which it
+  shifts from), since `.shift()` is a unit-preserving linear operation.
+  The XGBoost ranker ingests this feature in log units **directly** (trees
+  are scale-invariant under monotonic transforms). No `np.expm1` conversion is
+  applied to this feature at any stage — the only log→arithmetic conversion in
+  the pipeline is on the **target** `car_10d` at the Stage-3 isotonic
+  calibration bridge (§17.4 of `Design.md`). Log units also incidentally
+  improve training quality here: they symmetrize positive vs negative
+  long-horizon (60-day) drift magnitudes, giving cleaner tree-split breakpoints.
 
 ### Block 2 — Microstructure & Technical Event Context
 Block 2 features encode the execution environment, institutional presence, and
@@ -109,6 +141,30 @@ first trading day in `/sp400/{canonical}` with `Date >= report_date` (roll
 holiday; drop the event if no later trading day exists).
 
 * `is_bmo` (Binary 0/1): `1` if `before_after_market == "Bmo"` else `0`.
+  *Two-system note.* **Kept in `X` even though it does NOT enter the CAR label**
+  window, which is uniform `T+1..T+11` for both BMO and AMC announcements.
+  Reasons:
+    1. **Label scope.** The label measures post-event drift continuation
+       (the PEAD thesis). For BMO events, the day-T intraday market reaction
+       is part of the announcement-day repricing, NOT drift — it is captured
+       by `opening_gap_t1` and `intraday_range_t` as INPUT features, not in
+       `Y`.
+    2. **No label-leak bias.** Letting `is_bmo` modify the label window
+       (e.g., BMO `T..T+10`, AMC `T+1..T+11`) would have leaked the day-T
+       market reaction into the BMO label only — empirically ~3.85 pp of
+       systematic bias in BMO labels, or ~73% of the label's expected value
+       for a BMO winner. The ranker would then learn to prefer BMO events
+       for a unit-conversion artifact, not because they have larger drift.
+    3. **Stage-4 Execution Bot.** `is_bmo` will be a critical signal in the
+       Execution Bot (Stage 4+, design deferred) — its role there is
+       **entry-timing**: a BMO event enters at `Open[T]` (the morning of the
+       announcement), while an AMC event enters at `Open[T+1]` (the morning
+       after the announcement). System 1 (the ranker being built now) is
+       asked only to rank candidates by post-event drift potential; System 2
+       picks the entry timestamp and captures the day-T BMO premium with its
+       own execution logic, independent of System 1's prediction window.
+  See `Design.md` §17 system architecture for the Analysis-Bot /
+  Execution-Bot separation.
 * `volume_vma20_ratio_pre_event` (Float): `Volume[T] / mean(Volume[T-20 : T-1])`.
   Pre-announcement positioning intensity.
 * `suv_day_1` (Float): Standardized Unexpected Volume —
@@ -232,7 +288,7 @@ additional signal.
 | 4 | 1 | `sue_acceleration` | `sue_score[t] - sue_score[t-1]` (per canonical) | **Must** |
 | 5 | 1 | `sue_lag_1` | `sue_score` from Q-1 (per canonical) | **Must** |
 | 6 | 1 | `sue_lag_2` | `sue_score` from Q-2 (per canonical) | **Must** |
-| 7 | 1 | `car_drift_historical_q1` | Prior event's post-earnings CAR (T+1→T+60, IJH-adjusted), `shift(1)` per canonical — two-pass build | **Must** |
+| 7 | 1 | `car_drift_historical_q1` | Prior event's post-earnings **60-day** CAR (T+1→T+60, IJH-adjusted), `.shift(1)` per canonical — two-pass build; stored in **log units** (inherited from `car_60d_pass1`), fed to ranker directly with NO arithmetic conversion | **Must** |
 | 8 | 2 | `is_bmo` | `1 if before_after_market == "Bmo" else 0` | **Must** |
 | 9 | 2 | `volume_vma20_ratio_pre_event` | `Volume[T] / mean(Volume[T-20 : T-1])` | **Must** |
 | 10 | 2 | `suv_day_1` | `Adj_Volume[T] / mean(Adj_Volume[T-20 : T-1])` | **Must** |
@@ -264,8 +320,14 @@ execution layer:
   forward) used for all price-side feature lookups.
 * `calendar_week_group` (str) — ISO week (`YYYY-Www`) — the listwise group
   anchor (see §0).
-* `car_10d` (float) — the continuous 10-day Cumulative Abnormal Return (target,
-  `T+1 → T+11`), kept continuous for NDCG gain (see `Design.md` §17).
+* `car_10d` (float) — the continuous 10-day Cumulative Abnormal Return stored
+  in **log units** (`Σ_{t=T+1}^{T+11} (log R_stock − log R_IJH)`), used as the
+  LTR target. Stored in log space because NDCG only depends on the within-group
+  ranking of `y`, not its absolute scale (so any monotonic transform preserves
+  training signal). **The conversion to arithmetic percentages happens at the
+  §17.4 isotonic calibration bridge** (`y_arith = np.expm1(car_10d_log)`);
+  the calibrator's output `mu` is then in true percentage units and is
+  consumed directly by Kelly (no further transformation).
 * `added` / `removed` (datetime) — the buffered interval that admitted this
   event (audit only).
 
@@ -273,10 +335,10 @@ execution layer:
 
 ## 7. Builder Implementation Skeleton
 
-The full implementation lives in `02_features/build_feature_matrix.py` (NOT in
-this doc). The reference contract is below — the actual function reads directly
-from `01_data/db.h5` and writes the matrix back into a new HDF5 node; it makes
-**zero external API calls**.
+The full implementation lives in `02_features/02_build_feature_matrix.py`
+(NOT in this doc). The reference contract is below — the actual function
+reads directly from `01_data/db.h5` and writes the matrix back into a new
+HDF5 node; it makes **zero external API calls**.
 
 ```python
 import pandas as pd
@@ -312,7 +374,7 @@ def build_ranking_matrix(event_df):
     X['sue_acceleration']       = event_df.groupby('canonical_ticker')['sue_score'].diff().values
     X['sue_lag_1']              = event_df.groupby('canonical_ticker')['sue_score'].shift(1)
     X['sue_lag_2']              = event_df.groupby('canonical_ticker')['sue_score'].shift(2)
-    X['car_drift_historical_q1']= event_df.groupby('canonical_ticker')['car_10d'].shift(1)
+    X['car_drift_historical_q1']= event_df.groupby('canonical_ticker')['car_60d_pass1'].shift(1)   # NB: shift from car_60d_pass1 (60d CAR), NOT car_10d (the 10d label). Units = log (inherited from pass-1).
 
     # Block 2: Microstructure & Technicals (price-derived, precomputed earlier)
     X['is_bmo']                       = event_df['is_bmo'].astype(int)
@@ -331,8 +393,11 @@ def build_ranking_matrix(event_df):
     # Block 4: Interaction Layer
     X['sue_abs_x_inverse_vol'] = X['sue_score'].abs() / X['pre_event_idiosyncratic_vol']
 
-    # Extract native target label and LTR tracking metadata arrays
-    y        = event_df['car_10d']
+    # Extract native target label and LTR tracking metadata arrays.
+    # NOTE: `y` stays in log units here — NDCG only depends on within-group
+    # ordering, so log/arithmetic choice is rank-preserving. Stage 3 converts
+    # to arithmetic at the isotonic bridge (see equation below).
+    y        = event_df['car_10d']                 # log-CAR
     groups   = event_df.groupby('calendar_week_group').size().values
     group_keys = event_df['calendar_week_group']
 
@@ -354,10 +419,14 @@ def train_and_calibrate_pipeline(X_train, y_train, groups_train,
     ranker.fit(X_train, y_train, group=groups_train,
                eval_set=[(X_val, y_val)], eval_group=[groups_val])
 
-    # Calibrator maps raw rank scores -> absolute expected CAR (%)
+    # Calibrator maps raw rank scores -> absolute expected CAR (%).
+    # Stage 2 stores `car_10d` in LOG units; convert to arithmetic via
+    # `np.expm1` BEFORE fitting the calibrator so its output `mu` is in true
+    # per-position percent and feeds Kelly with no further conversion.
     val_raw_scores = ranker.predict(X_val)
+    y_val_arithmetic = np.expm1(y_val)         # log-CAR  -> arithmetic %
     calibrator = IsotonicRegression(out_of_bounds='clip')
-    calibrator.fit(val_raw_scores, y_val)
+    calibrator.fit(val_raw_scores, y_val_arithmetic)
     return ranker, calibrator
 ```
 
