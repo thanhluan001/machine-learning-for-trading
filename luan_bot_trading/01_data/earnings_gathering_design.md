@@ -2,6 +2,20 @@
 
 > Status: **Design approved, not yet implemented.** Created for future reference.
 > Replaces the yahooquery POC (`06_fetch_earnings_poc.py`).
+>
+> **Phase D migration note (2026-07-14):** This design doc was written pre-Phase-A
+> against the now-deleted `/metadata/sp400_companies` (per-CIK collapsing). It
+> remains here for **architectural context** only. The live implementation is
+> `06_earnings_gathering.py` (Phase D rewrite) which:
+>   - Reads `/metadata/sp400_perm_ids` (POINT-IN-TIME CIK anchored, interval-forked).
+>   - Iterates per **perm_id** (not per company / canonical).
+>   - Dedup key is `(perm_id, fiscal_period_end)` (NOT `(canonical_ticker,
+>     report_date)`) with tiebreaks: prefer canonical-alias code, then latest
+>     `report_date`, then lexicographic `code`. See `database_layout.md`
+>     `/earnings/raw` section for the live Phase D output schema, and
+>     `merger_identity_patch.md` §7.7 for why keying by `canonical_ticker` was
+>     wrong (12 perm_id pairs collide on canonical_ticker -> cross-perm_id
+>     dedup lose events).
 
 ## Motivation
 

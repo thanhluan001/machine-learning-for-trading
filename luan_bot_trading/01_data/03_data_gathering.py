@@ -368,29 +368,79 @@ def _ordered_aliases(perm_id: dict) -> list[str]:
     return out
 
 
-def update_perm_id(perm_id: dict, group: str = H5_GROUP):
-    """Fetch + store full EODHD history for one perm_id (keyed by
-    canonical_ticker) using alias fallback. See module docstring for rules.
-    """
-    canonical = perm_id["canonical_ticker"]
-    ordered_aliases = _ordered_aliases(perm_id)
+def aggregate_canonicals(perm_ids: list[dict]) -> list[dict]:
+    """Aggregate perm_ids by canonical_ticker, UNION-ing their aliases.
 
-    if perm_id.get("price_unavailable"):
-        print(f"  {canonical} (perm_id={perm_id.get('perm_id')}): SKIP "
-              f"(price_unavailable=True). aliases={perm_id['aliases']}")
-        # Also ensure no stale node lingers for a perm_id that became
-        # unavailable post-rebuild (defensive cleanup).
+    PROBLEM (discovered post Phase B v1 run): When multiple perm_ids share
+    the same canonical_ticker (12 cases documented in
+    merger_identity_patch.md §7.7), the per-perm_id write loop OVERWRITES
+    the shared /sp400/{canonical_ticker} node with each perm_id's individual
+    concatenated fetch. The LAST-written perm_id's data wins, and its aliases
+    may not include the other perm_id's pre-rebrand ticker -- resulting in
+    CLOBBERED price history (e.g. 0000895126_CHK's 2645-row CHK+EXE concat
+    got overwritten by 0001075736_EXE's 1360-row EXE-only fetch, losing the
+    CHK pre-rebrand history entirely).
+
+    SOLUTION: group perm_ids by canonical_ticker, UNION their aliases, then
+    fetch ONCE per canonical with the union alias list. Store ONCE. Every
+    perm_id that shares that canonical reads the same concatenated price
+    series; Phase E's interval-gating + the §7.7 LIVE-wins-overlap rule
+    correctly attribute rows back to each perm_id.
+
+    Returns a list of canonical-aggregate dicts:
+        canonical_ticker  : str         -- /sp400/* storage key
+        aliases           : list[str]   -- union of all sharing perm_ids'
+                                          aliases, dedup, canonical first
+        perm_ids          : list[str]   -- informational; perm_ids sharing
+                                          this canonical (for logging)
+        any_unavailable   : bool        -- True iff ALL sharing perm_ids are
+                                          price_unavailable. If True, fetch
+                                          is skipped and any stale node purged.
+    """
+    by_canon: dict[str, dict] = {}
+    for pid in perm_ids:
+        canon = pid["canonical_ticker"]
+        entry = by_canon.setdefault(
+            canon,
+            {
+                "canonical_ticker": canon,
+                "aliases": [],
+                "perm_ids": [],
+                "any_unavailable": True,  # set False if any available
+            },
+        )
+        # Union aliases (preserving insertion order: canonical first via
+        # _ordered_aliases on each pid, then dedup-across pids).
+        for a in _ordered_aliases(pid):
+            if a not in entry["aliases"]:
+                entry["aliases"].append(a)
+        entry["perm_ids"].append(pid.get("perm_id") or "")
+        if not pid.get("price_unavailable"):
+            entry["any_unavailable"] = False
+    # Sort aggregates by canonical for stable run ordering.
+    return sorted(by_canon.values(), key=lambda x: x["canonical_ticker"])
+
+
+def update_canonical_node(canon_agg: dict, group: str = H5_GROUP):
+    """Fetch + store the concatenated alias history for one canonical_ticker
+    (aggregated across all perm_ids sharing it). See aggregate_canonicals
+    docstring for the per-canonical write rationale.
+    """
+    canonical = canon_agg["canonical_ticker"]
+    ordered_aliases = canon_agg["aliases"]
+    all_perm_ids = canon_agg["perm_ids"]
+
+    if canon_agg.get("any_unavailable"):
+        # ALL sharing perm_ids are unavailable. Skip fetch + purge stale node.
+        print(f"  {canonical} (ALL {len(all_perm_ids)} perm_ids unavailable): SKIP. "
+              f"aliases={ordered_aliases}")
         if canonical_exists(canonical, group=group):
             remove_canonical(canonical, group=group)
             print(f"      Purged stale /sp400/{canonical} node.")
         return
 
-    # Fetch-once-and-store (no incremental / freshness branch needed now that
-    # the subscription is unlimited and the canonical selection is the only
-    # thing that changes between runs). We refetch the full 15y history every
-    # run; cheap enough on EODHD and avoids stale-data bugs.
+    # No DB file yet: first-ever run, create DB with mode='w' (safe: DB absent).
     if not DB_FILE.exists():
-        # First-ever run: create DB in mode='w' (safe because DB_FILE absent).
         print(f"  {canonical}: Initial fetch (aliases: {ordered_aliases})...")
         used, data = fetch_concatenated_aliases_from_eodhd(ordered_aliases)
         if not data.empty:
@@ -402,7 +452,7 @@ def update_perm_id(perm_id: dict, group: str = H5_GROUP):
         return
 
     if not canonical_exists(canonical, group=group):
-        print(f"  {canonical} (perm_id={perm_id.get('perm_id')}): New perm_id. "
+        print(f"  {canonical} ({len(all_perm_ids)} perm_ids): New node. "
               f"Fetching (aliases: {ordered_aliases})...")
         used, data = fetch_concatenated_aliases_from_eodhd(ordered_aliases)
         if not data.empty:
@@ -412,14 +462,15 @@ def update_perm_id(perm_id: dict, group: str = H5_GROUP):
             print(f"      No data from any alias.")
         return
 
-    # Existing node -- check freshness. If up-to-date, skip the refetch.
+    # Existing node. ALWAYS refetch the full history with the union aliases;
+    # do NOT skip on freshness because the stored node may be a leftover from
+    # Phase B v1 (which fetched with a per-perm_id alias subset, e.g. EXE-only,
+    # and the freshness check "latest_date >= END_DATE" would wrongly skip
+    # the union-alias reconciliation). EODHD subscription is effectively
+    # unlimited, so always-refetch is cheap and correct.
     latest_date = get_latest_date(canonical, group=group)
-    if latest_date.strftime("%Y-%m-%d") >= END_DATE:
-        print(f"  {canonical}: Up to date (thru {latest_date.strftime('%Y-%m-%d')}).")
-        return
-
     gap = (datetime.strptime(END_DATE, "%Y-%m-%d") - latest_date).days
-    print(f"  {canonical}: Refetch full history (gap={gap}d, aliases: {ordered_aliases})...")
+    print(f"  {canonical}: Refetch full history (prev_gap={gap}d, aliases: {ordered_aliases})...")
     used, data = fetch_concatenated_aliases_from_eodhd(ordered_aliases)
     if not data.empty:
         store_data(canonical, data, group=group)
@@ -431,6 +482,7 @@ def update_perm_id(perm_id: dict, group: str = H5_GROUP):
         # historical data; logged for surfacing.
         print(f"      [WARN] All aliases returned empty; keeping existing "
               f"/sp400/{canonical} node.")
+
 
 
 def cleanup_stale_nodes(live_canonicals: set[str], group: str = H5_GROUP):
@@ -484,29 +536,37 @@ def main():
         print("[INFO] Nothing to do.")
         return
     n_unavail = sum(1 for p in perm_ids if p.get("price_unavailable"))
-    print(f"[INFO] price_unavailable=True: {n_unavail} (skip + purge stale node)")
-    print(f"[INFO] Effective fetch universe: {n_total - n_unavail}")
+    print(f"[INFO] price_unavailable=True perm_ids: {n_unavail} (skip + purge stale node)")
+    print(f"[INFO] Effective fetch universe: {n_total - n_unavail} perm_ids")
 
-    progress_every = max(1, n_total // 20)  # log ~20 progress steps
+    # Aggregate perm_ids by canonical_ticker and UNION their aliases. This
+    # avoids the per-perm_id write-clobber bug for the 12 canonical-collision
+    # pairs (see aggregate_canonicals docstring + merger_identity_patch.md §7.7).
+    canon_aggs = aggregate_canonicals(perm_ids)
+    n_canons = len(canon_aggs)
+    multi_perm_canons = sum(1 for c in canon_aggs if len(c["perm_ids"]) > 1)
+    print(f"[INFO] Aggregate by canonical_ticker: {n_canons} unique canonicals "
+          f"({multi_perm_canons} shared by multiple perm_ids)")
+
+    progress_every = max(1, n_canons // 20)  # log ~20 progress steps
     t0 = time.time()
     done = skipped = failed = 0
 
-    for i, pid in enumerate(perm_ids):
-        canonical = pid["canonical_ticker"]
+    for i, can_agg in enumerate(canon_aggs):
         try:
-            update_perm_id(pid)
-            if pid.get("price_unavailable"):
+            update_canonical_node(can_agg)
+            if can_agg.get("any_unavailable"):
                 skipped += 1
             else:
                 done += 1
         except Exception as e:
             failed += 1
-            print(f" [ERROR] Failed to update {canonical} (perm_id={pid.get('perm_id')}): {e}")
+            print(f" [ERROR] Failed to update /sp400/{can_agg['canonical_ticker']}: {e}")
 
-        if (i + 1) % progress_every == 0 or (i + 1) == n_total:
+        if (i + 1) % progress_every == 0 or (i + 1) == n_canons:
             elapsed = time.time() - t0
             print(
-                f"[PROGRESS] {i + 1}/{n_total} perm_ids  |  "
+                f"[PROGRESS] {i + 1}/{n_canons} canonicals  |  "
                 f"stored={done}, skipped={skipped}, failed={failed}  |  "
                 f"elapsed={elapsed:.1f}s"
             )
@@ -521,10 +581,11 @@ def main():
     print("=" * 60)
     print(f"  Done in {elapsed:.1f}s")
     print(f"  Database: {DB_FILE}")
-    print(f"  Total perm_ids:  {n_total}")
-    print(f"  Stored/Refreshed: {done}")
-    print(f"  Skipped (unavail): {skipped}")
-    print(f"  Failed:           {failed}")
+    print(f"  Total perm_ids:           {n_total}")
+    print(f"  Unique canonicals:         {n_canons}")
+    print(f"  Stored/Refreshed nodes:    {done}")
+    print(f"  Skipped (all unavailable): {skipped}")
+    print(f"  Failed:                    {failed}")
     print("=" * 60)
 
 

@@ -12,27 +12,46 @@ group structure, isotonic calibration, live sizing) this schema feeds into.
 
 ## 0. Row Granularity & Group Structure
 
-* **Feature Row Granularity (Company / CIK Level):** Each row of the feature
-  matrix corresponds to **one earnings event** of one company. A company
-  (identified by its SEC CIK — see `Design.md` §9b and `company_merge_design.md`)
-  contributes many rows over its S&P  400 membership window, one per earnings
-  announcement. Ticker renames/rebrands are collapsed via
-  `/metadata/sp400_companies`: the feature builder gathers **all earnings dates
-  stored under any alias** of a company in `/earnings/raw`, aligns them onto the
-  **canonical ticker's** price series (`/sp400/{canonical_ticker}`, which EODHD
-  retro-adjusts across rebrands so it spans the alias periods), and gates each
-  event with the merged `combined_intervals` membership span plus the **90-day
-  rebalance buffer**. Pre-rebrand earnings events are recoverable because the
-  canonical price series already spans the alias periods.
+* **Feature Row Granularity (perm_id Level):** Each row of the feature
+  matrix corresponds to **one earnings event** of one perm_id. A perm_id
+  (see `Design.md` §9b, `01_data/merger_identity_patch.md`) contributes
+  many rows over its S&P 400 membership window, one per earnings
+  announcement. Ticker renames/rebrands within the same perm_id are
+  collapsed: the feature builder gathers **all earnings dates stored under
+  any alias** of a perm_id in `/earnings/raw`, aligns them onto the
+  **canonical ticker's** price series (`/sp400/{canonical_ticker}`;
+  Phase B stores a concatenated alias history under this key), and gates
+  each event with the perm_id's merged `combined_intervals` membership span
+  plus the **90-day rebalance buffer**. Pre-rebrand earnings events are
+  recoverable because the canonical price series spans the alias periods
+  via Phase B's alias-ـconcatenation behavior.
+
+  **Canonical-ticker collision disambiguation (per `merger_identity_patch.md`
+  §7.7):** 12 perm_id pairs in the universe share the same `canonical_ticker`
+  (post-Wiki acquirer-rebrand extension side-effect). For 8 of those 12
+  pairs, the perm_ids' `combined_intervals` overlap. When two perm_ids
+  share a canonical_ticker AND their combined_intervals overlap, rows in
+  the /sp400/{canon} overlap zone belong ONLY to whichever perm_id has
+  the LATER effective end-date (where `null` removed = +infinity).
+  Practically: 11 of 12 pairs are LIVE vs CLOSED -- the LIVE perm_id gets
+  the overlap-zone rows; the CLOSED perm_id's price history in its
+  overlap zone is NaN (its events there are dropped + logged). The 12th
+  pair (CC) is both-closed -- disambiguate by later `removed` date.
+
+  **Phase B v2 note:** `03_data_gathering.py` fetches the UNION of all
+  sharing perm_ids' aliases per canonical_ticker, so the stored
+  `/sp400/{canon}` series contains the full union of histories. Phase E
+  applies the disambiguation rule on TOP of this union, when attributing
+  rows back to a specific perm_id.
 
 * **When Is a Row Eligible? (Interval Gating):** For each interval
-  `{added, removed}` in a company's `combined_intervals`:
+  `{added, removed}` in a perm_id's `combined_intervals`:
   1. Expand to a buffered window `[added + 90 days, removed]` (use "today" if
      `removed` is `null`). The 90-day buffer IS the first-quarter exclusion —
      the skip of the noisy first quarter after SP400 addition is already baked
      in; no extra per-event logic is required.
   2. Keep the earnings event iff `report_date ∈ [added + 90d, removed]`.
-  3. **Companies with `price_unavailable=True` produce zero rows.**
+  3. **Perm_ids with `price_unavailable=True` produce zero rows.**
 
 * **Feature Lookback May Cross Interval Boundaries:** The 90-day buffer gates
   *which events become rows*, NOT what historical data is used to compute their
@@ -82,7 +101,7 @@ group structure, isotonic calibration, live sizing) this schema feeds into.
 
 ## 1. Feature Blocks & Column Mapping
 
-The active training matrix `X` contains **20 features** grouped into 5 blocks.
+The active training matrix `X` contains **21 features** grouped into 4 blocks (B1 7 + B2 7 + B3 6 + B4 1 = 21).
 A 21st potential feature (`rev_growth_yoy`, Block 1) is **SHELVED** — see §2.
 Macro features (`vix_close`, `fed_funds_rate`, `yield_curve_spread`,
 `spy_momentum_20d`) are **NOT in `X`** — see §3 (Macro Detachment).
@@ -300,16 +319,17 @@ additional signal.
 | 16 | 3 | `sector_adjusted_ret_20d` | `log_stock_ret(20d) - log_sector_etf_ret(20d)` via SIC-mapped `index_ref` (default `IJH`) | **Must** |
 | 17 | 4 | `sue_abs_x_inverse_vol` | `abs(sue_score) / pre_event_idiosyncratic_vol` (NaN-safe) | **Must** |
 
-**Total active features in `X`: 20**
-(15 + 5 from `rel_ret_*d` counted as one cell) + `sector_adjusted_ret_20d` + 1
-Block 4 interaction = 7 + 5 + 1 + 1 + 6 + 1 = the 20 above.
+**Total active features in `X`: 21** (the §5 footer previously said "20"; that
+was an off-by-one in prose arithmetic. Block 1 contributes 7 features, Block 2
+contributes 7, Block 3 contributes 6 (5 rel_ret + 1 sector-adjusted), Block 4
+contributes 1, total = 21 feature columns.)
 
 ---
 
 ## 6. Stored (Non-Feature) Columns in the Output Table
 
 The output of `build_feature_matrix()` (stored in `db.h5` under `/features/...`)
-contains the 20 features above, PLUS these mandatory metadata columns that are
+contains the 21 features above, PLUS these mandatory metadata columns that are
 NOT used as inputs to the ranker but are required by the training loop and the
 execution layer:
 

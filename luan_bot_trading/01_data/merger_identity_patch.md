@@ -218,14 +218,219 @@ limitation since Phase B's EODHD probe will resolve it.
 Replacement: `/metadata/sp400_perm_ids` (DELETE `/metadata/sp400_companies`).
 10 cols, see `luan_bot_trading/database_layout.md` for the schema table.
 
-### 7.6 Pipeline-wide impact summary
+### 7.7 Known Phase A v1 limitation: 12 canonical-ticker collision pairs (post-run finding)
+
+Phase B's post-run audit surfaced 12 perm_id pairs whose canonical_ticker
+COLLIDES (same ticker symbol picked canonical for two distinct perm_ids).
+These are an unavoidable side-effect of the post-Wiki acquirer-rebrand
+extension in §7.3 -- the extension adds the surviving ticker to the
+acquirer perm_id's aliases, but Phase A's strict-CIK-match canonical
+selection (§7.4) can then pick that same ticker canonical for both the
+acquirer (with the post-Wiki-extended aliases list) AND the historical
+predecessor perm_id (whose own Wikipedia row was originally under that
+ticker). 8 of the 12 pairs have OVERLAPPING combined_intervals, so
+Phase E cannot uniquely attribute /sp400/{canon} rows in the overlap
+zone purely by date.
+
+The empirically observed structure makes this tractable: in 11 of 12
+pairs, exactly one perm_id is LIVE (last combined_intervals' `removed` is
+`None`) and the other is CLOSED. The rows in the stored /sp400/{canon}
+series correspond to whichever company is CURRENTLY traded under that
+EODHD symbol -- which is the LIVE perm_id's modern corporate lineage.
+The CLOSED perm_id's price history in its Wikipedia-overlap period is
+NOT separately available on EODHD (the older phantom ticker-of-the-same-
+symbol company has no EODHD series). One pair (CC) has both perm_ids
+CLOSED; disambiguate there by later `removed` date (ticker-had-it-last).
+
+Pairs (12 total):
+
+| canon | LIVE perm_id | CLOSED perm_id |
+|---|---|---|
+| ACI  | 0001646972_ACI | 0001037676_ACI |
+| AM   | 0001598968_AM  | 0000005133_AM  |
+| AXON | 0001069183_AAXN (rebranded to AXON) | 0001636050_AXON (phantom 2012-2023 XMGS) |
+| AZTA | 0000933974_BRKS (rebranded to AZTA) | 0001518749_AZTA |
+| CC   | (both CLOSED -- disambiguate by later `removed`= 2025-03-24 → 0001627223_CC) | 0001577095_CC |
+| COHR | 0000820318_IIVI (rebranded to COHR) | 0000021510_COHR |
+| CZR  | 0001590895_ERI (rebranded to CZR) | 0000858339_CZR |
+| EXE  | 0000895126_CHK (rebranded to EXE)  | 0001075736_EXE |
+| HR   | 0001360604_HTA (rebranded to HR)   | 0000899749_HR  |
+| JEF  | 0000096223_JEF  | 0001084580_JEF  |
+| LDOS | 0001336920_SAI (rebranded to LDOS) | 0000353394_LDOS |
+| VAL  | 0000314808_ESV (rebranded to VAL) | 0000102741_VAL |
+
+**Phase E disambiguation rule** (LOCKED):
+  When two perm_ids share `canonical_ticker` AND their `combined_intervals`
+  overlap, rows in the overlap zone belong ONLY to whichever perm_id has the
+  LATER effective "end date" (where `null` removed = +infinity). Concretely,
+  for the LIVE vs CLOSED cases, ALL stored rows in the overlap zone belong to
+  the LIVE perm_id; the CLOSED perm_id's CAR for events with `report_date` in
+  the overlap zone is NaN-dropped (logged). For both-CLOSED cases (CC),
+  disambiguate by `removed` date -- the one with later `removed` wins.
+
+**Phase D implication** (subjects: `06_earnings_gathering.py`): the dedup
+rule by `(canonical_ticker, report_date)` is WRONG for these 12 pairs --
+it could drop a LIVE perm_id's earnings row if the CLOSED perm_id also had
+an event on the same `report_date` (unlikely but possible). Phase D must
+key earnings by `perm_id` (not `canonical_ticker`) at write-time, so each
+perm_id has its own earnings rows and the dedup is per-perm_id.
+
+**Phase B v2 fix: per-canonical aggregation (post-run bug fix)**
+
+Phase B v1's per-perm_id write loop has a write-clobber bug for the 12
+collision pairs: each perm_id fetched-then-stored its concatenated result
+under the SHARED `/sp400/{canonical_ticker}` node, and the LAST-perm_id
+processed (alphabetical perm_id order from HDFStore) wins. For 3 of 12
+cases (AXON, AZTA, EXE), the last perm_id's aliases list did NOT include
+the pre-rebrand ticker, clobbering the union history:
+  - `/sp400/EXE` stored 1360 rows from `0001075736_EXE` (EXE-only), losing
+    `0000895126_CHK`'s 2645-row CHK+EXE concatenation (CHK pre-rebrand
+    history from 2016-2020 was dropped).
+  - `/sp400/AXON` similarly stored 3768 rows from `0001636050_AXON`.
+  - `/sp400/AZTA` similarly stored 3768 rows from `0001518749_AZTA`.
+
+Phase B v2 fix: `03_data_gathering.py` now aggregates perm_ids by
+`canonical_ticker` BEFORE the fetch loop, UNION-ing their aliases.
+For each canonical, it fetches ONCE with the union alias list and stores
+ONCE. Stored `/sp400/{canonical}` now contains the UNION of all perm_ids'
+alias histories, and Phase E's interval-gating + §7.7 disambiguation rule
+attribute rows back to each perm_id.
+
+**Phase B v2.1 fix: always-refetch (post-run bug fix #2)**
+
+Phase B v2's first run kept the v1-clobbered nodes for EXE/AXON/AZTA
+because of an over-eager freshness check: the v1 fetch had stored data
+up to END_DATE (today), so v2's `latest_date >= END_DATE` skip fired and
+left the clobbered 1360-row /sp400/EXE node in place. The freshness skip
+was designed for incremental updates but defeats the union-alias
+reconciliation when v1 clobbered data exists.
+
+Phase B v2.1 fix: `update_canonical_node()` now ALWAYS refetches when the
+node already exists (no freshness skip). EODHD subscription is effectively
+unlimited so always-refetch is cheap and the only way to guarantee the
+stored /sp400/{canon} reflects the union alias history. The `prev_gap=N d`
+field in the new log line is informational only (shows how stale the
+previous node was).
+
+  Verified empirically: re-running `aggregate_canonicals` + per-canonical
+  fetch for the EXE aggregate returned 2645 rows (EXE+CHK, 1285 pre-rebrand
+  + 1360 post-rebrand rows), confirming the fix resolves the clobber.
+
+### 7.8 Pipeline-wide impact summary
 
   - 974 perm_ids built (vs 966 old companies).
-  - 970 effective training universe after EODHD availability probe
-    (4 unavailable: RE, WXS, TMST, CDAY).
+  - 958 UNIQUE canonical_tickers among the 970 available perm_ids (12 pairs
+    collide as documented in §7.7). /sp400/* has exactly 958 nodes post
+    Phase B (one node per canonical_ticker; collisions dedup automatically
+    on the storage key).
+  - 4 unavailable (RE, WXS, TMST, CDAY).
   - All 14 originally-flagged BAD merges correctly resolved (see summary in
     Phase A's release notes).
-  - Phase B (`03_data_gathering.py`) will re-fetch all 970 perm_ids' price
-    history using the new canonical/alias system.
-  - Phase C+E (`06_earnings_gathering.py`) will re-fetch all 970 perm_ids'
-    earnings using perm_id and the new write-time dedup rule.
+  - Phase B (`03_data_gathering.py`) re-fetched all 970 perm_ids' price
+    history using the new canonical/alias system. Alias CONCATENATION (not
+    fallback-pick-first) is mandatory because EODHD does not retro-relabel
+    rebrands -- see 03_data_gathering.py docstring and database_layout.md
+    `/sp400/{canonical}` section.
+  - Phase C+E (`06_earnings_gathering.py`) will key by `perm_id` (not
+    `canonical_ticker`) to avoid the §7.7 collision-dedup problem.
+  - Phase E feature builder MUST apply the §7.7 disambiguation rule when
+    attributing /sp400/{canon} rows to a perm_id.
+
+### 7.9 Phase E implementation plan (LOCKED 2026-07-14)
+
+**Stage 1 gate (`02_features/01_features_gate_events.py`) rewrite:**
+
+  - Iterate per **perm_id** from `/metadata/sp400_perm_ids` (replaces per-
+    canonical iteration).
+  - For each perm_id, gate events from `/earnings/raw` keyed by **`perm_id`**
+    (NOT `canonical_ticker`) to avoid the §7.7 collision-dedup problem.
+  - Window membership: `event.report_date in [added + 90d, removed]` for any
+    of the perm_id's `combined_intervals`.
+  - Output schema gains a `perm_id` column (alongside `canonical_ticker`
+    for the downstream Stage-2 price-series join). `cik` retained for audit.
+  - `price_unavailable=True` perm_ids produce ZERO gated events.
+  - Nan-drop per §7.7 happens here for the **loser** perm_id at this stage:
+    if the perm_id is a §7.7 LOSER (its effective end precedes the other
+    perm_id sharing canonical_ticker), all its events in the OVERLAP zone are
+    dropped at the gate. This removes them at the EARLIEST stage so Phase 2's
+    price-carried computations don't waste effort on rows that would be
+    NaN-dropped later anyway.
+  - Empirical impact: 105 events dropped (0.23% of all `/earnings/raw` rows).
+    Distribution across 7 pairs (COHR 26, LDOS 24, AZTA 16, AXON 15, VAL 14, CZR 9,
+    EXE 1). 5 pairs (ACI, AM, CC, JEF, HR) have NO overlap -> no drop.
+
+**Stage 2 feature matrix (`02_features/02_build_feature_matrix.py`)
+implementation updates:**
+
+  - `gated_df` now has `perm_id` column; iterate per-perm_id (not per-canonical).
+  - Price-series loading STILL uses `canonical_ticker` (e.g. `/sp400/EXE` for
+    both `0000895126_CHK` and `0001075736_EXE`). The §7.7 disambiguation at
+    Stage 1 ensures we ONLY compute features for events belonging to the
+    winner perm_id at points where the live asset was actually traded.
+  - Pass A (per-event CAR windows + Block 2 + Block 3): unchanged logic;
+    per-perm_id loop. Each perm_id loads its canonical's price node
+    (deduplicated load via `stock_prices_cache[canonical]` so the 12
+    collision pairs share the loaded DataFrame).
+  - Pass B (Block 1 SUE family + `car_drift_historical_q1`):
+    `car_60d_pass1.shift(1)` is now PER-PERM-ID, not per-canonical. Because
+    the §7.7 NaN-drop removed loser events in overlap, each winner perm_id's
+    earnings history is clean (no spillover from loser perm_id).
+  - `index_ref` join moves from `/metadata/sp400_companies` (deleted) to
+    `/metadata/sp400_perm_ids` (the new schema has `index_ref` column
+    per-perm_id; this is the Phase-A-derived index_ref already joined at
+    02b time).
+  - `canonical_ticker` remains in the output schema as metadata for
+    price-series joins; `perm_id` is the row anchor.
+
+**Schema deltas in `/features/train_matrix` (29 -> 30 columns):**
+
+  + `perm_id` (str): the Phase-A perm_id anchor; row identifier.
+  - `canonical_ticker` (str): informational; identifies the price node.
+  (All other schema unchanged.)
+
+### 7.10 T-match failures / EODHD price-feed gaps (Phase E acceptance, Tiingo fallback deferred)
+
+After Phase E Stage 2's live run, 21 gated events failed T-match (i.e., no
+trading day `>= report_date` exists in the canonical's `/sp400/{canon}` price
+node). These 21 events are DROPPED from `/features/train_matrix` per the
+NaN policy (features.md §4 "T-match failure is the ONE documented drop").
+
+**Root cause: EODHD price-history feed gaps.** For each dropping perm_id
+the EODHD `/api/eod/{CANON}.US` endpoint returns fewer rows than the
+perm_id's effective membership window. EODHD's earnings-calendar feed and
+price-history feed can be inconsistent per symbol.
+
+**Empirically observed (24-Jul-2026 Phase E run):**
+
+| canonical | # drops | comment |
+|---|---|---|
+| `SIX`  | 11 | Six Flags Entertainment NYSE:"SIX" EODHD price-history feed has only 251 rows for 2015-01-02 to 2015-12-31 (with volume=0 -- a phantom SIX-variant instrument, NOT real NYSE SIX data). EODHD's symbol-search returns no results for "Six Flags" or "SIX" -- the Six Flags NYSE SIX listing is genuinely absent from EODHD's symbol universe for 2017-2023. EODHD's `/api/calendar/earnings` however HAS 28 SIX.US rows for 2017-2023 (those 11 surviving-gated events are the T-match failures). |
+| `BERY` |  1 | BERY delisted 2025-04-29 (perm_id `removed`=2025-05-01). The 2025-04-30 earnings report fell one day AFTER the last stored price row. |
+| `IGT`  |  1 | EODHD price-history ends before the 2025-11-11 report_date; post-reorganization rebrand timing problem. |
+| `PSTG` |  1 | EODHD price-history ends before the 2026-05-27 report_date; recent delisting/restructuring. |
+| Others |  7 | Various single-event drops at series end (similar -- report_date past the last stored price day). |
+
+**Acceptance:** 21 drops = 0.10% of 21,269 gated events. Acceptable for
+Phase E. The pipeline correctly follows the NaN-policy drop + log path.
+
+**Tiingo fallback option (DEFERRED):**
+
+If `sue_score`-style EODHD gaps start eating into the training universe
+beyond a chosen tolerance (e.g. >2% of train rows lost to T-match failures),
+we can re-introduce Tiingo as a **conditional fallback** specifically for
+perm_ids whose canonical's `/sp400/{canon}` node is too short for the
+perm_id's effective membership window. Implementation outline (future
+Phase F ticket):
+
+  1. Add a `02_features/...` pre-flight probe: for each gated-perm_id, count
+     `/sp400/{canon}` rows that fall inside the perm_id's `combined_intervals`.
+     If < 80% of expected trading days, mark the perm_id as `tiingo_fallback`.
+  2. In `03_data_gathering.py`'s `update_canonical_node()`, add a path that,
+     when called with `--repair-tiingo`, re-fetches the canonical from
+     Tiingo's `/daily/{ticker}` endpoint using the same `aliases` list.
+  3. Schema is identical (11-col OHLCV + derived adj_* via close/adjusted_close
+     in Tiingo returns). Merge with existing EODHD rows (dedup-keep-last per Date).
+  4. Re-run Stage 1+2 to repair the dropped events.
+
+This option is intentionally DEFERRED for Phase E. It is documented here
+so a future Phase F can take it up without re-discovering the issue.

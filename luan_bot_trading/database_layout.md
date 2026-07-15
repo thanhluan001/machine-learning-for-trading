@@ -31,8 +31,9 @@ db.h5
 │                                          one row per (perm_id-at-write-time, report_date)
 │
 ├── /features/
-│   └── gated_events                    # Stage-1-gated earnings events
-│                                          (Schema not yet migrated to perm_id; see Phase B-E)
+│   └── gated_events                    # Stage-1-gated earnings events (Phase E)
+│                                          perm_id, canonical_ticker, cik, report_date,
+│                                          added, removed, calendar_week_group  (7 cols)
 │
 └── /metadata/
     ├── sp400                           # per-TICKER view (aliases preserved)
@@ -56,19 +57,32 @@ db.h5
 ### `/sp400/{canonical_ticker}` — written by `03_data_gathering.py`
 
 - One node per **perm_id**, keyed by `canonical_ticker` (an alias the perm_id
-  is currently fetchable under on EODHD).
+  is currently or recently fetchable under on EODHD).
 - 15 years of EODHD adjusted daily OHLCV (we locally derive adj-OHLCV from
   `close`/`adjusted_close` ratio; raw EODHD only returns `adjusted_close`).
+- **ALIAS CONCATENATION (Phase B implementation detail)**: For multi-alias
+  perm_ids (rebrand merges + post-Wiki acquirer-rebrand extensions), `03`
+  fetches EVERY alias on EODHD and concatenates the responses on `Date`
+  (dedup-keep-last on overlap days, sort by Date). This is REQUIRED because
+  EODHD does NOT retro-relabel rebrands: when a company rebrands (e.g.
+  CHK -> EXE), EODHD keeps the old ticker series as a dead series ending at
+  the rebrand day and starts a fresh series under the new ticker -- they
+  are NOT concatenated server-side. A single-alias fetch would lose the
+  pre- OR post-rebrand segment.
+  Empirical validation: `CHK + EXE` concatenated = 2645 rows 2016-2026 (vs
+  2201 CHK-only or 1360 EXE-only); `SYNH + INCR` = 2934 rows; `ESV + VAL`
+  = 3461 rows; `FTR + FYBR` = 3531 rows; `LNW + SGMS + LAWIL` = 3846
+  rows (LAWIL alone is 1 row -- canonical-only fetch would be useless).
 - Schema (11 cols): `Date, Open, High, Low, Close, Volume, Adj_Open, Adj_High,
   Adj_Low, Adj_Close, Adj_Volume`.
-- Aliases of the same perm_id (rebrands across disjoint intervals) share one
-  node under the canonical ticker; EODHD's retro-adjusted history spans the
-  alias periods seamlessly.
 - Perm_ids flagged `price_unavailable=True` in `/metadata/sp400_perm_ids` have
-  **no node written** (skipped + logged by `03`).
-- Note: as of Phase A completion, the existing `/sp400/*` nodes were built
-  off the now-deprecated `/metadata/sp400_companies` table; Phase B will
-  rerun `03` against `/metadata/sp400_perm_ids`.
+  **no node written** (skipped + logged by `03`); any stale node left by the
+  pre-Phase-A schema is purged in the per-perm_id step.
+- **Phase B stale-node cleanup pass**: After the per-perm_id loop, `03` purges
+  `/sp400/{TICKER}` nodes whose TICKER is no longer canonical for any perm_id
+  (leftover from pre-Phase-A canonical selection that picked a ticker now
+  categorized as a non-canonical alias; e.g. CHK, DV, POL, SGMS, ENR, FBHS,
+  FTR, LNW, MODG, SAI, SYNH, UA, UNIT, WTW, ZI).
 
 ### `/macros/{TICKER}` — written by `04_index_data_gathering.py`
 
@@ -91,9 +105,9 @@ db.h5
   | `UNRATE` | `fred_unemployment` | (regime proxy) |
   | `CPIAUCSL` | `fed_cpi` | (regime proxy) |
 
-### `/earnings/raw` — written by `06_earnings_gathering.py`
+### `/earnings/raw` — written by `06_earnings_gathering.py` (Phase D rewrite)
 
-- Long-form table, one row per `(canonical_ticker-at-write-time, report_date)`.
+- Long-form table, one row per **(perm_id, fiscal_period_end)**.
 - Source: EODHD `/api/calendar/earnings`. 15-year depth, matching `/sp400`.
 - Schema (verified against live API response):
 
@@ -102,7 +116,8 @@ db.h5
   | `report_date` | EODHD `report_date` | announcement date `T` (PEAD event time) |
   | `fiscal_period_end` | EODHD `date` | fiscal quarter end (NOT the event date) |
   | `code` | EODHD `code` | alias EODHD stored the row under (e.g. `AAXN.US`) |
-  | `canonical_ticker` | perm_id derived | canonical alias for the perm_id |
+  | `perm_id` | perm_id derived | candidate-tradable-asset-track anchor (`f"{cik}_{start_ticker}"`; primary). Phase D's primary key. |
+  | `canonical_ticker` | perm_id derived | perm_id's canonical alias (informational). Joins to `/sp400/{canonical_ticker}` for price data. |
   | `cik` | perm_id derived | SEC CIK (10-digit string, may be `None` for `__nocik_*`) |
   | `actual` | EODHD `actual` | reported EPS |
   | `estimate` | EODHD `estimate` | pre-report consensus EPS (historical, not forward) |
@@ -112,27 +127,53 @@ db.h5
   | `currency` | EODHD `currency` | usually `USD` |
 
 - **Deduplicated at write-time** by `(perm_id, fiscal_period_end)` per Phase A
-  user-selected dedup rule "latest-name-change wins":
-  prefer canonical alias (active SEC ticker), tiebreak by latest `report_date`,
-  tiebreak by lexicographic `code`.
+  user-selected dedup rule "latest-name-change wins" (see
+  `merger_identity_patch.md` §7.7):
+  - Tiebreak 1 (primary): prefer row whose `code` is the perm_id's
+    canonical alias's EODHD code (`canonical_ticker + '.US'`).
+  - Tiebreak 2: latest `report_date`.
+  - Tiebreak 3: lexicographic `code`.
   This is the earliest possible layer and makes `/earnings/raw` the single
-  source of truth — no downstream dedup needed.
+  source of truth — no downstream dedup needed. Keying by `perm_id` (not
+  `canonical_ticker`) sidesteps the §7.7 dedup-collision problem on the 12
+  canonical-sharing perm_id pairs.
 - EODHD's `/api/calendar/trends` is NOT used (forward-looking only; cannot
   backfill historical training estimates).
 - SUE / `consecutive_surprises` / `sue_acceleration` / `sue_lag_1` / `sue_lag_2`
   / `is_bmo` encoding are computed downstream by the feature builder
   (see `features.md`), not stored here.
-- **Note on Phase A historical data**: the current `/earnings/raw` was built
-  with the old `canonical_ticker` schema and will need to be re-fetched in
-  Phase D to use `perm_id` (with the new dedup rule applied at write time).
+- Phase D rewrite replaced v1's `(canonical_ticker, report_date)` dedup with
+  `(perm_id, fiscal_period_end)` — Phase D was the first re-fetch after Phase A.
+- Null estimate convention: when EODHD returns `estimate` as null, it sets
+  `difference = 0.0`. The feature builder keeps EODHD's `0.0` in the rolling
+  `sue_score` denominator (the `Option B` decision in `features.md` §0).
 
-### `/features/gated_events` — written by `02_features/01_features_gate_events.py`
+### `/features/gated_events` — written by `02_features/01_features_gate_events.py` (Phase E rewrite)
 
-- Stage-1 gating output: 21,853 gated earnings events (from 44,637 raw rows).
-- Schema (will be migrated to `perm_id` in Phase B-E):
-  - `canonical_ticker`, `cik`, `report_date`, `added`, `removed`, `calendar_week_group`
-- Built off the pre-Phase-A `/earnings/raw`; will need re-gating in Phase D once
-  `/earnings/raw` is re-fetched with the new dedup-at-write-time rule.
+- Stage-1 gating output: 21,269 gated earnings events (from 44,897 raw rows).
+- Phase E re-keying: per-perm_id iteration from `/metadata/sp400_perm_ids`;
+  events keyed by `perm_id` (NOT `canonical_ticker`) to avoid the §7.7
+  collision-dedup problem on the 12 canonical-sharing perm_id pairs.
+- §7.7 disambiguation APPLIED AT THE GATE: for LOSER perm_id events whose
+  `report_date` falls in the OVERLAP ZONE shared with the WINNER perm_id
+  (same canonical_ticker), the row is NaN-dropped at the gate. Empirical
+  impact: 105 events dropped (0.23% of raw events). 7 of 12 pairs have
+  overlap (COHR 26, LDOS 24, AZTA 16, AXON 15, VAL 14, CZR 9, EXE 1);
+  5 pairs (ACI, AM, CC, JEF, HR) have NO overlap -> no drop.
+- Schema (7 columns):
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `perm_id` | str | Phase-A perm_id anchor (`{cik}_{start_ticker}`); PRIMARY row key |
+  | `canonical_ticker` | str | perm_id's canonical alias; identifies the /sp400/{canon} node to load for prices |
+  | `cik` | str | SEC CIK (audit; may be `None` for `__nocik_*`) |
+  | `report_date` | datetime | earnings announcement date T (PEAD event time) |
+  | `added` | datetime | interval.added (audit only) |
+  | `removed` | datetime | interval.removed or today (audit only) |
+  | `calendar_week_group` | str | ISO week `YYYY-Www` (LTR group anchor) |
+
+- v1 stored schema (6 cols, no `perm_id`) superseded; this Phase E version is
+  the canonical truth for Stage 2.
 
 ### `/metadata/sp400` — written by `01`, extended by `02`, extended by `02b` (Phase A)
 
