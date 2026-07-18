@@ -1,6 +1,35 @@
 # Quantitative Architecture Specification: PEAD Algorithmic Trading Bot
 ## Target Universe: S&P 400 Mid-Cap (approximately 400 Assets)
 
+> ** ⚠️ IDENTITY MIGRATION NOTICE (2026-07-14).** All `cik` / `canonical_ticker `
+> / `perm_id` primary-key references in §9b (Company-Level Merge & Canonical
+> Ticker Layer) below are **OBSOLETE** in favor of Tiingo `permaTicker` as the
+> pipeline's primary entity identifier. `permaTicker` is identity-stable across
+> rebrands, mergers, delistings, and same-CIK reorgs / spinoffs (verified via
+> live probe — see [`01_data/tiingo_permaTicker_audit.md`](
+> 01_data/tiingo_permaTicker_audit.md)). Refer to that audit for the replacement
+> identity design; this document's §9b description is retained only for
+> historical context on why identity tracking was needed.
+>
+> Data-flow implications under the migration:
+> - §9b's "Canonical Anchor: SEC CIK" becomes "Primary Anchor: Tiingo
+>   `permaTicker`". The §9b discussion of surviving renames / rebrands /
+>   bankruptcy-Q delistings via CIK still conceptually applies (permaTicker
+>   does the same job) but permaTicker also correctly splits CHK vs EXE
+>   (same-CIK reorg) and ENOV vs ESAB (same-CIK spinoff) which CIK
+>   incorrectly merged (see merger_identity_patch.md §7.7).
+> - §14's macro/price data sourcing remains EODHD for the earnings-calendar
+>   load-bearing endpoint (Tiingo has no equivalent); but the daily price
+>   history for individual stocks switches from EODHD `/api/eod` to Tiingo
+>   `/tiingo/daily/{permaTicker}/prices` for identity consistency.
+> - Phase B alias-concatenation (Phase B v2 / v2.1) is eliminated entirely —
+>   Tiingo back-merges rebrand history server-side under the permaTicker
+>   key. See `database_layout.md` and `phase_b_contamination_audit.md`.
+>
+> All other sections (§1-§8 strategy, §10 gating, §11 earnings math, §12
+> lookback split, §13 calendar scheduling, §15 operational pipeline, §16
+> interval validation, §17 LTR model) remain authoritative.
+
 ## 1. Target Variable Definition (The ML Objective)
 *   **Core Goal:** Do not predict binary earnings surprises or nominal absolute price moves. Predict institutional drift (Idiosyncratic Alpha / Market-Neutral Abnormal Returns).
 *   **Target Metric:** Cumulative Abnormal Return ($CAR$) measured from $T+1$ to $T+11$ (10-day holding horizon), where $T$ is the earnings announcement date.
@@ -92,6 +121,12 @@
     * The exact date where the daily adjusted close and trading volume flatlines or permanently ceases to print is the definitive `removed_date` for that interval block.
 
 ## 9b. Company-Level Merge & Canonical Ticker Layer (NEW)
+
+> ⛔ **DEPRECATED anchor** (2026-07-14): the paragraph below uses `SEC CIK`
+> as the canonical anchor. See the file-top notice. CIK is being replaced by
+> Tiingo `permaTicker` because CIK incorrectly merges same-CIK reorgs
+> (CHK->EXE) and same-CIK spinoffs (CFX->ENOV+ESAB). The full migration
+> design and probe evidence are in `01_data/tiingo_permaTicker_audit.md`.
 
 The feature matrix has **one row per earnings event** (not per ticker symbol; each company contributes many rows over its S&P 400 membership window). Companies change ticker symbols over time (rebrands, mergers, bankruptcy-Q suffixes) while staying continuously in the index. Treating each ticker symbol as a separate company fragments price history, drops pre-rebrand earnings events, and creates phantom "still in the index" rows.
 

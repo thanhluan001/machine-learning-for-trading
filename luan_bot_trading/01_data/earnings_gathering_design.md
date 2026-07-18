@@ -1,5 +1,14 @@
 # Earnings Gathering (EODHD) Design
 
+> **⛔ IDENTITY MIGRATION NOTICE (2026-07-14).** Phase D's iteration source
+> (`/metadata/sp400_perm_ids`) and its dedup key (`perm_id,
+> fiscal_period_end`) are migrating to Tiingo `permaTicker`. The EODHD
+> `/api/calendar/earnings` endpoint RETAINS the load-bearing role (Tiingo
+> has no equivalent calendar endpoint), but ALL `perm_id` references below
+> must be read as `permaTicker`. See
+> [`01_data/tiingo_permaTicker_audit.md`](tiingo_permaTicker_audit.md)
+> for the new identity model.
+
 > Status: **Design approved, not yet implemented.** Created for future reference.
 > Replaces the yahooquery POC (`06_fetch_earnings_poc.py`).
 >
@@ -16,6 +25,13 @@
 >     `merger_identity_patch.md` §7.7 for why keying by `canonical_ticker` was
 >     wrong (12 perm_id pairs collide on canonical_ticker -> cross-perm_id
 >     dedup lose events).
+>
+>   ⛔ All three points above (`/metadata/sp400_perm_ids`, `perm_id` primary
+>   key, dedup key composition) are POST-PERMATICKER-MIGRATION targets:
+>   `/metadata/sp400_perm_ids` -> `/metadata/sp400_permatickers`, `perm_id`
+>   -> `permaTicker`, dedup key `(permaTicker, fiscal_period_end)`. The
+>   collision-dedup problem (§7.7) dissolves because permaTicker IS the
+>   storage key.
 
 ## Motivation
 

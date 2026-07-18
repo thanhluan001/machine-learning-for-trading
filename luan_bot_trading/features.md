@@ -1,5 +1,28 @@
 # Feature Engineering Matrix Protocol: Cross-Sectional Listwise Setup
 
+> **⚠️ IDENTITY MIGRATION NOTICE (2026-07-14).** Section §0 below (the
+> "perm_id Level" row granularity, the canonical-ticker collision
+> disambiguation rule, the Phase B v2 alias-union note) is **OBSOLETE**
+> in favor of Tiingo `permaTicker`. The new primary entity identifier is
+> `permaTicker`, identity-stable across rebrands/mergers/delistings
+> (live probe evidence in [`01_data/tiingo_permaTicker_audit.md`](
+> 01_data/tiingo_permaTicker_audit.md)).
+>
+> Forward-stage deltas:
+> - Row granularity changes from "one earnings event of one `perm_id`" to
+>   "one earnings event of one `permaTicker`".
+> - The 12-pair canonical_ticker collision disambiguation rule (LIVE-wins-
+>   overlap + later-removed tiebreak) is **DELETED ENTIRELY** because
+>   `permaTicker` itself is the storage key (`/sp400/{permaTicker}`) —
+>   no two piles share the same key.
+> - The Phase B v2 alias-union workaround (`/sp400/{canon}` stored as a
+>   union of all sharing-perm_ids' aliases) falls away — one Tiingo
+>   `/prices` fetch per `permaTicker` returns the full rebrand-covered
+>   history server-side.
+>
+> The remaining clarifification of §0 — interval-gating with 90-day buffer,
+> Phase E stage logic, sue_score derivation — is still authoritative.
+
 This document is the **single source of truth** for the feature schema used by the
 PEAD trading bot's training (XGBoost **Ranker** — listwise Learning-to-Rank) and
 Sunday/weekday inference pipelines. It supersedes any prior feature-spec drafts
@@ -11,6 +34,14 @@ group structure, isotonic calibration, live sizing) this schema feeds into.
 ---
 
 ## 0. Row Granularity & Group Structure
+
+> ⛔ **DEPRECATED IDENTITY LAYER (2026-07-14).** The paragraphs below are
+> written in terms of `perm_id` and the 12 canonical_ticker collision pairs
+> under Phase A. Under permaTicker migration, `perm_id` becomes
+> `permaTicker` (per file-top notice), the collision disambiguation rule
+> falls away entirely, and the alias-union storage path also falls away —
+> read these paragraphs as historical context for why identity gating was
+> necessary, not as the live schema.
 
 * **Feature Row Granularity (perm_id Level):** Each row of the feature
   matrix corresponds to **one earnings event** of one perm_id. A perm_id

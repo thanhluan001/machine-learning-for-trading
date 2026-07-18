@@ -1,0 +1,27 @@
+=== Phase D Step A migration: dropped rows (no permaTicker mapping) ===
+Original earnings rows:     44,897
+Mapped to permaTicker:       44,308 (98.69%)
+Dropped (unmappable):        589 (1.31%)
+
+Unmappable canonical_tickers (legacy bankruptcies Tiingo never tracked):
+  KAR    cik=0001395942    n_rows=60
+  TUP    cik=0001008654    n_rows=51
+  HSC    cik=0000045876    n_rows=48
+  SIVB   cik=0000719739    n_rows=47
+  ENDP   cik=0001593034    n_rows=46
+  CLI    cik=0000924901    n_rows=42
+  RLGY   cik=0001398987    n_rows=39
+  MNK    cik=0001567892    n_rows=38
+  SPN    cik=0000886835    n_rows=37
+  ASNA   cik=0001498301    n_rows=35
+  JCP    cik=0001166126    n_rows=35
+  DF     cik=0000931336    n_rows=29
+  WPG    cik=0001594686    n_rows=29
+  VSCO   cik=0001856437    n_rows=21
+  CHFC   cik=0000019612    n_rows=11
+  GDI    cik=0000916459    n_rows=11
+  WIN    cik=0001282266    n_rows=10
+
+(Loss is acceptable: these are delisted/bankrupt companies Tiingo
+ has no permaTicker for. Their /sp400/* price nodes never existed,
+ so Phase E feature gating would have dropped them anyway.)

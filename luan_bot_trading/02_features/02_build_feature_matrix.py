@@ -1,45 +1,41 @@
 #!/usr/bin/env python3
 """
-Stage 2: Feature Matrix Builder  (Phase E implementation)
-==========================================================
+Stage 2: Feature Matrix Builder  (Phase E v2 -- permaTicker-keyed)
+==================================================================
 
 PURPOSE
 -------
-Expand the Stage-1 gated events table (`/features/gated_events`, 21,269 rows,
-7 columns including perm_id) into the full listwise-ranker training matrix
-at `/features/train_matrix`:
+Expand the Stage-1 gated events table (`/features/gated_events`, 20,742 rows
+post Phase E v2, 7 columns including permaTicker) into the full listwise-
+ranker training matrix at `/features/train_matrix`:
 
-  * 21 active features in `X` (Block 1-4 per `features.md` §1).
-  * 7 mandatory non-feature metadata columns (Phase E adds `perm_id`).
+  * 21 active features in `X` (Block 1-4 per `features.md`  1).
+  * 7 mandatory non-feature metadata columns (Phase E v2 keys by permaTicker).
   * 1 target label `car_10d` (continuous 10-day LOG CAR; NDCG target).
   * 1 Pass-1 audit column `car_60d_pass1` (used by Pass B for
     `car_drift_historical_q1`; also live-inference audit).
 
-Total: 7 + 1 + 1 + 21 = 30 columns phase E (matched v1's count + perm_id
-expansion).
+Total: 7 + 1 + 1 + 21 = 30 columns (same count as v1; permaTicker replaces
+perm_id).
 
 INPUTS (from `01_data/db.h5`; READ-ONLY; zero external API calls)
 -----------------------------------------------------------------
-  * `/features/gated_events`        — Stage-1 output (Phase E schema):
-        perm_id, canonical_ticker, cik, report_date, added, removed,
+  * `/features/gated_events`        -- Stage-1 v2 output (permaTicker-keyed):
+        permaTicker, canonical_ticker, cik, report_date, added, removed,
         calendar_week_group                                 (7 cols)
-  * `/earnings/raw`                    — required for Block 1 (12Q rolling
-        std over ALL prior quarters per perm_id). Phase D schema includes
-        perm_id column so we group correctly.
-  * `/sp400/{canonical_ticker}`        — 850+ individual price-series nodes
-        (Date + Adj_Close/Adj_Volume etc, 11 cols). Loaded once per
-        canonical in the per-canonical processing loop. The 12 canonical-
-        collision pairs share the load (Phase B v2 stores union alias
-        history here).
-  * `/metadata/sp400_perm_ids`         — required for:
-        perm_id -> canonical_ticker, cik, index_ref, combined_intervals
-        (Phase A schema).
-  * `/macros/IJH`                      — mid-cap benchmark for
-        pre_event_idiosyncratic_vol and all rel_ret_*d features. Loaded ONCE
-        (constant across all canonicals).
-  * `/macros/{index_ref}`              — sector ETF nodes (per-perm_id's
-        index_ref field, defaults to IJH). Loaded on first access; 8 distinct
-        ETFs total: IJK, IJJ, XLF, XLB, IJS, XLU, XLRE, IJH (default).
+  * `/earnings/raw`                    -- Phase D migrated schema. Required
+        for Block 1 (12Q rolling std over ALL prior quarters per permaTicker).
+        Columns include `permaTicker` (migrated from legacy `perm_id`).
+  * `/sp400/{permaTicker}`             -- 928 individual price-series nodes
+        (Tiingo-source, Phase B v2 storage). 11 cols: Date + Adj_Close /
+        Adj_Volume etc. Loaded ONCE per permaTicker in the processing loop.
+  * `/metadata/sp400_permatickers`      -- permaTicker metadata (Phase A v2):
+        permaTicker, canonical_ticker, cik, index_ref, wikipedia_intervals
+        (One row per permaTicker.)
+  * `/macros/IJH`                      -- mid-cap benchmark for
+        pre_event_idiosyncratic_vol and all rel_ret_*d features. Loaded ONCE.
+  * `/macros/{index_ref}`              -- sector ETF nodes (per-permaTicker's
+        `index_ref` field, defaults to IJH). 8 distinct ETFs total.
 
 OUTPUTS
 -------
@@ -47,37 +43,42 @@ OUTPUTS
   * stdout build report including per-feature non-NaN coverage, T-match
     failure count, distinct group count, pass timings.
 
-PASS STRATEGY (Phase E)
------------------------
-  Pass A — Per-canonical price-frame alignment + per-perm_id Pass-A CAR
-           windows (car_10d for gated events; car_60d_pass1 for ALL
-           per-perm_id earnings rows so car_drift_historical_q1 shift
-           stays accurate for gated events whose prior event was non-gated).
-           Also per-event Block 2/3 features computed here.
+PASS STRATEGY (Phase E v2)
+--------------------------
+  Pass A -- Per-permaTicker price-frame alignment + per-permaTicker
+           Pass-A CAR windows (car_10d for gated events; car_60d_pass1 for
+           ALL per-permaTicker earnings rows so car_drift_historical_q1
+           shift stays accurate for gated events whose prior event was
+           non-gated). Also per-event Block 2/3 features computed here.
 
-  Pass B — Per-perm_id Block 1 (rolling 12Q std over full earnings
+  Pass B -- Per-permaTicker Block 1 (rolling 12Q std over full earnings
            timeline) + Block 4 interaction (needs Pass A vol + Pass B sue).
 
-  Pass C — Assemble row-major dataframe. Sort by
-           ['calendar_week_group', 'perm_id', 'report_date']. Write.
+  Pass C -- Assemble row-major dataframe. Sort by
+           ['calendar_week_group', 'permaTicker', 'report_date']. Write.
 
-§7.7 DISAMBIGUATION
--------------------
-Stage 1 already pruned loser-perm_id events in their overlap zone (105
-events, ~0.23% of raw). Stage 2 trusts gated_events as input; no re-filter
-needed.
+v2 CHANGES vs v1 (per Phase A+B migration report)
+--------------------------------------------------
+  * Identity: perm_id -> permaTicker (Tiingo-issued, identity-stable).
+  * Price node path: /sp400/{canonical_ticker} -> /sp400/{permaTicker}.
+  * Orchestration: per-canonical-ticker outer loop REMOVED; each permaTicker
+    is its own iteration (Phase B v2 stores one price node per permaTicker).
+  * Section-7.7 disambiguation REMOVED -- permaTicker is the storage key, no
+    two active permaTickers can collide on a single canonical_ticker.
+  * Stable mergesort for Date sort (eliminates the Phase B v2.1 quicksort
+    contamination root cause).
 
-LOG UNITS (LOCKED — Design.md §17.4, features.md §1)
+LOG UNITS (LOCKED -- Design.md  17.4, features.md  1)
 ------------------------------------------------------
 `car_10d` and `car_60d_pass1` (therefore `car_drift_historical_q1`) are
 stored in LOG units. The arithmetic-percentage conversion happens at the
 Stage-3 isotonic calibration bridge (`np.expm1` on the calibrator fit
 target). NO conversion in Stage 2.
 
-§12 PRIMING CUTOFF (features.md §0)
+12 PRIMING CUTOFF (features.md  0)
 ------------------------------------
-Stage 2 stores ALL gated events (2012-03-31 onward). The §12 train-time
-cutoff (report_date >= 2015-01-01) is the training script's
+Stage 2 stores ALL gated events (2012-03-31 onward, post v2). The 12 train-
+time cutoff (report_date >= 2015-01-01) is the training script's
 responsibility (Stage 3), not here. Same for the sparse-week cutoff
 (<3 events/week).
 
@@ -86,7 +87,7 @@ CLI
     python luan_bot_trading/02_features/02_build_feature_matrix.py
     python luan_bot_trading/02_features/02_build_feature_matrix.py --dry-run
     python luan_bot_trading/02_features/02_build_feature_matrix.py --limit N
-        # Process only first N canonicals (smoke testing). Default = all.
+        # Process only first N permaTickers (smoke testing). Default = all.
 
 HDF5 WRITE SAFETY
 -----------------
@@ -96,11 +97,20 @@ if the target key already exists (per STOP_DOING_EXTRA_SHIT.md).
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+# Ensure unicode characters in errors/messages don't crash Windows cp1252 console.
+# Per Windows constraint: this is the cleanest pattern (Python 3.7+).
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, RuntimeError):
+    pass  # not all streams support reconfigure (eg test capture)
 
 
 # ==============================================================================
@@ -111,7 +121,7 @@ DB_FILE = Path(__file__).resolve().parent.parent / "01_data" / "db.h5"
 GATED_EVENTS_KEY = "/features/gated_events"
 TRAIN_MATRIX_KEY = "/features/train_matrix"
 EARNINGS_KEY = "/earnings/raw"
-PERM_IDS_KEY = "/metadata/sp400_perm_ids"
+PERMATICKERS_KEY = "/metadata/sp400_permatickers"
 IJH_KEY = "/macros/IJH"
 DEFAULT_SECTOR_INDEX = "IJH"
 
@@ -128,7 +138,16 @@ SECTOR_RET_HORIZON = 20
 
 # SUE rolling-12Q configuration
 SUE_ROLLING_WINDOW = 12     # 12 quarters
-SUE_MIN_PERIODS = 12        # see features.md §4
+SUE_MIN_PERIODS = 12        # see features.md sec 4 (rolling 12Q std denominator)
+
+# Hard cap on eps_surprise_pct to suppress EODHD's divide-by-tiny-denominator
+# outliers (~0.5% of rows). EODHD percent = (actual - estimate) / |estimate| * 100;
+# when estimate is tiny (e.g. $0.001), small $ differences explode to absurd
+# values (e.g. -320M% for SUNE 2015-Q1). Capping at +/-300% preserves true
+# large surprises (99th percentile raw EODHD = +500%) while eliminating
+# nonsense outliers. Inspection 2026-07-15: 99 rows (0.49%) clipped, 18
+# rows (0.089%) have |val| > 5000% before cap.
+EPS_SURPRISE_PCT_CAP = 300.0
 
 
 def _sector_key(ticker: str) -> str:
@@ -156,50 +175,53 @@ def load_gated_events() -> pd.DataFrame:
         return store.get(GATED_EVENTS_KEY)
 
 
-def load_perm_ids_map() -> pd.DataFrame:
-    """Load /metadata/sp400_perm_ids (Phase A schema). Returns a DataFrame
-    indexed by perm_id with columns: canonical_ticker, cik, index_ref,
-    combined_intervals (parsed JSON list)."""
+def load_permatickers_map() -> pd.DataFrame:
+    """Load /metadata/sp400_permatickers (Phase A v2 schema). Returns a
+    DataFrame indexed by permaTicker with columns: canonical_ticker, cik,
+    index_ref, wikipedia_intervals (raw JSON str -- Stage 2 does not parse).
+    """
     with pd.HDFStore(DB_FILE, mode="r") as store:
-        if PERM_IDS_KEY not in store.keys():
+        if PERMATICKERS_KEY not in store.keys():
             raise FileNotFoundError(
-                f"Key {PERM_IDS_KEY} not found. Run 02b_build_company_map.py (Phase A) first."
+                f"Key {PERMATICKERS_KEY} not found. Run 02b_build_company_map.py "
+                "(Phase A v2) first."
             )
-        df = store.get(PERM_IDS_KEY)
+        df = store.get(PERMATICKERS_KEY)
     # Use only the columns we need.
-    return df[["perm_id", "canonical_ticker", "cik", "index_ref", "combined_intervals"]]
-
+    return df[["permaTicker", "canonical_ticker", "cik", "index_ref", "wikipedia_intervals"]]
 
 def load_earnings_full() -> pd.DataFrame:
-    """Load the FULL /earnings/raw (Phase D schema). Required columns:
-        report_date, fiscal_period_end, perm_id, canonical_ticker, cik,
-        actual, estimate, difference, percent, before_after_market, currency
+    """Load the FULL /earnings/raw (Phase D migrated schema). Required columns:
+        report_date, fiscal_period_end, code, canonical_ticker, cik,
+        actual, estimate, difference, percent, before_after_market, currency,
+        permaTicker
     """
     with pd.HDFStore(DB_FILE, mode="r") as store:
         if EARNINGS_KEY not in store.keys():
             raise FileNotFoundError(
-                f"Key {EARNINGS_KEY} not found. Run 06_earnings_gathering.py first."
+                f"Key {EARNINGS_KEY} not found. Run 06_earnings_gathering.py + "
+                "phase_d_migrate_earnings_keys.py first."
             )
         return store.get(EARNINGS_KEY)
 
 
-def load_stock_prices(canonical: str) -> pd.DataFrame:
-    """Load /sp400/{canonical}. Returns columns (11):
+def load_stock_prices(permaTicker: str) -> pd.DataFrame:
+    """Load /sp400/{permaTicker} (Phase B v2 storage path). Returns columns (11):
         Date, Open, High, Low, Close, Volume,
         Adj_Open, Adj_High, Adj_Low, Adj_Close, Adj_Volume
     Date is tz-naive datetime64[us]; sorted ascending.
     """
-    key = f"/sp400/{canonical}"
+    key = f"/sp400/{permaTicker}"
     with pd.HDFStore(DB_FILE, mode="r") as store:
         if key not in store.keys():
             raise KeyError(
                 f"Price node {key} missing. "
-                f"This should never happen post Stage 1 (price_unavailable perm_ids "
-                f"are excluded at the gate). Investigate."
+                "This should never happen post Stage 1 (price_unavailable "
+                "permaTickers are excluded at the gate). Investigate."
             )
         df = store.get(key)
-    # Defensive: ensure sorted by Date ascending.
-    df = df.sort_values("Date").reset_index(drop=True)
+    # Defensive: ensure sorted by Date ascending (stable sort).
+    df = df.sort_values("Date", kind="mergesort").reset_index(drop=True)
     return df
 
 
@@ -353,9 +375,14 @@ def compute_block2_features(
             return None
         return series.iloc[lo: hi + 1]
 
-    # is_bmo
+    # is_bmo: 1 if event was announced before market open. EODHD encodes as
+    # 'BeforeMarket' / 'AfterMarket' (CamelCase concatenated). We match the
+    # 'before' prefix (case-insensitive) to be robust to any encoding variant.
     bam = before_after_market_str
-    is_bmo = 1 if (isinstance(bam, str) and bam.strip().lower() == "bmo") else 0
+    is_bmo = 1 if (isinstance(bam, str) and "bmo" in bam.strip().lower()[:6]) else 0
+    # Defensive alternative matchers: 'beforemarket' starts with 'before'.
+    if is_bmo == 0 and isinstance(bam, str) and bam.strip().lower().startswith("before"):
+        is_bmo = 1
 
     # volume_vma20_ratio_pre_event: Volume[T] / mean(Volume[T-20:T-1])
     if i >= 0 and i < n:
@@ -545,30 +572,39 @@ def _compute_consecutive_surprises(
 
 
 def compute_block1_features_per_perm_id(
-    perm_earnings: pd.DataFrame,          # FULL per-perm_id earnings slice
-                                          # sorted by report_date ascending.
-                                          # Columns: report_date, fiscal_period_end,
-                                          # actual, estimate, difference, percent,
-                                          # before_after_market.
-    car_60d_pass1_full: pd.Series,        # per-event 60d CAR aligned to
-                                          # perm_earnings.index (NaN for events
-                                          # that were never computed by Pass A —
-                                          # such events shouldn't exist now
-                                          # because Pass A computes car_60d_pass1
-                                          # for ALL per-perm_id earnings rows,
-                                          # but defensive NaN allowed).
+    permaticker_earnings: pd.DataFrame,      # FULL per-permaTicker earnings
+                                              # slice, sorted by report_date asc.
+                                              # Columns: report_date, fiscal_period_end,
+                                              # actual, estimate, difference, percent,
+                                              # before_after_market.
+    car_60d_pass1_full: pd.Series,           # per-event 60d CAR aligned to
+                                              # permaticker_earnings.index (NaN for
+                                              # events that were never computed by
+                                              # Pass A -- such events shouldn't
+                                              # exist now because Pass A computes
+                                              # car_60d_pass1 for ALL per-permaTicker
+                                              # earnings rows, but defensive NaN
+                                              # allowed).
 ) -> pd.DataFrame:
-    """Compute all 7 Block-1 features for a perm_id over its FULL earnings
+    """Compute all 7 Block-1 features for a permaTicker over its FULL earnings
     timeline.
 
-    Returns a DataFrame indexed by perm_earnings.index with 7 columns:
+    Returns a DataFrame indexed by permaticker_earnings.index with 7 columns:
         sue_score, eps_surprise_pct, consecutive_surprises,
         sue_acceleration, sue_lag_1, sue_lag_2,
         car_drift_historical_q1
     """
-    sue = _compute_sue_score(perm_earnings["difference"])
-    eps_surprise_pct = perm_earnings["percent"]
-    consecutive = _compute_consecutive_surprises(perm_earnings["actual"], perm_earnings["estimate"])
+    sue = _compute_sue_score(permaticker_earnings["difference"])
+    eps_surprise_pct = permaticker_earnings["percent"]
+    # Hard cap (option b per inspection 2026-07-15): EODHD's percent =
+    # (actual - estimate) / |estimate| * 100 explodes when estimate is
+    # tiny (e.g. -320M% for SUNE 2015-Q1). Clip at +/-EPS_SURPRISE_PCT_CAP.
+    # NaN rows stay NaN. This avoids ranker split distortion from nonsense
+    # outlier values while preserving true large surprises.
+    eps_surprise_pct = eps_surprise_pct.clip(
+        lower=-EPS_SURPRISE_PCT_CAP, upper=EPS_SURPRISE_PCT_CAP
+    )
+    consecutive = _compute_consecutive_surprises(permaticker_earnings["actual"], permaticker_earnings["estimate"])
     sue_acc = sue.diff()
     sue_lag_1 = sue.shift(1)
     sue_lag_2 = sue.shift(2)
@@ -581,191 +617,166 @@ def compute_block1_features_per_perm_id(
         "sue_lag_1": sue_lag_1,
         "sue_lag_2": sue_lag_2,
         "car_drift_historical_q1": car_drift,
-    }, index=perm_earnings.index)
+    }, index=permaticker_earnings.index)
     return out
 
 
 # ==============================================================================
-# PART 5 — PER-CANONICAL ORCHESTRATOR
+# PART 5 -- PER-PERMATICKER ORCHESTRATOR (Phase E v2)
 # ==============================================================================
-def process_canonical(
+def process_permaticker(
+    permaTicker: str,
     canonical: str,
-    gated_canonical_df: pd.DataFrame,        # gated events for THIS canonical
-                                              # (perm_ids sharing it).
-    canonical_perm_ids: pd.DataFrame,        # perm_ids metadata rows (with
-                                              # index_ref per perm_id) sharing this
-                                              # canonical.
-    full_earnings_by_perm_id: dict[str, pd.DataFrame],
-                                              # FULL per-perm_id earnings slice
-                                              # for every perm_id (used for Block1
-                                              # Rolling 12Q over all priors).
+    index_ref: str,
+    gated_for_pt: pd.DataFrame,            # gated events for THIS permaTicker
+                                            # (already filtered by permaTicker).
+    permaticker_earnings_full: pd.DataFrame,  # FULL per-permaTicker earnings slice
+                                              # (sorted by report_date asc) used for
+                                              # Block 1 Rolling 12Q over all priors.
     ijh_df: pd.DataFrame,
     benchmark_prices_cache: dict[str, pd.DataFrame],
 ) -> tuple[list[dict], list[tuple[str, pd.Timestamp]]]:
-    """Process one canonical's gated events end to end.
+    """Process one permaTicker's gated events end to end.
+
+    v2 changes vs v1 process_canonical:
+      * No outer canonical-grouped loop. Each permaTicker is its own iteration
+        (Phase B v2 stores each permaTicker at /sp400/{permaTicker}).
+      * One sector ETF per permaTicker (not per-perm_id under a canonical).
+      * Removed the entire §7.7 disambiguation machinery (no collisions possible).
 
     Returns:
-        row_dicts : list of dict rows (the canonical's chunk of train_matrix)
-        t_failures: list of (perm_id, report_date) tuples where T-match failed
-                    (these rows are dropped per NaN policy).
+        row_dicts : list of dict rows (this permaTicker's chunk of train_matrix)
+        t_failures: list of (permaTicker, report_date) tuples where T-match
+                    failed (these rows are dropped per features.md §4).
     """
-    # Load stock prices once for this canonical.
-    stock_df = load_stock_prices(canonical)
+    # Load stock prices once for this permaTicker.
+    stock_df = load_stock_prices(permaTicker)
     stock_dates_np = stock_df["Date"].values  # sorted ascending (load_stock_prices)
 
+    # Resolve sector ETF.
+    if not isinstance(index_ref, str) or not index_ref:
+        index_ref = DEFAULT_SECTOR_INDEX
+    sector_key = _sector_key(index_ref)
+    if sector_key not in benchmark_prices_cache:
+        benchmark_prices_cache[sector_key] = load_benchmark_prices(sector_key)
+    sector_df = benchmark_prices_cache[sector_key]
+
     # Build the aligned frame (LEFT join stock.Date -> benchmarks).
-    # The sector ETF is per-perm_id (permids may have different index_ref
-    # under the same canonical-ticker if they came from different SIC codes).
-    # So we can't bake the sector into the aligned frame; we keep it as a
-    # separate dict per-perm_id and join in Block 3.  For simplicity we
-    # defer the aligned-frame building to a per-perm_id call to align with
-    # the sector that the perm_id uses.
-    row_dicts: list[dict] = []
+    aligned = build_aligned_price_frame(stock_df, ijh_df, sector_df)
+    stock_ret_full = _log_ret(pd.Series(aligned["stock_Adj_Close"].values, index=aligned.index))
+    ijh_ret_full = _log_ret(pd.Series(aligned["ijh_Close"].values, index=aligned.index))
+
+    # Earnings for this permaTicker (FULL timeline -- used for Block 1).
+    perm_earnings_sorted = (permaticker_earnings_full
+                            .sort_values("report_date").reset_index(drop=True))
+    if perm_earnings_sorted.empty:
+        # Defensive -- shouldn't happen: gated events exist iff /earnings/raw
+        # has rows for this permaTicker.
+        return [], []
+
+    # Gated events for this permaTicker, sorted by report_date.
+    gated_for_pt_sorted = gated_for_pt.sort_values("report_date").reset_index(drop=True)
+
+    # Pass A: compute car_60d_pass1 for ALL earnings rows of this permaTicker
+    # (gated or not -- for car_drift_historical_q1 shift accuracy).
+    per_event_car_60d: dict[pd.Timestamp, float] = {}
+    for _, erow in perm_earnings_sorted.iterrows():
+        rdate = pd.Timestamp(erow["report_date"])
+        t_pos = match_T(stock_dates_np, rdate)
+        if t_pos is None:
+            per_event_car_60d[rdate] = np.nan
+            continue
+        car60 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_60D_END_OFFSET)
+        per_event_car_60d[rdate] = car60
+        # (car_10d is computed per gated event below -- we don't double-compute)
+
+    # Build a per-report_date lookup for before_after_market.
+    bam_lookup = pd.Series(
+        perm_earnings_sorted["before_after_market"].values,
+        index=pd.to_datetime(perm_earnings_sorted["report_date"]),
+    )
+
+    # Compute per-event Block 2/3 features + car_10d for GATED events.
+    gated_payloads: list[dict] = []
     t_failures: list[tuple[str, pd.Timestamp]] = []
-
-    # We'll opt to build one aligned frame per perm_id with its own sector
-    # ETF (cheap; the sector join is fast).
-    for perm_id, perm_record in canonical_perm_ids.iterrows():
-        # perm_record has: canonical_ticker, cik, index_ref, combined_intervals
-        index_ref = perm_record["index_ref"]
-        if not isinstance(index_ref, str) or not index_ref:
-            index_ref = DEFAULT_SECTOR_INDEX
-        sector_key = _sector_key(index_ref)
-        if sector_key not in benchmark_prices_cache:
-            benchmark_prices_cache[sector_key] = load_benchmark_prices(sector_key)
-        sector_df = benchmark_prices_cache[sector_key]
-
-        aligned = build_aligned_price_frame(stock_df, ijh_df, sector_df)
-        # Pre-compute full-length log returns for Block 2 idio vol.
-        stock_ret_full = _log_ret(pd.Series(aligned["stock_Adj_Close"].values, index=aligned.index))
-        ijh_ret_full = _log_ret(pd.Series(aligned["ijh_Close"].values, index=aligned.index))
-
-        # Earnings for this perm_id (FULL timeline -- used for Block 1).
-        perm_earnings = full_earnings_by_perm_id.get(perm_id)
-        if perm_earnings is None or perm_earnings.empty:
-            # Defensive — shouldn't happen because the gated events for this
-            # perm_id exist iff /earnings/raw has rows for it.
+    for _, grow in gated_for_pt_sorted.iterrows():
+        rdate = pd.Timestamp(grow["report_date"])
+        t_pos = match_T(stock_dates_np, rdate)
+        if t_pos is None:
+            # T-match failure: drop row + log (features.md §4 explicit exception).
+            t_failures.append((permaTicker, rdate))
             continue
+        car10 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_10D_END_OFFSET)
+        car60 = per_event_car_60d.get(rdate, np.nan)
+        bam = bam_lookup.get(rdate, None)
 
-        # Pass A per-perm_id: car_60d_pass1 for ALL earnings rows of this
-        # perm_id (gated or not — for car_drift_historical_q1 shift accuracy).
-        # car_10d only for gated rows (it's the label; non-gated rows have no
-        # use for it).
-        gated_for_pid = gated_canonical_df[
-            gated_canonical_df["perm_id"] == perm_id
-        ].sort_values("report_date").reset_index(drop=True)
+        block2 = compute_block2_features(aligned, stock_ret_full, ijh_ret_full, t_pos, bam)
+        block3 = compute_block3_features(aligned, t_pos)
 
-        # Map report_date -> aligned t_position. Use searchsorted on stock_dates_np.
-        per_event_car_60d = {}     # report_date_TS -> float (car_60d_pass1; NaN if fail)
+        row_dict = {
+            "permaTicker": permaTicker,
+            "canonical_ticker": canonical,
+            "cik": grow.get("cik", None),
+            "report_date": rdate,
+            "T": aligned.index[t_pos],
+            "calendar_week_group": grow["calendar_week_group"],
+            "added": pd.Timestamp(grow["added"]) if pd.notna(grow.get("added")) else pd.NaT,
+            "car_10d": car10,
+            "car_60d_pass1": car60,
+            **block2,
+            **block3,
+        }
+        gated_payloads.append(row_dict)
 
-        # Iterate over the FULL perm_earnings timeline (sorted by report_date asc).
-        perm_earnings_sorted = perm_earnings.sort_values("report_date").reset_index(drop=True)
+    if not gated_payloads:
+        return [], t_failures
 
-        for _, erow in perm_earnings_sorted.iterrows():
-            rdate = pd.Timestamp(erow["report_date"])
-            t_pos = match_T(stock_dates_np, rdate)
-            if t_pos is None:
-                # T-match failure; this earnings row has no Pass-A car_60d.
-                # For non-gated rows, this is silent (no row to drop). For gated
-                # rows, this becomes a drop and is logged below.
-                per_event_car_60d[rdate] = np.nan
-                continue
-            car60 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_60D_END_OFFSET)
-            per_event_car_60d[rdate] = car60
-            # (car_10d is computed per gated event below — we don't double-compute here).
+    # Pass B: Block 1 on the FULL earnings timeline (rolling 12Q std).
+    car_60d_full = pd.Series(
+        [per_event_car_60d.get(pd.Timestamp(rd), np.nan)
+         for rd in perm_earnings_sorted["report_date"]],
+        index=perm_earnings_sorted.index,
+    )
+    block1_full = compute_block1_features_per_perm_id(perm_earnings_sorted, car_60d_full)
+    block1_indexed_by_date = block1_full.set_index(
+        pd.to_datetime(perm_earnings_sorted["report_date"])
+    )
 
-        # Now compute the per-event Block 2/3 features + car_10d for GATED events.
-        gated_payloads: list[dict] = []
-        for _, grow in gated_for_pid.iterrows():
-            rdate = pd.Timestamp(grow["report_date"])
-            t_pos = match_T(stock_dates_np, rdate)
-            if t_pos is None:
-                # T-match failure: drop row + log. NaN policy permits this
-                # exact drop case (features.md §4).
-                t_failures.append((perm_id, rdate))
-                continue
-            car10 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_10D_END_OFFSET)
-            car60 = per_event_car_60d.get(rdate, np.nan)
+    # Merge Block 1 + Block 4 interaction into each gated payload.
+    block1_cols = ["sue_score", "eps_surprise_pct", "consecutive_surprises",
+                   "sue_acceleration", "sue_lag_1", "sue_lag_2",
+                   "car_drift_historical_q1"]
+    for row_dict in gated_payloads:
+        rdate = row_dict["report_date"]
+        # rdate is pd.Timestamp above; block1 indexed by report_date (also TS).
+        if rdate in block1_indexed_by_date.index:
+            blk1 = block1_indexed_by_date.loc[rdate]
+            # Defensive: if duplicate report_date in earnings, blk1 may be a
+            # multi-row DataFrame; coerce to a single Series by taking the
+            # first row (SUE rolling 12Q is order-sensitive but duplicates
+            # with the SAME report_date are rare calendar collisions).
+            if isinstance(blk1, pd.DataFrame):
+                blk1 = blk1.iloc[0]
+            for col in block1_cols:
+                row_dict[col] = blk1[col]
+        else:
+            for col in block1_cols:
+                row_dict[col] = np.nan
 
-            # Find the `before_after_market` for this event in the perm_earnings
-            # timeline (we need it for is_bmo).
-            bam = None
-            match_idx = perm_earnings_sorted.index[
-                perm_earnings_sorted["report_date"] == rdate
-            ]
-            if len(match_idx) > 0:
-                bam = perm_earnings_sorted.loc[match_idx[0], "before_after_market"]
+        # Block 4 interaction.
+        sue_score_val = row_dict.get("sue_score")
+        if isinstance(sue_score_val, pd.Series):
+            sue_score_val = sue_score_val.iloc[0]
+        idio_v = row_dict.get("pre_event_idiosyncratic_vol")
+        if isinstance(idio_v, pd.Series):
+            idio_v = idio_v.iloc[0]
+        if (sue_score_val is None or pd.isna(sue_score_val)
+            or idio_v is None or pd.isna(idio_v) or idio_v == 0):
+            row_dict["sue_abs_x_inverse_vol"] = np.nan
+        else:
+            row_dict["sue_abs_x_inverse_vol"] = float(abs(sue_score_val) / float(idio_v))
 
-            block2 = compute_block2_features(
-                aligned, stock_ret_full, ijh_ret_full, t_pos, bam
-            )
-            block3 = compute_block3_features(aligned, t_pos)
-
-            row_dict = {
-                "perm_id": perm_id,
-                "canonical_ticker": canonical,
-                "cik": grow.get("cik", None),
-                "report_date": rdate,
-                "T": aligned.index[t_pos],
-                "calendar_week_group": grow["calendar_week_group"],
-                "added": pd.Timestamp(grow["added"]) if pd.notna(grow.get("added")) else pd.NaT,
-                "car_10d": car10,
-                "car_60d_pass1": car60,
-                **block2,
-                **block3,
-            }
-            gated_payloads.append(row_dict)
-
-        if not gated_payloads:
-            continue
-
-        # Pass B per-perm_id: Block 1 features on the FULL earnings timeline.
-        # Build aligned per-perm_id car_60d_pass1 full series for shift.
-        car_60d_full = pd.Series(
-            [per_event_car_60d.get(pd.Timestamp(rd), np.nan)
-             for rd in perm_earnings_sorted["report_date"]],
-            index=perm_earnings_sorted.index,
-        )
-        block1_full = compute_block1_features_per_perm_id(
-            perm_earnings_sorted, car_60d_full
-        )
-
-        # Inner-join: keep only gated rows. Index the block1 result by
-        # report_date for lookup.
-        block1_indexed_by_date = block1_full.set_index(
-            perm_earnings_sorted["report_date"]
-        )
-
-        # Merge block1 features into each gated payload (by report_date).
-        for row_dict in gated_payloads:
-            rdate = row_dict["report_date"]
-            if rdate in block1_indexed_by_date.index:
-                blk1 = block1_indexed_by_date.loc[rdate]
-                # blk1 may be a Series (single row match).
-                for col in ["sue_score", "eps_surprise_pct", "consecutive_surprises",
-                            "sue_acceleration", "sue_lag_1", "sue_lag_2",
-                            "car_drift_historical_q1"]:
-                    row_dict[col] = (blk1[col] if isinstance(blk1, pd.Series)
-                                      else blk1[col])
-            else:
-                # Defensive: block1 had no entry for this report_date — fill NaN.
-                for col in ["sue_score", "eps_surprise_pct", "consecutive_surprises",
-                            "sue_acceleration", "sue_lag_1", "sue_lag_2",
-                            "car_drift_historical_q1"]:
-                    row_dict[col] = np.nan
-
-            # Block 4 interaction.
-            sue_abs = abs(row_dict["sue_score"]) if pd.notna(row_dict.get("sue_score")) else np.nan
-            idio_v = row_dict.get("pre_event_idiosyncratic_vol")
-            if (sue_abs is None or pd.isna(sue_abs)
-                or idio_v is None or pd.isna(idio_v) or idio_v == 0):
-                row_dict["sue_abs_x_inverse_vol"] = np.nan
-            else:
-                row_dict["sue_abs_x_inverse_vol"] = float(sue_abs / idio_v)
-
-            row_dicts.append(row_dict)
-
-    return row_dicts, t_failures
+    return gated_payloads, t_failures
 
 
 # ==============================================================================
@@ -784,7 +795,7 @@ def write_train_matrix(df: pd.DataFrame, key: str = TRAIN_MATRIX_KEY) -> None:
             key,
             df,
             format="table",
-            data_columns=["calendar_week_group", "perm_id",
+            data_columns=["calendar_week_group", "permaTicker",
                            "canonical_ticker", "report_date"],
         )
 
@@ -803,20 +814,20 @@ def print_build_report(
     print(bar)
     print(f"  Rows in train_matrix:        {len(df):,}")
     print(f"  Columns:                      {df.shape[1]}")
-    print(f"  Distinct perm_ids:            {df['perm_id'].nunique() if len(df) else 0}")
+    print(f"  Distinct permaTickers:        {df['permaTicker'].nunique() if len(df) else 0}")
     print(f"  Distinct canonical_tickers:   {df['canonical_ticker'].nunique() if len(df) else 0}")
     print(f"  Distinct calendar weeks:      {df['calendar_week_group'].nunique() if len(df) else 0}")
     print(f"  Date range:                   {df['report_date'].min()} -> {df['report_date'].max()}")
     print(f"  T-match failures (drops):     {len(t_match_failures)}")
     if t_match_failures:
-        print(f"  First 10 T-match failures (perm_id, report_date):")
-        for pid, rd in t_match_failures[:10]:
-            print(f"    {pid}  {rd.date()}")
+        print(f"  First 10 T-match failures (permaTicker, report_date):")
+        for pt_, rd in t_match_failures[:10]:
+            print(f"    {pt_}  {rd.date()}")
     print(f"  Build wall-clock elapsed:     {pass_total_seconds:.1f}s")
 
     if len(df):
         print()
-        print("Per-feature non-NaN coverage (NaNs allowed per features.md §4; just audit):")
+        print("Per-feature non-NaN coverage (NaNs allowed per features.md sec 4; just audit):")
         feature_cols = [
             "sue_score", "eps_surprise_pct", "consecutive_surprises",
             "sue_acceleration", "sue_lag_1", "sue_lag_2",
@@ -846,39 +857,37 @@ def print_build_report(
 def main(dry_run: bool = False, limit: int | None = None) -> int:
     bar = "=" * 70
     print(bar)
-    print("STAGE 2 — Feature Matrix Builder  [Phase E implementation]")
+    print("STAGE 2 -- Feature Matrix Builder  [Phase E v2: permaTicker-keyed]")
     print(f"DB file: {DB_FILE}")
     print(f"Output key: {TRAIN_MATRIX_KEY}  {'(dry-run, no write)' if dry_run else ''}")
     if limit is not None:
-        print(f"Limit: processing first {limit} canonicals only.")
+        print(f"Limit: processing first {limit} permaTickers only.")
     print(bar)
 
     t0 = time.time()
 
     print("[1/6] Loading inputs ...")
     gated_df = load_gated_events()
-    perm_ids_meta = load_perm_ids_map()
+    permatickers_meta = load_permatickers_map()
     earnings_full = load_earnings_full()
     print(
-        f"  gated: {len(gated_df):,} rows | perm_ids: {len(perm_ids_meta):,} "
+        f"  gated: {len(gated_df):,} rows | permatickers: {len(permatickers_meta):,} "
         f"| earnings full: {len(earnings_full):,}"
     )
 
-    # Pre-process perm_ids meta: index by perm_id.
-    perm_ids_meta = perm_ids_meta.set_index("perm_id", drop=False)
-    # Filter to perm_ids that appear in gated events (skip perm_ids with no
-    # gated events -- safe optimization).
-    gated_perm_id_set = set(gated_df["perm_id"].unique())
-    perm_ids_meta = perm_ids_meta[perm_ids_meta["perm_id"].isin(gated_perm_id_set)]
-    # Group perm_ids by canonical so we process per-canonical.
-    canonical_grouped = perm_ids_meta.groupby("canonical_ticker")
+    # Pre-process permatickers meta: filter to permaTickers that appear in
+    # gated events (skip permaTickers with no gated events -- safe optimization).
+    gated_pt_set = set(gated_df["permaTicker"].unique())
+    permatickers_meta = permatickers_meta[permatickers_meta["permaTicker"].isin(gated_pt_set)]
+    # Index by permaTicker for O(1) metadata lookup.
+    permatickers_meta = permatickers_meta.set_index("permaTicker", drop=False)
 
-    print("[2/6] Loading per-perm_id earnings slices (full timeline) ...")
-    # Group /earnings/raw by perm_id ONCE.
-    earnings_full = earnings_full.sort_values(["perm_id", "report_date"]).reset_index(drop=True)
-    earnings_by_perm_id: dict[str, pd.DataFrame] = {
-        pid: g.reset_index(drop=True)
-        for pid, g in earnings_full.groupby("perm_id")
+    print("[2/6] Loading per-permaTicker earnings slices (full timeline) ...")
+    # Group /earnings/raw by permaTicker ONCE.
+    earnings_full = earnings_full.sort_values(["permaTicker", "report_date"]).reset_index(drop=True)
+    earnings_by_pt: dict[str, pd.DataFrame] = {
+        pt_: g.reset_index(drop=True)
+        for pt_, g in earnings_full.groupby("permaTicker")
     }
 
     print("[3/6] Pre-loading benchmarks (IJH + sector ETFs) ...")
@@ -887,8 +896,8 @@ def main(dry_run: bool = False, limit: int | None = None) -> int:
             raise FileNotFoundError(f"Missing {IJH_KEY}. Run 04_index_data_gathering.py first.")
     ijh_df = load_benchmark_prices(IJH_KEY)
     benchmark_prices_cache: dict[str, pd.DataFrame] = {IJH_KEY: ijh_df}
-    # Pre-load all 8 sector ETFs (cache hit -- they will be used).
-    sector_tickers_used = set(perm_ids_meta["index_ref"].dropna().unique().tolist())
+    # Pre-load all sector ETFs that will be used (cache hit).
+    sector_tickers_used = set(permatickers_meta["index_ref"].dropna().unique().tolist())
     sector_tickers_used.add(DEFAULT_SECTOR_INDEX)
     print(f"  Sector ETFs in use: {sorted(sector_tickers_used)}")
     for st in sector_tickers_used:
@@ -897,47 +906,53 @@ def main(dry_run: bool = False, limit: int | None = None) -> int:
             benchmark_prices_cache[sk] = load_benchmark_prices(sk)
     print(f"  Benchmark cache loaded: {sorted(benchmark_prices_cache.keys())}")
 
-    # We process per canonical_ticker, sorted alphabetically for reproducibility.
-    canonicals_to_process = sorted(canonical_grouped.groups.keys())
+    # We process per permaTicker, sorted alphabetically for reproducibility.
+    permatickers_to_process = sorted(permatickers_meta["permaTicker"].unique().tolist())
     if limit is not None:
-        canonicals_to_process = canonicals_to_process[:limit]
-    print(f"[4/6] Processing {len(canonicals_to_process)} canonicals ...")
+        permatickers_to_process = permatickers_to_process[:limit]
+    print(f"[4/6] Processing {len(permatickers_to_process)} permaTickers ...")
 
     all_rows: list[dict] = []
     all_t_failures: list[tuple[str, pd.Timestamp]] = []
-    elapsed_per_canonical = 0.0
-    for i, canon in enumerate(canonicals_to_process, 1):
-        canon_perm_ids_df = canonical_grouped.get_group(canon).set_index("perm_id", drop=False)
-        gated_canonical = gated_df[gated_df["canonical_ticker"] == canon]
-        chunk_rows, chunk_t_failures = process_canonical(
-            canon,
-            gated_canonical,
-            canon_perm_ids_df,
-            earnings_by_perm_id,
+    for i, pt_ in enumerate(permatickers_to_process, 1):
+        rec = permatickers_meta.loc[pt_]
+        canonical = rec["canonical_ticker"]
+        index_ref = rec["index_ref"] if isinstance(rec.get("index_ref"), str) else DEFAULT_SECTOR_INDEX
+        gated_for_pt = gated_df[gated_df["permaTicker"] == pt_]
+        pt_earnings = earnings_by_pt.get(pt_, pd.DataFrame())
+        if pt_earnings.empty:
+            continue  # permaTicker had gated events but earnings_by_pt missing (defensive)
+
+        chunk_rows, chunk_t_failures = process_permaticker(
+            pt_,
+            canonical,
+            index_ref,
+            gated_for_pt,
+            pt_earnings,
             ijh_df,
             benchmark_prices_cache,
         )
         all_rows.extend(chunk_rows)
         all_t_failures.extend(chunk_t_failures)
-        if i % 50 == 0 or i == len(canonicals_to_process):
+        if i % 50 == 0 or i == len(permatickers_to_process):
             elapsed_so_far = time.time() - t0
-            avg_per_canon = elapsed_so_far / i if i else 0
-            eta = avg_per_canon * (len(canonicals_to_process) - i)
+            avg_per_pt = elapsed_so_far / i if i else 0
+            eta = avg_per_pt * (len(permatickers_to_process) - i)
             print(
-                f"  progress: {i}/{len(canonicals_to_process)} "
+                f"  progress: {i}/{len(permatickers_to_process)} "
                 f"(rows={len(all_rows):,}, t_fail={len(all_t_failures)}, "
                 f"elapsed={elapsed_so_far:.0f}s, eta={eta:.0f}s)"
             )
 
     print("[5/6] Assembling train_matrix DataFrame ...")
     if not all_rows:
-        print("  (empty matrix — nothing to do)")
+        print("  (empty matrix -- nothing to do)")
         print(bar)
         return 2
     matrix_df = pd.DataFrame(all_rows)
-    # Sort by [calendar_week_group, perm_id, report_date] for ranker contiguity.
+    # Sort by [calendar_week_group, permaTicker, report_date] for ranker contiguity.
     matrix_df = matrix_df.sort_values(
-        ["calendar_week_group", "perm_id", "report_date"]
+        ["calendar_week_group", "permaTicker", "report_date"]
     ).reset_index(drop=True)
 
     print(f"  Assembled: {len(matrix_df):,} rows, {matrix_df.shape[1]} columns")
@@ -957,9 +972,9 @@ def main(dry_run: bool = False, limit: int | None = None) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Stage 2: build the listwise-ranker training matrix "
+            "Stage 2 (v2): build the listwise-ranker training matrix "
             "(/features/train_matrix) from the gated events pool. "
-            "(Phase E: perm_id-keyed, per-canonical price processing.)"
+            "(Phase E v2: permaTicker-keyed, per-permaTicker price processing.)"
         )
     )
     parser.add_argument(
@@ -971,7 +986,7 @@ if __name__ == "__main__":
         "--limit",
         type=int,
         default=None,
-        help="Process only the first N canonicals (smoke testing).",
+        help="Process only the first N permaTickers (smoke testing).",
     )
     args = parser.parse_args()
     raise SystemExit(main(dry_run=args.dry_run, limit=args.limit))

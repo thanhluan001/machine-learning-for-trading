@@ -1,72 +1,72 @@
 #!/usr/bin/env python3
-"""02b - Build Company-Level Map (perm_id-anchored, interval-forked merge)
-=========================================================================
+"""02b - Build Company-Level Map (Tiingo permaTicker-anchored)
+============================================================
 
-Phase A rewrite per `luan_bot_trading/01_data/merger_identity_patch.md`.
+Phase A rewrite per `luan_bot_trading/01_data/tiingo_permaTicker_audit.md`.
 
-Replaces the old CIK-anchor-and-merge approach (which wrongly collapsed
-acquirer + target pre-merger histories into one canonical because SEC
-retroactively reassigns the absorbed company's CIK into the surviving
-parent's CIK) with a ``perm_id`` anchor:
-
-    perm_id = "{cik_at_added}_{start_ticker}"
-
-Each point-in-time "tradable asset track" gets its own immutable ``perm_id``.
-When two SP-400 entries share the same CIK but their residency windows
-**overlap**, they cannot be the same continuously-listed asset, so they are
-forked into separate ``perm_id``s (preserving Company B's independent
-pre-merger history aka the "Survivor-CIK Collision Bug").
-
-CIK lookup is POINT-IN-TIME, not present-day:
-For each Wikipedia (ticker, added) interval entry in /metadata/sp400 we look
-up the CIK that ticker reported under at that ``added`` year via the cached
-DERA `sub_{YYYY}.txt` snapshots. This decouples the legal entity tracked at
-index-addition time from whatever CIK the SEC has consolidated into today.
+SUPersedes the previous `perm_id`-anchored, CIK-synthesis-based algorithm
+(that ~1300-line Wikipedia+DERA+point-in-time-CIK code is GONE). The new
+primary entity identifier is Tiingo's `permaTicker`, which is identity-stable
+across rebrands, mergers, delistings, and same-CIK reorgs / spinoffs (verified
+via ~50 live probe API calls; see the audit doc for evidence). Tiingo
+back-merges a company's full rebrand-covered history under the permaTicker
+key, so we no longer need alias-concatenation, §7.7 disambiguation rules, or
+point-in-time CIK lookup.
 
 Inputs (from db.h5):
-    /metadata/sp400   per-ticker rows with columns:
+    /metadata/sp400   Wikipedia per-ticker rows (already populated):
                       ticker, name, gics_sector, gics_sub_industry,
                       intervals (JSON list of {added, removed|None}),
-                      sic, index_ref
+                      sic, index_ref, + legacy cols (cik, perm_id, ...)
+                      -- legacy cols carried forward ONLY as cross-reference
+                         for Phase D re-keying (legacy_perm_id column).
 
-Cache files used (no network required for these):
-    sec_cache/dera/sub_{YYYY}.txt       DERA Q4 filings; CIK per (ticker, year)
-    sec_cache/company_tickers_exchange.json   Current SEC active tickers
-                                              (used for canonical alias selection
-                                               only -- NOT for fork decisions)
-    sec_cache/ticker.txt                Older cached SEC ticker map (fallback)
+External (Tiingo paid tier):
+    GET /tiingo/utilities/search/{ticker}?includeDelisted=true&exactTickerMatch=true
+        Returns list of permaTickers historically held by that ticker code,
+        with fields: ticker, name, permaTicker, openFIGIComposite, isActive,
+        assetType, countryCode, startDate, endDate.
+    GET /tiingo/daily/{permaTicker}/prices?startDate=...&endDate=...
+        Name-sanity check: verifies real price rows exist for this permaTicker
+        in our Wikipedia interval window. Empty -> price_unavailable=True.
 
 Outputs (back into db.h5):
-    /metadata/sp400_perm_ids   NEW table, one row per perm_id:
-        perm_id                str   PRIMARY KEY: f"{cik_at_added}_{start_ticker}"
-        cik                    str or None (point-in-time CIK at first interval's added)
-        canonical_ticker       str   alias used to look up price series in /sp400/
-        aliases                JSON list[str]  all tickers seen on this track,
-                                                 ordered [canonical, then alpha]
-        name                   str
-        sic                    str
-        index_ref              str
-        combined_intervals     JSON list[{added, removed|None}] merged spans
-                               (overlap or abut <= ABUT_DAYS -> one span; gap -> 2)
-        per_ticker_intervals   JSON dict[ticker -> list[{added, removed|None}]]
-                               (audit trail)
-        price_unavailable      bool  True if no alias verified on EODHD
+    /metadata/sp400_permatickers   NEW (replaces /metadata/sp400_perm_ids):
+        permaTicker         str     PRIMARY KEY (Tiingo's identity-stable ID)
+        legacy_perm_id      str     old perm_id -- kept ONLY for Phase D
+                                    re-key mapping; dropped after Phase D.
+        canonical_ticker    str     result.ticker from the chosen search hit,
+                                    used by EODHD calendar join downstream.
+        name                str     from search response
+        isActive            bool    from search response (currently trading?)
+        openfigi            str     Bloomberg OpenFIGI (defensive redundancy)
+        cik                 str     carried from old /metadata/sp400 row
+                                    (informational only; SIC sector lookup
+                                    uses canonical_ticker, NOT cik).
+        sic                 str     carried from old /metadata/sp400 row
+        index_ref           str     carried from old /metadata/sp400 row
+        wikipedia_intervals JSON list[{added, removed|None}]
+                            (point-in-time S&P 400 residency spans tracked
+                            by Wikipedia; permaTicker tracks entity identity)
+        price_unavailable   bool    True if Tiingo /prices returns 0 rows in
+                                    the interval window (name-sanity failure;
+                                    surfaces Class-W/S variants organically)
 
-    /metadata/sp400            EXTENDED with point-in-time `cik_at_added` and
-                               `perm_id` columns (audit trail only; canonical
-                               still stored for backwards-compat with downstream
-                               stages that haven't been refactored yet). The
-                               OLD `cik`/`canonical_ticker` columns are
-                               deprecated and replaced by these new columns.
-
-See `luan_bot_trading/01_data/company_merge_design.md` and
-`luan_bot_trading/01_data/merger_identity_patch.md` for the full design.
+See `luan_bot_trading/01_data/tiingo_permaTicker_audit.md` for the full
+design + probe evidence (also the AUTHORITATIVE reference doc; the other
+.md files carry deprecation banners pointing back to it).
 """
 
 import json
+import sys
+import io
 import time
-from collections import defaultdict
 from pathlib import Path
+
+# Windows console defaults to cp1252 -- force UTF-8 so any non-ASCII ticker
+# names in Tiingo search responses don't crash the print() statements below.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import pandas as pd
 import requests
@@ -79,76 +79,49 @@ import os
 
 DB_FILE = Path(__file__).parent / "db.h5"
 META_KEY = "/metadata/sp400"
-# NEW: replaces /metadata/sp400_companies. One row per perm_id (CIK "track"
-# of a tradable asset, forked on overlap).
-PERM_IDS_KEY = "/metadata/sp400_perm_ids"
-# Legacy key kept for backwards-compat during the staged refactor. We DO NOT
-# write to it after Phase A -- downstream stages will be migrated in
-# Phases B-E.
+PERMATICKERS_KEY = "/metadata/sp400_permatickers"
+# Keys removed during this run: legacy perm_id table + legacy companies table.
+LEGACY_PERM_IDS_KEY = "/metadata/sp400_perm_ids"
 LEGACY_COMPANIES_KEY = "/metadata/sp400_companies"
 
-EODHD_API_KEY = os.getenv("EODHD_API_KEY")
-if not EODHD_API_KEY:
+TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
+if not TIINGO_API_KEY:
     raise ValueError(
-        "EODHD_API_KEY not found in .env. The 02b availability probe uses "
-        "EODHD (paid subscription, 100k/day, 1000/min) so we don't consume "
-        "the 50 req/hour Tiingo free-tier limit during probing."
+        "TIINGO_API_KEY not found in .env. Phase A's permaTicker discovery "
+        "uses the Tiingo search + /prices endpoints (paid tier 10k/hr)."
     )
-# Abutting intervals within this many days are merged into one span.
-ABUT_DAYS = 7
-# EODHD probe throttle. EODHD limit is 1000/min ~= 16/sec, 0.05s sleep
-# keeps us comfortably under that. Finishes ~993 tickers in <1 minute.
-EODHD_PROBE_DELAY = 0.05
-EODHD_PROBE_WINDOW_DAYS = 30
+EODHD_API_KEY = os.getenv("EODHD_API_KEY")  # informational; not strictly required here.
 
-# Full-history window for second-pass fallback probe. Used only for the
-# small set of perm_ids marked `price_unavailable=True` after the initial
-# targeted probe. Recovers companies whose per-ticker-interval probe
-# window landed on a date range with no trading data because Wikipedia's
-# metadata had a missing/wrong `removed` date.
-EODHD_FALLBACK_FROM = "2012-01-01"
-EODHD_FALLBACK_TO = pd.Timestamp.now().strftime("%Y-%m-%d")
+# Tiingo rate limit on paid tier: 10000 req/hour, 100000 req/day. We use
+# a tiny polite delay to avoid request bursts but it is NOT load-bearing
+# (deliberately -- we have plenty of headroom on the paid plan).
+TIINGO_DELAY = 0.02
 
-# DERA snapshot year range we cache.
-DERA_MIN_YEAR = 2010
-DERA_MAX_YEAR = 2025
+# Name-sanity probe window: when we fetch /prices head for a permaTicker,
+# we use [added - 7d, added + 30d] inside the Wikipedia interval. A 30-day
+# window is more than enough to detect whether the permaTicker has real
+# historical data for this interval (Class-W/S cases produce 0 rows).
+PROBE_BEFORE_DAYS = 7
+PROBE_AFTER_DAYS = 30
 
-# Year range over which we resolve point-in-time CIK. Anything outside
-# gets clamped to these bounds.
-PIT_YEAR_MIN = DERA_MIN_YEAR
-PIT_YEAR_MAX = DERA_MAX_YEAR
+# When the narrow probe returns 0 rows, we re-probe with a wider 1-year
+# window around the Wikipedia added_date -- the permaTicker may own data
+# starting some months after added_date (e.g. GOOG's Class C permaTicker
+# starts in 2014 even though Wikipedia tracks GOOG back to 2010; the
+# added_date与现实 active start can differ by weeks or months).
+WIDE_PROBE_BEFORE_DAYS = 90
+WIDE_PROBE_AFTER_DAYS = 275
 
-
-# ----------------------------------------------------------------------
-# Manual overrides: SEC DERA's `instance` column can carry a STALE ticker
-# symbol post-rebrand when NYSE/Nasdaq has reassigned that symbol to a
-# different company. In those cases the Wikipedia interval entry is an
-# ADDED record for the new company, but DERA still maps the ticker symbol
-# to the previous owner's CIK. Override here.
-#
-# Authoritative source for these overrides: SEC's current
-# `company_tickers_exchange.json`, which reflects actively-traded NYSE
-# /Nasdaq tickers. For each override we pin the CIK to the correct legal
-# entity for every (ticker, year) pair that DERA gets wrong.
-#
-# Map (ticker_upper, year_added) -> cik_zfilled_10digit_str
-# ----------------------------------------------------------------------
-MANUAL_TAS_OVERRIDE: dict[tuple[str, int], str] = {
-    # NYSE re-tasks the "RBC" ticker from Regal Beloit / Regal Rexnord
-    # (CIK 82811) to RBC Bearings (CIK 1324948) starting Sept 2023.
-    # Wikipedia recorded SP400 RBC addition 2023-09-18, which is RBC
-    # Bearings; DERA still reports ticker "RBC" -> 82811 in sub_2023/
-    # 2024/2025 because Regal Rexnord's filings continue under the
-    # legacy instance label "RBC" (instance column = RBC-...)
-    ("RBC", 2023): "0001324948",
-    ("RBC", 2024): "0001324948",
-    ("RBC", 2025): "0001324948",
-}
+# Max number of permaTicker candidates we inspect per search call to
+# disambiguate. (Tiingo search returns multiple permaTickers for ticker
+# codes that have been recycled -- typically 1-10. We never need to scan
+# far; cap at 50 to bound log noise if a ticker code has many holders.)
+MAX_CANDIDATES_PER_SEARCH = 50
 
 
 # ------------------------------------------------------------------
-# Interval helpers (unchanged from previous implementation)
-# ------------------------------------------------------------------
+# Interval helpers (carried over from previous implementation -- still
+# useful for parsing the JSON intervals column in /metadata/sp400)
 
 def _to_ts(d) -> pd.Timestamp | None:
     if d is None:
@@ -180,7 +153,6 @@ def _parse_intervals(raw) -> list[dict]:
     if isinstance(s, float) and pd.isna(s):
         return []
     if not isinstance(s, str):
-        # Already-parsed list/dict -- coerce through JSON normalization.
         try:
             s = json.dumps(s, default=str)
         except Exception:
@@ -208,1088 +180,638 @@ def _parse_intervals(raw) -> list[dict]:
         return []
 
 
-def merge_intervals(intervals: list[dict]) -> list[dict]:
-    """Merge overlapping or abutting interval spans into a single list.
+# ------------------------------------------------------------------
+# Tiingo API helpers
+# ------------------------------------------------------------------
 
-    Abutting: gap <= ABUT_DAYS counts as continuous (rebrand continuity).
-    Real gaps (> ABUT_DAYS) preserved as separate spans.
+_TIINGO_HEADERS = {"Content-Type": "application/json"}
+
+
+def tiingo_search_ticker(ticker: str, *, verbose: bool = True) -> list[dict]:
+    """Call Tiingo /utilities/search/{ticker} with includeDelisted + exactTicker.
+
+    Returns the list of result dicts (typically a few, sometimes up to ~50 for
+    ticker codes that have been recycled many times). Each dict carries:
+        ticker, name, permaTicker, openFIGIComposite, isActive, assetType,
+        countryCode, startDate, endDate, ...
+
+    On HTTP error returns []. Caller logs + skips.
     """
-    norm = []
-    for iv in intervals:
-        a = _to_ts(iv.get("added"))
-        r = _to_ts(iv.get("removed"))
-        if a is None and r is None:
-            continue
-        norm.append((a, r))
-    if not norm:
+    url = f"https://api.tiingo.com/tiingo/utilities/search/{requests.utils.quote(ticker)}"
+    params = {
+        "token": TIINGO_API_KEY,
+        "includeDelisted": "true",
+        "exactTickerMatch": "true",
+    }
+    try:
+        r = requests.get(url, params=params, headers=_TIINGO_HEADERS, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        return data[:MAX_CANDIDATES_PER_SEARCH]
+    except Exception as e:
+        if verbose:
+            print(f"   [search] {ticker}: error {e}")
         return []
 
-    # Sort by added. A null 'added' (NaT) represents a historical terminal
-    # span ("company was in the index from some unknown pre-history until
-    # 'removed'") and should sort to the FRONT of the timeline, so
-    # subsequent re-adds abut against it.
-    norm.sort(key=lambda x: (pd.Timestamp.min if x[0] is None else x[0]))
 
-    merged = []
-    cur_a, cur_r = norm[0]
-    for a, r in norm[1:]:
-        if cur_r is None:
-            # Current span is open-ended ([cur_a, +inf)). ALL subsequent
-            # intervals are contained within it by definition -- skip
-            # without advancing the cursor. Don't append; the open-ended
-            # span collapses everything that follows.
-            continue
-        if a is None:
-            # Next interval has no added; only its removed is known. It is a
-            # legacy terminal span that should be merged into the current
-            # span by using max(removed). Don't advance the cursor.
-            if cur_r is None:
-                continue
-            if r is None:
-                cur_r = None
-            elif r > cur_r:
-                cur_r = r
-            continue
-        gap = (a - cur_r).total_seconds() / 86400.0
-        if a <= cur_r or gap <= ABUT_DAYS:
-            if r is None:
-                cur_r = None
-            elif cur_r is not None and r > cur_r:
-                cur_r = r
-        else:
-            merged.append((cur_a, cur_r))
-            cur_a, cur_r = a, r
-    merged.append((cur_a, cur_r))
+def tiingo_prices_head(permaTicker: str, start: str, end: str, *, verbose: bool = True) -> list[dict]:
+    """Fetch a narrow /prices window for a permaTicker and return the raw rows.
 
-    out = []
-    for a, r in merged:
-        out.append({"added": _ts_to_str(a), "removed": _ts_to_str(r)})
-    return out
-
-
-def _latest_active_date(intervals_raw) -> pd.Timestamp | None:
-    """Latest date the ticker had any index residency (removed or open)."""
-    ivs = _parse_intervals(intervals_raw)
-    if not ivs:
-        return None
-    has_open = False
-    best_removed = None
-    best_added = None
-    for iv in ivs:
-        r = iv.get("removed")
-        a = iv.get("added")
-        if r is None:
-            has_open = True
-        else:
-            rts = _to_ts(r)
-            if rts is not None and (best_removed is None or rts > best_removed):
-                best_removed = rts
-        ats = _to_ts(a)
-        if ats is not None and (best_added is None or ats > best_added):
-            best_added = ats
-    if has_open:
-        return pd.Timestamp.now().normalize()
-    if best_removed is not None:
-        return best_removed
-    return best_added
-
-
-def _latest_added(intervals: list[dict]) -> pd.Timestamp | None:
-    best = None
-    for iv in intervals:
-        a = _to_ts(iv.get("added"))
-        if a is None:
-            continue
-        if best is None or a > best:
-            best = a
-    return best
-
-
-def _probe_window_for(latest_active: pd.Timestamp | None) -> tuple[str, str] | None:
-    if latest_active is None or pd.isna(latest_active):
-        return None
-    to_ts = latest_active
-    from_ts = to_ts - pd.Timedelta(days=EODHD_PROBE_WINDOW_DAYS)
-    today = pd.Timestamp.now().normalize()
-    if to_ts > today:
-        to_ts = today
-    if from_ts > today:
-        from_ts = today - pd.Timedelta(days=EODHD_PROBE_WINDOW_DAYS)
-    return (from_ts.strftime("%Y-%m-%d"), to_ts.strftime("%Y-%m-%d"))
-
-
-# ------------------------------------------------------------------
-# Point-in-time CIK lookup
-# ------------------------------------------------------------------
-
-def load_active_sec_ciks() -> dict[str, str]:
-    """Load current SEC active ticker->CIK map from
-    `sec_cache/company_tickers_exchange.json`. Used as a secondary
-    fallback for tickers absent from DERA, and for canonical-alias
-    selection within perm_ids (NOT for fork decisions).
-
-    Returns:
-        dict[uppercase ticker -> 10-digit zero-padded CIK]
+    Used as the name-sanity check: confirms the chosen permaTicker actually
+    has real historical rows covering our Wikipedia interval window. A
+    permaTicker with 0 rows in the [added-ProbeBefore, added+ProbeAfter]
+    window flags the row as price_unavailable=True (Class-W-style case
+    where the chosen permaTicker doesn't actually own price history for
+    the historical interval we expect it to). Additionally, the rows are
+    used for the "physical-data sanity" heuristic during disambiguation:`
+    back-adjusted blast-through rows (where adjClose / close is huge --
+    see Class-S SUNE case for US000000002062's 2015 adjClose=$3M) are
+    considered NOT the real historical owner of that interval.
     """
-    cache_path = Path(__file__).parent / "sec_cache" / "company_tickers_exchange.json"
-    if not cache_path.exists():
-        return {}
+    url = f"https://api.tiingo.com/tiingo/daily/{requests.utils.quote(permaTicker)}/prices"
+    params = {"token": TIINGO_API_KEY, "startDate": start, "endDate": end}
     try:
-        bundle = json.loads(cache_path.read_text())
-        fields = bundle["fields"]
-        out: dict[str, str] = {}
-        for entry in bundle["data"]:
-            d = dict(zip(fields, entry))
-            t = str(d.get("ticker", "")).upper().strip()
-            cik = d.get("cik")
-            if t and cik:
-                out[t] = str(cik).zfill(10)
-        return out
+        r = requests.get(url, params=params, headers=_TIINGO_HEADERS, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        return data if isinstance(data, list) else []
     except Exception as e:
-        print(f"   [load_active_sec_ciks] failed to parse {cache_path}: {e}")
-        return {}
+        if verbose:
+            print(f"   [prices] {permaTicker}: error {e}")
+        return []
 
 
-def load_cached_ticker_txt() -> dict[str, str]:
-    """Load cached `sec_cache/ticker.txt` (older SEC ticker->CIK listing).
-    Last-resort fallback for tickers absent from both DERA and the active
-    exchange.json.
+def _prices_sanity_score(rows: list[dict]) -> tuple[bool, float]:
+    """Score a /prices row-list for "physical-data" plausibility.
+
+    Returns (is_sane, score). is_sane=True means the rows look like real
+    market quotes (not back-adjusted blast-through junk). score is a
+    sortable penalty; lower = more physical.
+
+    Heuristic rationale (from SUNE Class-S probe):
+      - Real Sunedison 2015 rows (US000000002709): close=$19.71,
+        adjClose=$19.71, ratio=1.0.
+      - Real-but-back-adjusted SUNation 2022 rows (US000000002062):
+        close=$2.03, adjClose=$304,500 (the SUNation permaTicker
+        carries CSII->PEGY->SUNE back-merged serial splits; the close
+        is real, the adjClose is Tiingo's accumulated back-adjustment).
+
+    IMPORTANT: This is the OVERALL sanity of the entire row batch (close
+    bounded). The PER-row "physical ratio" heuristic for adrClose/close
+    is computed separately by "_physical_row_count" below -- it is the
+    real disambiguator for cases like SUNE 2012 (SunEdison rows are
+    all ratio=1.0, SUNation rows have ratio~150000x in 2012 era).
     """
-    cache_path = Path(__file__).parent / "sec_cache" / "ticker.txt"
-    if not cache_path.exists():
-        return {}
-    out: dict[str, str] = {}
-    for line in cache_path.read_text(encoding="utf-8").splitlines():
-        parts = [p.strip() for p in line.split()]
-        if len(parts) < 2:
-            continue
-        t, cik = parts[0], parts[1]
-        if t and cik:
-            out[t.upper()] = str(cik).zfill(10)
-    return out
-
-
-def build_pit_cik_index() -> dict[tuple[str, int], str]:
-    """Build a point-in-time index ``{(ticker_upper, year_added) -> cik}``
-    from cached DERA `sub_{YYYY}.txt` snapshots.
-
-    Each `sub_{year}.txt` is parsed once: rows give ticker (derived from
-    the `instance` field) -> cik. If the same ticker appears under multiple
-    CIKs in a single year (rare; usually same-legal-entity re-filings), we
-    keep the most-frequent CIK to reduce noise.
-
-    Years read: DERA_MIN_YEAR..DERA_MAX_YEAR (only those present in cache).
-    """
-    dera_dir = Path(__file__).parent / "sec_cache" / "dera"
-    pit: dict[tuple[str, int], str] = {}
-    if not dera_dir.exists():
-        print(f"   [build_pit_cik_index] DERA cache dir not found: {dera_dir}")
-        return pit
-
-    n_years = 0
-    for year in range(DERA_MIN_YEAR, DERA_MAX_YEAR + 1):
-        sub_path = dera_dir / f"sub_{year}.txt"
-        if not sub_path.exists():
-            continue
+    if not rows:
+        return False, float("inf")
+    import math
+    import statistics
+    closes = []
+    max_close = 0.0
+    for r in rows:
         try:
-            df = pd.read_csv(
-                sub_path, sep="\t", dtype=str,
-                usecols=["cik", "instance", "sic"],
-            )
-        except Exception as e:
-            print(f"   [build_pit_cik_index] skip {sub_path.name}: {e}")
+            c = float(r.get("close", 0) or 0)
+        except Exception:
             continue
-        df = df.dropna(subset=["instance", "cik"])
-        df["ticker"] = (
-            df["instance"].astype(str).str.split("-").str[0].str.upper().str.strip()
-        )
-        df["cik"] = df["cik"].astype(str).str.zfill(10)
-        df = df[df["ticker"].astype(bool)]
-        # Most-frequent CIK per (ticker, year): reduces noise from refilings.
-        counts = df.groupby(["ticker", "cik"]).size().reset_index(name="n")
-        counts = counts.sort_values(["ticker", "n"], ascending=[True, False])
-        counts = counts.drop_duplicates(subset=["ticker"], keep="first")
-        for t, cik in zip(counts["ticker"].values, counts["cik"].values):
-            pit[(t, year)] = cik
-        n_years += 1
+        if c <= 0:
+            continue
+        max_close = max(max_close, c)
+        closes.append(c)
+    if not closes:
+        return False, float("inf")
+    try:
+        med_close = statistics.median(closes)
+    except Exception:
+        return False, float("inf")
+    sane = (0 < med_close < 100_000) and (max_close < 100_000)
+    score = abs(math.log10(max(med_close, 1e-9)) - 1.5)  # 1.5 ~= log10($31.6)
+    if max_close >= 100_000:
+        score += 10.0
+    if not sane:
+        score += 100.0
+    return sane, score
 
-    print(f"   [build_pit_cik_index] parsed {n_years} DERA snapshots; "
-          f"index has {len(pit)} (ticker, year) entries")
-    return pit
+def _physical_row_count(rows: list[dict]) -> int:
+    """Count rows whose adjClose/close ratio is in a "physical" range.
 
+    This is the disambiguator for cases where two permaTickers BOTH probed
+    non-empty in the Wikipedia interval, but ONE of them has normal
+    close-adjClose relationships (real-era data) while the other has
+    back-adjusted blast-through (adjClose exploded by accumulated reverse
+    splits through the permaTicker's chain). Returns the count of rows in
+    the probe window whose adjClose/close ratio is in [0.001, 1000] -- the
+    one with MORE such rows is the real owner of the historical era.
 
-def lookup_cik_at(
-    ticker: str,
-    added_year: int,
-    pit_index: dict[tuple[str, int], str],
-    active_sec: dict[str, str],
-    ticker_txt: dict[str, str],
-) -> str | None:
-    """Point-in-time CIK lookup for a (ticker, year) tuple.
-
-    Resolution order (most-authoritative first):
-       1. MANUAL_TAS_OVERRIDE  -- explicit, audited overrides for DERA
-          instance-column staleness.
-       2. DER A point-in-time at added_year, with year-walkback/forward.
-       3. Active SEC `company_tickers_exchange.json` (cache).
-       4. Cached `ticker.txt` (older cache).
-       5. None.
-
-    Walkback/forward: if DERA sub_{year}.txt has the ticker -> cik, use it.
-    Otherwise try year-1, year-2, ..., DERA_MIN_YEAR; then year+1, ...,
-    DERA_MAX_YEAR. Capping at DERA boundaries.
-
-    Args:
-        ticker: NYSE/Nasdaq ticker symbol, case-insensitive.
-        added_year: Year of the Wikipedia-added date for this interval.
-        pit_index: Pre-built {(ticker_upper, year) -> cik} from DERA.
-        active_sec: Active SEC ticker.json (current).
-        ticker_txt: Cached ticker.txt (older).
-
-    Returns:
-        10-digit zero-padded CIK string, or None if no source resolves.
+    Heuristic source: SUNE 2012 probe. SunEdison rows have ratio=1.0
+    (24/24 physical), SUNation 2011-2012 rows have ratio=3310919/13 =
+    ~150000x (0/24 physical). The Wikipedia interval was 2012-2016 --
+    SunEdison is the real owner for that interval.
     """
-    t = ticker.upper().strip()
-    if not t:
+    if not rows:
+        return 0
+    n = 0
+    for r in rows:
+        try:
+            c = float(r.get("close", 0) or 0)
+            ac = float(r.get("adjClose", 0) or 0)
+        except Exception:
+            continue
+        if c <= 0 or ac <= 0:
+            continue
+        ratio = ac / c
+        if 0.001 <= ratio <= 1000.0:
+            n += 1
+    return n
+
+
+# ------------------------------------------------------------------
+# PermaTicker disambiguation
+# ------------------------------------------------------------------
+
+def _safe_iso(v) -> str | None:
+    """Coerce a search-response date field to a YYYY-MM-DD string, or None."""
+    if v is None or v == "":
         return None
-
-    # 1. Manual override (top priority).
-    ov = MANUAL_TAS_OVERRIDE.get((t, added_year))
-    if ov:
-        return ov
-
-    # Clamp year to DERA range for the walkback/forward loop.
-    cy = max(PIT_YEAR_MIN, min(PIT_YEAR_MAX, added_year))
-
-    # 2. DERA point-in-time. Walk back first, then forward.
-    # Walk-back: prefer matching near added_year going back to PIT_YEAR_MIN.
-    for off in range(0, cy - PIT_YEAR_MIN + 1):
-        y = cy - off
-        if y < PIT_YEAR_MIN:
-            break
-        cik = pit_index.get((t, y))
-        if cik:
-            return cik
-    # Walk-forward from cy + 1 up to PIT_YEAR_MAX.
-    for off in range(1, PIT_YEAR_MAX - cy + 1):
-        y = cy + off
-        if y > PIT_YEAR_MAX:
-            break
-        cik = pit_index.get((t, y))
-        if cik:
-            return cik
-
-    # 3. Active SEC `company_tickers_exchange.json`.
-    active = active_sec.get(t)
-    if active:
-        return active
-
-    # 4. Cached ticker.txt.
-    txt = ticker_txt.get(t)
-    if txt:
-        return txt
-
-    # 5. None.
-    return None
+    ts = _to_ts(v)
+    return _ts_to_str(ts)
 
 
-# ------------------------------------------------------------------
-# EODHD availability probe (preserved from prior implementation;
-# renamed internally to `eodhd_` for clarity)
-# ------------------------------------------------------------------
+def _to_ts_or_none(v) -> pd.Timestamp | None:
+    return _to_ts(v)
 
-def probe_tickers_on_eodhd(
-    tickers: list[str],
-    progress_every: int = 50,
-    ticker_intervals: dict[str, object] | None = None,
-) -> dict[str, bool]:
-    """Probe ticker availability via EODHD /api/eod/{TICKER}.US.
 
-    Returns dict[ticker -> bool]. A True means EODHD returned a non-empty
-    daily-EOD list inside the per-ticker probe window.
+def _us_stock_candidate(hit: dict) -> bool:
+    """Filter search hits to US-listed equities (not funds, not foreign)."""
+    if str(hit.get("assetType", "")).strip().lower() not in {"stock", ""}:
+        # Allow missing assetType but reject clearly-fund/ETF hits.
+        at = str(hit.get("assetType", "")).strip().lower()
+        if at and at not in {"stock"}:
+            return False
+    cc = str(hit.get("countryCode", "")).strip().upper()
+    return cc == "US"
 
-    Per-ticker probe window: computed from each ticker's
-    /metadata/sp400 interval data (latest removed/open added date),
-    which catches both currently-trading and delisted tickers in one pass.
+
+def disambiguate_permaTicker(
+    ticker: str,
+    candidates: list[dict],
+    added_date: pd.Timestamp | None,
+    removed_date: pd.Timestamp | None,
+) -> tuple[dict | None, str | None, int, list[dict]]:
+    """Pick the single permaTicker that owns the (added_date, removed_date)
+    Wikipedia interval window for the given ticker code.
+
+    Strategy (probe-based; search responses don't include startDate/endDate
+    so we MUST probe /prices for each candidate): For each US-stock candidate
+    permaTicker, fetch /prices for the Wikipedia-interval probe window
+    [added - PROBE_BEFORE_DAYS, added + PROBE_AFTER_DAYS] and score the
+    rows for "physical-data" plausibility. Choose the candidate whose
+    rows are SANE and most physical.
+
+    Tie-breakers when multiple candidates probe as sane:
+        a) Prefer isActive=False (typical for the historical holder --
+           the modern recycler is isActive=True). For ticker codes shared
+           by distinct entities (SUNE, NSR, SAI), the historical entity
+           is typically inactive and the modern recycler is active.
+        b) Lower penalty score (rows whose adjClose/close is close to 1.0,
+           max(close) bounded).
+
+    Returns (chosen_hit, reason_str, n_probe_rows, probe_rows).
+    chosen_hit is None only if candidates is empty after filtering.
     """
-    results: dict[str, bool] = {}
-    for i, t in enumerate(tickers, 1):
-        if ticker_intervals is None:
-            latest_active = None
-        else:
-            latest_active = _latest_active_date(ticker_intervals.get(t))
-        window = _probe_window_for(latest_active)
-        if window is None:
-            window = ("2024-01-02", "2024-01-05")
-        url = f"https://eodhd.com/api/eod/{t}.US"
-        try:
-            r = requests.get(
-                url,
-                params={
-                    "from": window[0],
-                    "to": window[1],
-                    "api_token": EODHD_API_KEY,
-                    "fmt": "json",
-                    "period": "d",
-                },
-                timeout=20,
-            )
-            if r.status_code == 200:
-                try:
-                    body = r.json()
-                    results[t] = isinstance(body, list) and len(body) > 0
-                except Exception:
-                    results[t] = False
-            elif r.status_code == 404:
-                results[t] = False
-            else:
-                print(f"   {t}: unexpected probe status {r.status_code}: {r.text[:80]}")
-                results[t] = False
-        except Exception as e:
-            print(f"   {t}: probe error: {e}")
-            results[t] = False
-        time.sleep(EODHD_PROBE_DELAY)
-        if i % progress_every == 0:
-            print(f"   probe progress: {i}/{len(tickers)} (avail={sum(1 for v in results.values() if v)})")
-    return results
+    if not candidates:
+        return None, "no_candidates", 0, []
+    us_hits = [h for h in candidates if _us_stock_candidate(h)]
+    if not us_hits:
+        return None, "no_us_candidates", 0, []
 
+    # Probe prices for each US-stock candidate in the Wikipedia window.
+    # First pass: narrow window.
+    start_iso, end_iso = _probe_window(added_date)
+    wide_start_iso, wide_end_iso = _probe_window(added_date, wide=True)
+    scored = []
+    for h in us_hits:
+        pt = h.get("permaTicker")
+        if pt is None or not isinstance(pt, str) or pt.strip() == "":
+            continue
+        rows = tiingo_prices_head(pt, start_iso, end_iso, verbose=False)
+        time.sleep(TIINGO_DELAY)
+        # If narrow probe returns 0 rows, try wide probe before scoring.
+        if not rows:
+            rows = tiingo_prices_head(pt, wide_start_iso, wide_end_iso, verbose=False)
+            time.sleep(TIINGO_DELAY)
+        sane, score = _prices_sanity_score(rows)
+        if h.get("isActive") is True:
+            score += 0.5
+        scored.append((h, sane, score, rows))
 
-def reprobe_unavailable_perm_ids(
-    perm_ids: list[dict],
-    eodhd_avail: dict[str, bool],
-) -> tuple[list[dict], dict[str, bool]]:
-    """Second-pass probe for perm_ids marked price_unavailable=True.
+    # Keep only candidates that actually returned sane rows.
+    sane_hits = [x for x in scored if x[1]]
+    if sane_hits:
+        # PRIMARY TIE-BREAKER: count of "physical" rows (adjClose/close ratio
+        # in [0.001, 1000]). This is crucial for cases like SUNE 2012 where
+        # both SunEdison AND SUNation returned sane-typed rows in the probe
+        # window, but SUNation's historical rows are back-adjusted
+        # blast-through (adjClose=$3M from CSII->PEGY->SUNE chain) while
+        # SunEdison's are truly era-physical (ratio=1.0). The candidate
+        # with MORE physical-era rows is the real owner of that interval.
+        def _sane_sort_key(x):
+            h, sane, score, rows = x
+            n_physical = _physical_row_count(rows)
+            # Higher physical count is better -> use -n_physical so sort ascending
+            # gives lowest -n_physical first.
+            # If the Wikipedia interval has a 'removed' date that is in the past,
+            # prefer isActive=False (delisted / graduated out / bankrupt).
+            inactive_pref = 0 if h.get("isActive") is not True else 1
+            return (-n_physical, inactive_pref, score)
+        sane_hits.sort(key=_sane_sort_key)
+        chosen, sane, score, rows = sane_hits[0]
+        n_phys = _physical_row_count(rows)
+        reason = f"sane_probe(phys={n_phys}, score={score:.2f}, n={len(rows)})"
+        return chosen, reason, len(rows), rows
 
-    Uses the full 15-year EODHD window on each alias in priority order
-    (canonical first, then alphabetical). Recovers perm_ids whose
-    targeted probe window landed on an empty-data range due to
-    incomplete Wikipedia `removed` dates.
+    # Fallback: no candidate had sane rows in the probe window. If exactly
+    # one candidate isActive=False (the typical "historical, now defunct"
+    # case) -> return that one (and flag later as price_unavailable).
+    inactive_hits = [x for x in scored if x[0].get("isActive") is not True]
+    if inactive_hits and len(inactive_hits) == 1:
+        chosen, sane, score, rows = inactive_hits[0]
+        reason = f"inactive_only_fallback(score={score:.2f}, n={len(rows)})"
+        return chosen, reason, len(rows), rows
 
-    Mutates `perm_ids` (sets price_unavailable=False for recoveries) and
-    `eodhd_avail` in place. Returns both for convenience.
-    """
-    unavail = [c for c in perm_ids if c.get("price_unavailable")]
-    if not unavail:
-        return perm_ids, eodhd_avail
-
-    print(
-        f"\n[3b/4] Re-probing {len(unavail)} unavailable perm_ids with the full "
-        f"15-year window ({EODHD_FALLBACK_FROM}..{EODHD_FALLBACK_TO})..."
-    )
-    recovered = 0
-    for c in unavail:
-        aliases_in_priority = [c["canonical_ticker"]] + [
-            a for a in c["aliases"] if a != c["canonical_ticker"]
-        ]
-        got = False
-        for alias in aliases_in_priority:
-            url = f"https://eodhd.com/api/eod/{alias}.US"
-            try:
-                r = requests.get(
-                    url,
-                    params={
-                        "from": EODHD_FALLBACK_FROM,
-                        "to": EODHD_FALLBACK_TO,
-                        "api_token": EODHD_API_KEY,
-                        "fmt": "json",
-                        "period": "d",
-                    },
-                    timeout=30,
-                )
-                ok = False
-                if r.status_code == 200:
-                    try:
-                        body = r.json()
-                        ok = isinstance(body, list) and len(body) > 0
-                    except Exception:
-                        pass
-                if ok:
-                    # If canonical was unavailable but an alias worked, keep
-                    # canonical_ticker as-is (price data lives under canonical). If
-                    # the canonical itself now probes successfully, just flip flag.
-                    c["price_unavailable"] = False
-                    eodhd_avail[alias] = True
-                    got = True
-                    if alias != c["canonical_ticker"]:
-                        # Note: we keep canonical_ticker pointing at the original
-                        # canonical alias (per latest-name-rule from
-                        # company_tickers_exchange.json). The alias just confirms
-                        # EODHD has SOME data; downstream Stage B will probe the
-                        # canonical specifically.
-                        c["_fallback_alias_for_price"] = alias
-                    recovered += 1
-                    print(f"   recovered: {c['perm_id']} via alias {alias}")
-                    break
-            except Exception as e:
-                print(f"   {alias}: fallback probe error: {e}")
-            time.sleep(EODHD_PROBE_DELAY)
-        if not got:
-            pass
-    print(
-        f"   fallback recovered {recovered} / {len(unavail)} perm_ids. "
-        f"Still unavailable: {len(unavail) - recovered}."
-    )
-    return perm_ids, eodhd_avail
+    # Last fallback: just pick the inactive one (or first US-stock candidate).
+    if inactive_hits:
+        chosen, sane, score, rows = inactive_hits[0]
+        return chosen, f"inactive_fallback(n={len(rows)})", len(rows), rows
+    # No probe data; no inactive hint -> take first US-stock candidate.
+    chosen = us_hits[0]
+    return chosen, "no_probe_fallback", 0, []
 
 
 # ------------------------------------------------------------------
-# Core algorithm -- perm_id forking per merger_identity_patch.md
+# Per-ticker processing
 # ------------------------------------------------------------------
 
-def _intervals_overlap(a_added, a_removed, b_added, b_removed) -> bool:
-    """Half-open-style overlap test, but with None treated as the latest
-    possible endpoint. Returns True if intervals A and B overlap.
+def _probe_window(added_ts: pd.Timestamp | None, *, wide: bool = False) -> tuple[str, str]:
+    """Compute the /prices probe window for the permaTicker name-sanity check.
 
-    Convention for None:
-      - removed = None -> open-ended interval (extends to today).
-      - added = None -> pre-history terminal span (extends to earliest).
+    wide=False (default) is the narrow window [added - 7d, added + 30d] used
+    for primary disambiguation. wide=True is the backup window
+    [added - 90d, added + 275d] used when the narrow probe returns 0 rows
+    to detect permaTickers that exist but started trading some months after
+    the Wikipedia added_date.
     """
     today = pd.Timestamp.now().normalize()
-    a_added_ts = (a_added if a_added is not None else pd.Timestamp.min)
-    a_removed_ts = (a_removed if a_removed is not None else today)
-    b_added_ts = (b_added if b_added is not None else pd.Timestamp.min)
-    b_removed_ts = (b_removed if b_removed is not None else today)
-    if isinstance(a_added_ts, str):
-        a_added_ts = _to_ts(a_added_ts)
-    if isinstance(a_removed_ts, str):
-        a_removed_ts = _to_ts(a_removed_ts)
-    if isinstance(b_added_ts, str):
-        b_added_ts = _to_ts(b_added_ts)
-    if isinstance(b_removed_ts, str):
-        b_removed_ts = _to_ts(b_removed_ts)
-    # Safe fallbacks if anything came back None after coercion.
-    a_added_ts = a_added_ts if a_added_ts is not None else pd.Timestamp.min
-    b_added_ts = b_added_ts if b_added_ts is not None else pd.Timestamp.min
-    a_removed_ts = a_removed_ts if a_removed_ts is not None else today
-    b_removed_ts = b_removed_ts if b_removed_ts is not None else today
-    # No overlap iff A entirely before B, or B entirely before A.
-    if a_removed_ts <= b_added_ts or b_removed_ts <= a_added_ts:
-        return False
-    return True
+    before = WIDE_PROBE_BEFORE_DAYS if wide else PROBE_BEFORE_DAYS
+    after = WIDE_PROBE_AFTER_DAYS if wide else PROBE_AFTER_DAYS
+    if added_ts is None:
+        # No added_date: probe recent 30 days as a weak liveness check.
+        end = today
+        start = today - pd.Timedelta(days=after)
+        return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+    start = added_ts - pd.Timedelta(days=before)
+    end = added_ts + pd.Timedelta(days=after)
+    if end > today:
+        end = today
+        if start > today:
+            start = today - pd.Timedelta(days=after)
+    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
 
 
-def _make_track(entry: dict, pid: str | None = None) -> dict:
-    """Build a fresh track dict for a single entry.
+def process_ticker_row(
+    row,
+    *,
+    legacy_perm_id_map: dict[str, str],
+    verbose: bool = True,
+) -> list[dict]:
+    """Process one /metadata/sp400 row (one ticker, multiple intervals).
 
-    Args:
-        entry: dict with keys ticker, added, removed, cik, sic, index_ref, name.
-        pid: if given, use this perm_id (supports suffixed keys on collisions);
-             if None, derive a default pid from entry's (cik, ticker).
+    `row` can be a pandas Series (preferred) OR an itertuples namedtuple
+    from /metadata/sp400. Either form exposes the named columns via
+    .get() / attribute access. We convert to dict to normalize access.
+
+    Returns a list of permaTicker-row dicts. Each dict corresponds to ONE
+    distinct permaTicker that owned at least one of this ticker code's
+    Wikipedia intervals. If the same permaTicker owns multiple Wikipedia
+    intervals (rebrand-series like CSII -> PEGY -> SUNE under one
+    permaTicker), they are aggregated into ONE row with a multi-element
+    wikipedia_intervals list.
+
+    Returns [] if Tiingo has no US-stock candidate for this ticker code at
+    all (rare -- typically means Wikipedia has a stale ticker code that
+    Tiingo never tracked).
     """
-    ticker = entry["ticker"]
-    cik = entry["cik"]
-    if pid is None:
-        pid = (f"{cik}_{ticker.upper()}" if cik else f"__nocik_{ticker.upper()}")
-    new_iv = {"added": _ts_to_str(entry["added"]),
-              "removed": _ts_to_str(entry["removed"])}
-    return {
-        "perm_id": pid,
-        "cik": cik,
-        "start_ticker": ticker.upper(),
-        "aliases": [ticker.upper()],
-        "intervals": [new_iv],
-        "per_ticker_intervals": {ticker.upper(): [new_iv]},
-        "sic": entry["sic"],
-        "index_ref": entry["index_ref"],
-        "name": entry["name"],
-    }
+    # Normalize input: accept both pd.Series and itertuples namedtuple.
+    if hasattr(row, "_asdict"):
+        row = dict(row._asdict())
+    elif isinstance(row, pd.Series):
+        row = row.to_dict()
+    elif not isinstance(row, dict):
+        # Try a plain attribute fallback.
+        row = {k: getattr(row, k, None) for k in ("ticker", "name", "intervals", "sic", "index_ref", "cik")}
 
+    def get(name, default=None):
+        v = row.get(name, default)
+        if isinstance(v, float) and pd.isna(v):
+            return default
+        return v
 
-def _extend_track(track: dict, entry: dict) -> None:
-    """Append a non-overlapping interval entry to an existing track."""
-    ticker = entry["ticker"].upper()
-    new_iv = {"added": _ts_to_str(entry["added"]),
-              "removed": _ts_to_str(entry["removed"])}
-    track["intervals"].append(new_iv)
-    if ticker not in track["aliases"]:
-        track["aliases"].append(ticker)
-    track["per_ticker_intervals"].setdefault(ticker, []).append(new_iv)
-    # Promote name if it was empty and now we have one.
-    if (not track["name"]) and entry["name"]:
-        track["name"] = entry["name"]
+    ticker = str(get("ticker", "")).upper().strip()
+    if not ticker:
+        return []
 
+    intervals = _parse_intervals(get("intervals"))
+    if not intervals:
+        if verbose:
+            print(f"  {ticker}: no Wikipedia intervals, skipping")
+        return []
 
-def _make_track_with_pid(entry: dict, pid: str) -> dict:
-    """Build a fresh track dict using a specific (suffixed) perm_id."""
-    return _make_track(entry, pid=pid)
+    # One search call per ticker code (NOT per interval -- the search
+    # returns ALL historical holders of that ticker code; we then
+    # disambiguate positionally against each Wikipedia interval).
+    if verbose:
+        print(f"  {ticker}: searching Tiingo ...")
+    candidates = tiingo_search_ticker(ticker, verbose=verbose)
+    time.sleep(TIINGO_DELAY)
 
+    # Aggregate permaTicker -> list of (interval_dict, chosen_hit, reason, probe_rows) tuples.
+    permaticker_to_intervals: dict[str, list[tuple[dict, dict, str, list[dict]]]] = {}
 
-def build_perm_id_map(
-    meta_df: pd.DataFrame,
-    pit_index: dict[tuple[str, int], str],
-    active_sec: dict[str, str],
-    ticker_txt: dict[str, str],
-) -> tuple[pd.DataFrame, list[dict]]:
-    """Build the perm_id table by interval-forking on overlap.
-
-    Returns:
-        extended_meta: per-ticker view of /metadata/sp400 with new columns:
-            cik_at_added ^ point-in-time CIK at the ticker's first interval
-                         added-date (single value per ticker; informational)
-            perm_id      ^ comma-joined list of all perm_ids this ticker
-                         contributes to (a ticker may fork across multiple
-                         perm_ids if its CIK changes between intervals)
-        perm_ids:     list of perm_id-row dicts, each with keys:
-            perm_id, cik, start_ticker, canonical_ticker, aliases, name,
-            sic, index_ref, combined_intervals, per_ticker_intervals,
-            price_unavailable=placeholder False (set in probe step)
-    """
-    meta_indexed = meta_df.set_index("ticker", drop=False)
-
-    # Step 1: Expand /metadata/sp400 rows into per-interval "entries".
-    # Each entry = one Wikipedia (ticker, added, removed) span with
-    # point-in-time CIK looked up at the added year.
-    entries: list[dict] = []
-    for _, row in meta_df.iterrows():
-        ticker = str(row["ticker"]).strip()
-        if not ticker:
-            continue
-        ivs = _parse_intervals(row.get("intervals"))
-        for iv in ivs:
-            added_ts = _to_ts(iv.get("added"))
-            removed_ts = _to_ts(iv.get("removed"))
-            # Backfill rule: per Design.md, missing added backfills to 2012-01-01.
-            if added_ts is None and removed_ts is not None:
-                added_ts = pd.Timestamp("2012-01-01")
-            if added_ts is None:
-                # utterly unknown span -- skip entirely
-                continue
-            year = added_ts.year
-            cik = lookup_cik_at(ticker, year, pit_index, active_sec, ticker_txt)
-            entries.append({
-                "ticker": ticker,
-                "added": added_ts,
-                "removed": removed_ts,
-                "cik": cik,
-                "sic": row.get("sic") if not pd.isna(row.get("sic")) else None,
-                "index_ref": row.get("index_ref") if not pd.isna(row.get("index_ref")) else None,
-                "name": row.get("name") if not pd.isna(row.get("name")) else None,
-            })
-
-    # Sort entries by added asc so re-entries extend an existing track if non-
-    # overlapping. (Tiebreak: ticker alphabetical for determinism.)
-    entries.sort(key=lambda e: (e["added"], e["ticker"]))
-
-    n_entries = len(entries)
-    n_with_cik = sum(1 for e in entries if e["cik"])
-
-    # Step 2: Fork-merge.
-    # perm_id_table maps perm_id_key -> track dict.
-    perm_id_table: dict[str, dict] = {}
-
-    for entry in entries:
-        ticker_u = entry["ticker"].upper()
-        cik = entry["cik"]
-        # Per mergers_identity_patch.md §2 and our Phase A refinement:
-        # the `perm_id = {cik}_{start_ticker}` decouples legal-entity (CIK,
-        # which SEC retroactively consolidates post-merger) from tradable
-        # asset track. The point-in-time CIK lookup at each interval's
-        # added-year already produces DIFFERENT CIKs for distinct pre-merger
-        # tradable assets (HR pre-merger = 899749 vs HTA pre-merger =
-        # 1360604; new CR = 1944013 vs CXT = 25445; etc.). Therefore:
-        #
-        #   - Entries with the SAME point-in-time CIK *always* belong to the
-        #     same legal entity, and any ticker-alias differences are rebrands.
-        #     ALWAYS merge them into the same perm_id (extend aliases).
-        #   - Entries with DIFFERENT CIKs are never merged; they are forked
-        #     into separate perm_ids (preserving Company B's independent
-        #     pre-merger history).
-        #
-        # The patch doc's "overlap -> fork" rule was a defence against
-        # survivor-CIK consolidation (two pre-merger CIKs collapsing into
-        # one post-merger CIK), but our point-in-time CIK lookup at the
-        # `added` year returns those pre-merger CIKs and naturally forks.
-        merged_into: str | None = None
-        if cik:
-            # Find the existing track for this CIK (there can be only one
-            # since same-CIK merges by definition; suffixed #n only arises
-            # for the __nocik_* placeholder case where CIK is None and a
-            # single ticker produced multiple entries).
-            for pid, track in perm_id_table.items():
-                if track["cik"] != cik:
-                    continue
-                # Same CIK -> merge (extend aliases, possibly overlapping).
-                _extend_track(track, entry)
-                merged_into = pid
-                break
-        if merged_into is not None:
-            continue
-
-        # No merge possible -> start a new perm_id. If the candidate key
-        # already exists (e.g., same cik+ticker overlapping collision), append
-        # a numeric suffix to disambiguate.
-        if cik:
-            base_pid = f"{cik}_{ticker_u}"
-        else:
-            base_pid = f"__nocik_{ticker_u}"
-
-        pid = base_pid
-        suffix = 2
-        while pid in perm_id_table:
-            # Check if this collision is actually same-cik+ticker overlap.
-            # If so, suffix the perm_id. Else just fresh-start.
-            pid = f"{base_pid}#{suffix}"
-            suffix += 1
-        perm_id_table[pid] = _make_track_with_pid(entry, pid)
-
-    # Step 3: Compute combined_intervals and finalize aliases ordering.
-    for pid, track in perm_id_table.items():
-        track["combined_intervals"] = merge_intervals(track["intervals"])
-
-    perm_ids = list(perm_id_table.values())
-
-    # Step 4a: Extend perm_ids with post-Wikipedia active aliases.
-    #
-    # When a perm_id's CIK is currently live in SEC's `company_tickers_exchange.json`
-    # under a ticker symbol that's NOT in the perm_id's aliases, that ticker is
-    # typically a rebrand/rename that happened AFTER Wikipedia's most recent
-    # SP400 changes log entry for this company. To fetch post-rebrand prices we
-    # must extend the perm_id with the new ticker alias.
-    #
-    # Safety guards (all three must hold to add the alias):
-    #   (a) perm_id's combined_intervals must be OPEN (last removed=None), AND
-    #   (b) NO OTHER perm_id exists that already has the active alias as its
-    #       start_ticker AND has an OPEN combined interval (removed=None) --
-    #       that perm_id owns the active ticker's tradable track; we must not
-    #       claim it, AND
-    #   (c) any CONFLICTING perm_id that has the active alias as start_ticker
-    #       and a CLOSED interval must have been CLOSED BEFORE this perm_id's
-    #       own most-recent combined interval started -- i.e. it must not
-    #       temporally overlap our perm_id's open interval. (If they overlap,
-    #       both tickers were live simultaneously on the exchange, meaning
-    #       they were different companies that SEC consolidated under the same
-    #       CIK post-merger/spinoff -- adding the alias would contaminate our
-    #       perm_id's track.)
-    #
-    # Known limitation: cases like SAI->LDOS (post-split Leidos pre-2019 +
-    # post-2019 newSAIC-bound LDOS-treated-as-CIK-1336920 currently) won't be
-    # resolved by this guard and may need a manual override in Phase B.
-    secu_active_alias_of_cik: dict[str, str] = {}
-    for t, c in active_sec.items():
-        secu_active_alias_of_cik.setdefault(c, t)
-    start_ticker_owners: dict[str, list[str]] = defaultdict(list)
-    for pid, track in perm_id_table.items():
-        start_ticker_owners[track["start_ticker"]].append(pid)
-
-    extended_count = 0
-    extended_log: list[str] = []
-    for pid, track in perm_id_table.items():
-        cik = track.get("cik")
-        if not cik:
-            continue
-        active_alias = secu_active_alias_of_cik.get(cik)
-        if not active_alias or active_alias in track["aliases"]:
-            continue
-        ci = track.get("combined_intervals", [])
-        if not ci:
-            continue
-        # Guard (a): perm_id's combined_intervals must be OPEN.
-        last_ci = ci[-1]
-        if last_ci.get("removed") is not None:
-            # perm_id's most recent SP400 interval is CLOSED -- the company
-            # has left the index, so post-Wikipedia rebrand is not relevant
-            # for our event study (we only fetch prices during SP400 residency).
-            extended_log.append(
-                f"  skip {pid} cik={cik} active={active_alias} "
-                f"(perm_id's last interval is closed -- no post-Wiki rebrand needed)"
-            )
-            continue
-        # Guards (b)+(c): check conflicting perm_ids. The DIFFERENT-CIK CLOSED
-        # case is the genuine acquirer-rebrand scenario (acquirer keeps its CIK,
-        # retires target's ticker symbol but takes target's ticker name). In
-        # this case our perm_id is the surviving entity and SHOULD adopt the
-        # active alias post-target-delisting. So we only SKIP when:
-        #   - conflicting perm_id is ALSO OPEN (both still live -> two
-        #     different companies trading simultaneously; adopting the alias
-        #     would contaminate), OR
-        #   - conflicting perm_id's CIK == ours AND IS CLOSED (defensive --
-        #     with our same-CIK-merges-to-one-perm_id invariant this should
-        #     never happen, but skip to be safe).
-        # We ALSO log the SAI/LDOS category of cases (DIFF-CIK CLOSED with
-        # temporal overlap) so they can be audited separately.
-        skip = False
-        for other_pid in start_ticker_owners.get(active_alias, []):
-            if other_pid == pid:
-                continue
-            other = perm_id_table[other_pid]
-            oci = other.get("combined_intervals", [])
-            if not oci:
-                continue
-            olast = oci[-1]
-            ocik = other.get("cik")
-            if olast.get("removed") is None:
-                # Conflicting perm_id is ALSO OPEN.
-                skip = True
-                extended_log.append(
-                    f"  skip {pid} cik={cik} active={active_alias} "
-                    f"(conflict OPEN perm_id {other_pid} also owns that ticker)"
-                )
-                break
-            if ocik == cik:
-                # Conflicting perm_id has SAME CIK as us but is CLOSED; defensive.
-                skip = True
-                extended_log.append(
-                    f"  skip {pid} cik={cik} active={active_alias} "
-                    f"(conflict {other_pid} same-CIK but CLOSED; defensive skip)"
-                )
-                break
-            # Conflicting perm_id is CLOSED with DIFFERENT CIK than us:
-            # genuine acquirer-rebrand scenario -> we DO add the alias.
-            # (The temporal overlap in Wikipedia intervals is just pre-merger
-            #  co-listing in SP400; post-target-delisting the ticker belongs
-            #  to us.)
-        if skip:
-            continue
-        # Add active alias. Compute the alias's start date -- this is the
-        # earliest plausible date the survivor trading under this alias began.
-        # Cases:
-        #   (i)  No conflicting perm_id: wiki-interval churn; use latest
-        #        combined_intervals' added date.
-        #  (ii)  Conflicting perm_id is CLOSED with DIFF-CIK acquirer-rebrand:
-        #        use the max(target's removed date, our perm_id's latest
-        #        combined interval's added date) as start.
-        conflict_removed = None
-        for other_pid in start_ticker_owners.get(active_alias, []):
-            if other_pid == pid:
-                continue
-            other = perm_id_table[other_pid]
-            oci = other.get("combined_intervals", [])
-            if not oci:
-                continue
-            olast = oci[-1]
-            if olast.get("removed") is None:
-                continue
-            if other.get("cik") == cik:
-                continue
-            r_ts = _to_ts(olast.get("removed"))
-            if r_ts is None:
-                continue
-            conflict_removed = r_ts
-        last_added_ts = _to_ts(last_ci.get("added"))
-        if conflict_removed is None:
-            start_str = last_ci.get("added")
-        else:
-            # prefer the later of conflict_removed and our last_added.
-            if last_added_ts is None or conflict_removed > last_added_ts:
-                start_str = conflict_removed.strftime("%Y-%m-%d")
-            else:
-                start_str = last_ci.get("added")
-        new_iv = {"added": start_str, "removed": None}
-        track["aliases"].append(active_alias)
-        track["per_ticker_intervals"].setdefault(active_alias, []).append(new_iv)
-        extended_count += 1
-        extended_log.append(
-            f"  add  {pid} cik={cik} active={active_alias} start={start_str}"
+    skipped_intervals = 0
+    for iv in intervals:
+        added_ts = _to_ts(iv.get("added"))
+        removed_ts = _to_ts(iv.get("removed"))
+        chosen, reason, _, probe_rows = disambiguate_permaTicker(
+            ticker, candidates, added_ts, removed_ts
         )
-    if extended_log:
-        print(f"   [Step 4a] Post-Wiki active-alias extensions: {extended_count}")
-        for line in extended_log[:120]:
-            print(line)
-        if len(extended_log) > 120:
-            print(f"   ... and {len(extended_log) - 120} more (see downstream logs)")
+        if chosen is None:
+            if verbose:
+                print(f"    {ticker}: {iv} -> NO permaTicker ({reason}); skipped")
+            skipped_intervals += 1
+            continue
+        pt = chosen.get("permaTicker")
+        if pt is None or not isinstance(pt, str) or pt.strip() == "":
+            if verbose:
+                print(f"    {ticker}: {iv} -> chosen hit missing permaTicker; skipped")
+            skipped_intervals += 1
+            continue
+        permaticker_to_intervals.setdefault(pt, []).append((iv, chosen, reason, probe_rows))
+        if verbose:
+            print(
+                f"    {ticker}: {iv} -> permaTicker={pt} name={chosen.get('name')!r} "
+                f"active={chosen.get('isActive')} reason={reason}"
+            )
 
-    # Step 4b: Canonical-ticker selection -- "latest name wins".
-    # Prefer the alias that appears in active SEC `company_tickers_exchange.json`.
-    # Otherwise pick the alias with the most recent latest-added across this
-    # perm_id's per_ticker_intervals (a rebrand's "newer" ticker symbol
-    # tends to have the latest entry in /metadata/sp400).
-    # Fallback: start_ticker (first alias of perm_id).
-    for track in perm_ids:
-        track["canonical_ticker"] = _select_canonical_ticker(track, active_sec, meta_indexed)
+    # Build per-permaTicker rows. Aggregate intervals.
+    rows = []
+    for pt, hits in permaticker_to_intervals.items():
+        # The chosen hit metadata from the FIRST interval is representative
+        # for the permaTicker-level fields (name, isActive, etc.). But we
+        # keep the per-interval chosen hits in an audit-log list for the
+        # disambiguation log file; not stored in db.h5.
+        chosen_first = hits[0][1]
+        # Each permaTicker's aggregated Wikipedia intervals list.
+        wiki_intervals = [h[0] for h in hits]
+        # Reuse the probe rows already fetched for the FIRST interval as
+        # the name-sanity probe (don't re-fetch).
+        first_probe_rows = hits[0][3] if hits else []
+        n_rows = len(first_probe_rows)
+        # If first probe returned 0 rows (e.g. inactive_fallback path),
+        # try probing against the next interval's window as a backup.
+        sane, _ = _prices_sanity_score(first_probe_rows)
+        if n_rows == 0:
+            for hit_tuple in hits[1:]:
+                cand_rows = hit_tuple[3]
+                if cand_rows:
+                    first_probe_rows = cand_rows
+                    n_rows = len(cand_rows)
+                    sane, _ = _prices_sanity_score(first_probe_rows)
+                    break
+        price_unavailable = (n_rows == 0) or (not sane)
+        if verbose and price_unavailable:
+            print(
+                f"    >> {ticker} permaTicker={pt}: /prices probe returned {n_rows} rows, sane={sane} "
+                f"-> price_unavailable=True"
+            )
 
-    # Step 5: extended per-ticker view (audit trail only). For each /metadata/sp400
-    # ticker row, set cik_at_added to the CIK of its first interval's added year
-    # (so analysts can see what was determined), and perm_id to a comma-joined
-    # list of perm_ids this ticker contributed to (since a single ticker can
-    # fork across multiple perm_ids via CIK change over time).
-    extended = meta_df.copy()
-    # Map ticker -> list of perm_ids (could be multiple if CIK differs across
-    # intervals) and ticker -> first-interval CIK for the cik_at_added preview.
-    ticker_to_perm_ids: dict[str, list[str]] = defaultdict(list)
-    ticker_to_first_cik: dict[str, str | None] = {}
-    for e in entries:
-        ticker = e["ticker"]
-        cik = e["cik"]
-        if cik:
-            pid = f"{cik}_{ticker.upper()}"
-        else:
-            pid = f"__nocik_{ticker.upper()}"
-        # If the same ticker + cik pair had multiple overlapping intervals
-        # (suffix disambiguation), record the one that actually matches
-        # via ticker + entry counters is nontrivial. For audit purposes, we
-        # simply list ALL perm_ids this ticker's entries contributed to:
-        actual_pids = _find_actual_pids_for_entry(e, perm_id_table)
-        for ap in actual_pids:
-            if ap not in ticker_to_perm_ids[ticker]:
-                ticker_to_perm_ids[ticker].append(ap)
-        if ticker not in ticker_to_first_cik:
-            ticker_to_first_cik[ticker] = cik
+        # Legacy perm_id mapping -- find the original perm_id that mapped
+        # to this ticker code via the existing /metadata/sp400_perm_ids table.
+        legacy_perm_id = legacy_perm_id_map.get(ticker)
 
-    extended["cik_at_added"] = extended["ticker"].map(lambda t: ticker_to_first_cik.get(t))
-    extended["perm_id"] = extended["ticker"].map(
-        lambda t: ",".join(ticker_to_perm_ids.get(t, [])) or None
-    )
+        # Carry SIC/index_ref/cik from the original /metadata/sp400 row.
+        sic = get("sic")
+        index_ref = get("index_ref")
+        cik = get("cik")
 
-    print(f"   Wiki interval entries: {n_entries}")
-    print(f"   Entries with CIK:      {n_with_cik} / {n_entries}")
-    print(f"   perm_ids:              {len(perm_ids)}")
-    multi = [c for c in perm_ids if len(c["aliases"]) > 1]
-    print(f"   Multi-alias perm_ids:  {len(multi)}")
-    return extended, perm_ids
-
-
-def _find_actual_pids_for_entry(entry: dict, perm_id_table: dict[str, dict]) -> list[str]:
-    """Best-effort reverse-lookup: find perm_ids whose per_ticker_intervals
-    actually contain this entry's (ticker, added, removed).
-    """
-    matches: list[str] = []
-    t = entry["ticker"].upper()
-    a = _ts_to_str(entry["added"])
-    r = _ts_to_str(entry["removed"])
-    for pid, track in perm_id_table.items():
-        ivs = track.get("per_ticker_intervals", {}).get(t, [])
-        for iv in ivs:
-            if iv.get("added") == a and iv.get("removed") == r:
-                matches.append(pid)
-                break
-    return matches
-
-
-def _select_canonical_ticker(
-    track: dict,
-    active_sec: dict[str, str],
-    meta_indexed: pd.DataFrame,
-) -> str:
-    """Latest-name-rule: prefer the alias that's currently active in SEC.
-
-    Tie breaks:
-       - the alias whose /metadata/sp400 row has the most recent latest-added
-         date (newer rebrand), and
-       - finally alphabetical.
-    Fallback: the perm_id's start_ticker.
-    """
-    aliases = list(track["aliases"])
-    if not aliases:
-        return track["start_ticker"]
-
-    # 1. Active-SEC aliases -- only consider an alias that has the SAME CIK in
-    # active_sec as our perm_id's CIK. This prevents the well-known
-    # Covista/Adtalem + INCR/Syneos-style bug where SEC's
-    # `company_tickers_exchange.json` has a stale ticker reassignment
-    # mapping our CIK to a different company's ticker (or to a phantom).
-    our_cik = track.get("cik")
-    aliases_active_our_cik = [a for a in aliases if our_cik and active_sec.get(a.upper()) == our_cik]
-    if aliases_active_our_cik:
-        if len(aliases_active_our_cik) == 1:
-            return aliases_active_our_cik[0]
-        def _rich(a: str) -> tuple[pd.Timestamp, str]:
-            try:
-                row = meta_indexed.loc[a]
-            except Exception:
-                return (pd.Timestamp.min, a)
-            ivs = _parse_intervals(row.get("intervals"))
-            latest = _latest_added(ivs)
-            la = latest if latest is not None else pd.Timestamp.min
-            return (la, a)
-        return sorted(aliases_active_our_cik, key=_rich, reverse=True)[0]
-    # 2. No alias matches our perm_id CIK in active SEC: fall back to the
-    # alias with the most recent latest-added date in /metadata/sp400
-    # (a rebrand's newer ticker tends to have the most recent latest-added).
-
-    # 2. Most recent latest-added date (with alpha tiebreak).
-    def _rich(a: str) -> tuple[pd.Timestamp, str]:
-        try:
-            row = meta_indexed.loc[a]
-        except Exception:
-            return (pd.Timestamp.min, a)
-        ivs = _parse_intervals(row.get("intervals"))
-        latest = _latest_added(ivs)
-        la = latest if latest is not None else pd.Timestamp.min
-        return (la, a)
-    return sorted(aliases, key=_rich, reverse=True)[0]
+        row_out = {
+            "permaTicker": pt,
+            "legacy_perm_id": legacy_perm_id,
+            "canonical_ticker": chosen_first.get("ticker", ticker),
+            "name": chosen_first.get("name"),
+            "isActive": bool(chosen_first.get("isActive")),
+            "openfigi": chosen_first.get("openFIGIComposite"),
+            "cik": cik,
+            "sic": sic,
+            "index_ref": index_ref,
+            "wikipedia_intervals": json.dumps(wiki_intervals, default=str),
+            "price_unavailable": price_unavailable,
+        }
+        rows.append(row_out)
+        if verbose:
+            print(
+                f"  {ticker} -> permaTicker={pt} "
+                f"({len(wiki_intervals)} interval(s), prices_probe={n_rows} rows, "
+                f"price_unavailable={price_unavailable})"
+            )
+    if skipped_intervals and verbose:
+        print(f"  {ticker}: {skipped_intervals} interval(s) skipped (no permaTicker)")
+    return rows
 
 
 # ------------------------------------------------------------------
-# Output writing
+# Output / persistence
 # ------------------------------------------------------------------
 
-def _json_dumps(obj) -> str:
-    return json.dumps(obj, default=str)
+_PERMATICKER_COLS = [
+    "permaTicker",
+    "legacy_perm_id",
+    "canonical_ticker",
+    "name",
+    "isActive",
+    "openfigi",
+    "cik",
+    "sic",
+    "index_ref",
+    "wikipedia_intervals",
+    "price_unavailable",
+]
 
 
-def _serialize_perm_id_row(row: dict) -> dict:
-    out = dict(row)
-    # Drop scratch fields used during construction.
-    out.pop("intervals", None)
-    out.pop("_fallback_alias_for_price", None)
-    out["aliases"] = _json_dumps(list(row.get("aliases", [])))
-    out["combined_intervals"] = _json_dumps(row.get("combined_intervals", []))
-    out["per_ticker_intervals"] = _json_dumps(row.get("per_ticker_intervals", {}))
-    # Normalize column order for table writing.
-    cols = ["perm_id", "cik", "canonical_ticker", "aliases", "name",
-            "sic", "index_ref", "combined_intervals",
-            "per_ticker_intervals", "price_unavailable"]
-    return {c: out.get(c) for c in cols}
+def write_outputs(permatickers: list[dict]) -> pd.DataFrame:
+    """Persist /metadata/sp400_permatickers to db.h5 using the
+    HDFStore('a') + remove() pattern (never mode='w' on existing DB).
 
+    Also removes the legacy /metadata/sp400_perm_ids and
+    /metadata/sp400_companies keys -- they are superseded by this table.
 
-def write_outputs(extended_meta: pd.DataFrame, perm_ids: list[dict]) -> None:
-    """Persist both tables to db.h5 using the HDFStore('a') + remove() pattern.
-
-    NEVER use mode='w' on an existing database (it truncates the whole file).
+    Returns the written DataFrame.
     """
-    perm_ids_rows = [_serialize_perm_id_row(p) for p in perm_ids]
-    perm_ids_df = pd.DataFrame(perm_ids_rows)
-    if not perm_ids_df.empty:
-        perm_ids_df["cik"] = perm_ids_df["cik"].astype(object)
-        perm_ids_df["price_unavailable"] = perm_ids_df["price_unavailable"].astype(bool)
+    df = pd.DataFrame(permatickers, columns=_PERMATICKER_COLS)
+    if not df.empty:
+        df["isActive"] = df["isActive"].astype(bool)
+        df["price_unavailable"] = df["price_unavailable"].astype(bool)
+        df["cik"] = df["cik"].astype(object)
+        df["legacy_perm_id"] = df["legacy_perm_id"].astype(object)
+        df["openfigi"] = df["openfigi"].astype(object)
 
     with pd.HDFStore(DB_FILE, mode="a") as store:
-        # Replace /metadata/sp400 (extended with cik_at_added + perm_id audit cols)
-        if META_KEY in store:
-            store.remove(META_KEY)
-        store.put(META_KEY, extended_meta, format="table")
-        print(f" Wrote {META_KEY} ({len(extended_meta)} rows)")
-
-        # Write /metadata/sp400_perm_ids (NEW)
-        if PERM_IDS_KEY in store:
-            store.remove(PERM_IDS_KEY)
-        if not perm_ids_df.empty:
-            store.put(PERM_IDS_KEY, perm_ids_df, format="table")
-            print(f" Wrote {PERM_IDS_KEY} ({len(perm_ids_df)} rows)")
-
-        # Purge legacy /metadata/sp400_companies: it is superseded by
-        # /metadata/sp400_perm_ids. Removing prevents downstream stages
-        # from accidentally reading stale data during the Phase B-E refactor.
+        if PERMATICKERS_KEY in store:
+            store.remove(PERMATICKERS_KEY)
+        if not df.empty:
+            store.put(PERMATICKERS_KEY, df, format="table")
+            print(f"\nWrote {PERMATICKERS_KEY} ({len(df)} rows, {len(df.columns)} cols)")
+        # Purge legacy perm_id table.
+        if LEGACY_PERM_IDS_KEY in store:
+            store.remove(LEGACY_PERM_IDS_KEY)
+            print(f"Purged legacy {LEGACY_PERM_IDS_KEY} (superseded by {PERMATICKERS_KEY})")
         if LEGACY_COMPANIES_KEY in store:
             store.remove(LEGACY_COMPANIES_KEY)
-            print(f" Purged legacy {LEGACY_COMPANIES_KEY} (superseded by {PERM_IDS_KEY})")
+            print(f"Purged legacy {LEGACY_COMPANIES_KEY} (superseded)")
+    return df
 
 
 # ------------------------------------------------------------------
 # Audit report
 # ------------------------------------------------------------------
 
-def print_audit(extended_meta: pd.DataFrame, perm_ids: list[dict]) -> None:
-    print("\n" + "=" * 70)
-    print("  PERM_ID FORK BUILD AUDIT")
-    print("=" * 70)
+def print_audit(df: pd.DataFrame) -> None:
+    if df.empty:
+        print("  EMPTY")
+        return
+    n_total = len(df)
+    n_unavailable = int(df["price_unavailable"].sum())
+    n_active = int(df["isActive"].sum())
+    n_with_legacy = int(df["legacy_perm_id"].notna().sum())
+    n_openfigi = int(df["openfigi"].notna().sum())
+    n_multi_interval = 0
+    for s in df["wikipedia_intervals"]:
+        try:
+            ivs = json.loads(s) if isinstance(s, str) else s
+            if isinstance(ivs, list) and len(ivs) > 1:
+                n_multi_interval += 1
+        except Exception:
+            pass
 
-    n_rows = len(extended_meta)
-    n_cik_at_added = extended_meta["cik_at_added"].notna().sum() if "cik_at_added" in extended_meta.columns else 0
-    print(f" /metadata/sp400 ticker rows      : {n_rows}")
-    print(f"   with cik_at_added (CIK found)  : {n_cik_at_added} / {n_rows}")
-    print(f" perm_ids built                    : {len(perm_ids)}")
-    no_cik = [p for p in perm_ids if not p.get("cik")]
-    print(f"   without CIK (__nocik_*)         : {len(no_cik)}")
-    multi = [p for p in perm_ids if len(p["aliases"]) > 1]
-    print(f"   multi-alias (rebrand)           : {len(multi)}")
-
-    if multi:
-        # Group multi-alias perm_ids by CIK to expose the M&A patterns.
-        print("\n --- Multi-alias perm_ids (rebrand / overlap-merged) ---")
-        for c in sorted(multi, key=lambda p: (-len(p["aliases"]), p["perm_id"])):
-            n_iv = len(c["intervals"])
-            print(f"   {c['perm_id']:25}  can={c['canonical_ticker']:6} "
-                  f"[{len(c['aliases'])} alias, {n_iv} iv] <- {', '.join(c['aliases'])}")
-
-    # List perm_ids that SHARE a CIK but are forked (the M&A split cases).
-    print("\n --- CIK shared across perm_ids (M&A fork pattern) ---")
-    cik_groups: dict[str, list[str]] = defaultdict(list)
-    for p in perm_ids:
-        if p.get("cik"):
-            cik_groups[p["cik"]].append(p["perm_id"])
-    shared = {k: v for k, v in cik_groups.items() if len(v) > 1}
-    print(f"   {len(shared)} CIK(s) forked across {sum(len(v) for v in shared.values())} perm_ids")
-    for cik, pids in sorted(shared.items(), key=lambda kv: -len(kv[1])):
-        print(f"     CIK {cik}: {pids}")
-
-    # List perm_ids whose aliases SHARE a ticker symbol (start_ticker) across
-    # perm_ids — the M&A-survivor fork pattern (e.g. old Coherent Inc. CIK
-    # 21510 + new Coherent Corp CIK 820318 both use ticker COHR at different
-    # times). This is the inverse of the CIK-shared list above.
-    print("\n --- Ticker aliases shared across DIFFERENT-CIK perm_ids ---")
-    print("     (sym-swap case: old CIK retires ticker, new CIK adopts it)")
-    start_ticker_owners: dict[str, list[str]] = defaultdict(list)
-    for p in perm_ids:
-        start_ticker_owners[p["start_ticker"]].append(p["perm_id"])
-    ticker_shared = {t: pids for t, pids in start_ticker_owners.items() if len(pids) > 1}
-    if ticker_shared:
-        print(f"   {len(ticker_shared)} tickers shared across multiple perm_ids by start_ticker")
-        for t, pids in sorted(ticker_shared.items(), key=lambda kv: -len(kv[1]))[:20]:
-            ciks = []
-            for pid in pids:
-                trk = next((x for x in perm_ids if x["perm_id"] == pid), None)
-                ciks.append(trk.get("cik") if trk else "-")
-            print(f"     {t}: {list(zip(pids, ciks))}")
-    else:
-        print("   none")
-
-    unavailable = [p for p in perm_ids if p["price_unavailable"]]
-    print(f"\n perm_ids with price_unavailable=True: {len(unavailable)}")
-    if unavailable:
-        print("   These will be skipped by 03_data_gathering.py (Phase B).")
-        for p in sorted(unavailable, key=lambda x: x["perm_id"]):
-            fb = p.get("_fallback_alias_for_price", "")
-            extra = f"  (alt alias OK: {fb})" if fb else ""
-            print(f"   - {p['perm_id']:25} (can={p['canonical_ticker']}, "
-                  f"aliases={p['aliases']}){extra}")
-    print("=" * 70 + "\n")
+    print("\n=== /metadata/sp400_permatickers audit ===")
+    print(f"  Total permaTicker rows:        {n_total}")
+    print(f"  Active (currently trading):     {n_active}")
+    print(f"  With openFIGI field:            {n_openfigi}")
+    print(f"  With legacy_perm_id mapping:    {n_with_legacy}")
+    print(f"  Multi-interval permaTickers:    {n_multi_interval}")
+    print(f"  price_unavailable (0 rows):     {n_unavailable}")
+    if n_unavailable:
+        # Show the first few unavailable permaTickers for manual inspection.
+        sub = df[df["price_unavailable"] == True].head(20)
+        print(f"\n  First {len(sub)} price_unavailable entries (Class-W/S suspects):")
+        print(sub[["permaTicker", "canonical_ticker", "name", "isActive", "wikipedia_intervals"]].to_string(index=False))
 
 
 # ------------------------------------------------------------------
-# Main
+# Main entry point
 # ------------------------------------------------------------------
+
+def load_legacy_perm_id_map() -> dict[str, str]:
+    """Load the tickers-to-perm_id mapping from the existing legacy table.
+
+    Used to populate the `legacy_perm_id` column in the new table so Phase D
+    re-keying can rename perm_id references in /earnings/raw in a single
+    rename pass.
+
+    Returns: dict[uppercase ticker -> legacy perm_id]
+    """
+    if LEGACY_PERM_IDS_KEY is None:
+        return {}
+    try:
+        with pd.HDFStore(DB_FILE, mode="r") as s:
+            if LEGACY_PERM_IDS_KEY not in s:
+                return {}
+            df = s[LEGACY_PERM_IDS_KEY]
+    except Exception:
+        return {}
+    out = {}
+    for canon, pid in zip(df["canonical_ticker"], df["perm_id"]):
+        if pd.notna(canon) and pd.notna(pid):
+            out[str(canon).upper().strip()] = str(pid)
+    return out
+
 
 def main():
     print("=" * 70)
-    print("  02b - Build Perm-ID Map (interval-forked, point-in-time CIK)")
+    print("02b - Build Company-Level Map (Tiingo permaTicker-anchored)")
     print("=" * 70)
+    print(f"DB file: {DB_FILE}")
 
     if not DB_FILE.exists():
-        print(f"[FATAL] {DB_FILE} not found. Run 01_metadata_gathering.py and")
-        print("        02_SEC_sector_gathering.py first.")
-        return
+        raise SystemExit(f"db.h5 not found at {DB_FILE}")
 
-    print("\n[1/4] Loading /metadata/sp400 ...")
-    meta_df = pd.read_hdf(DB_FILE, key=META_KEY)
-    if "ticker" not in meta_df.columns:
-        meta_df = meta_df.reset_index()
-    print(f"   Loaded {len(meta_df)} tickers")
+    # Load /metadata/sp400 source rows.
+    with pd.HDFStore(DB_FILE, mode="r") as store:
+        if META_KEY not in store:
+            raise SystemExit(f"{META_KEY} not found in {DB_FILE} -- run 01_metadata_gathering first.")
+        meta = store[META_KEY]
+    print(f"Loaded {META_KEY}: {len(meta)} ticker rows")
 
-    print("\n[2/4] Loading point-in-time CIK sources ...")
-    pit_index = build_pit_cik_index()
-    active_sec = load_active_sec_ciks()
-    ticker_txt = load_cached_ticker_txt()
-    print(f"   Active SEC tickers (current): {len(active_sec)}")
-    print(f"   Cached ticker.txt       : {len(ticker_txt)}")
+    # Load legacy perm_id -> ticker mapping for the legacy_perm_id column.
+    legacy_map = load_legacy_perm_id_map()
+    print(f"Loaded {len(legacy_map)} legacy perm_id -> ticker mappings")
 
-    print("\n[3/4] Building perm_id table (fork M&A, point-in-time CIK lookup) ...")
-    extended, perm_ids = build_perm_id_map(meta_df, pit_index, active_sec, ticker_txt)
+    # Persist a per-ticker disambiguation log to help review ambiguous
+    # decisions after the run (e.g. ticker codes with multiple permaTickers).
+    log_path = Path(__file__).parent / "permaticker_disambiguation.log"
+    log_file = log_path.open("w", encoding="utf-8")
+    print(f"Disambiguation log -> {log_path.name}")
 
-    print("\n[3b/4] Probing EODHD availability per perm_id canonical ticker ...")
-    # Probe each perm_id's canonical ticker (one EODHD call per perm_id).
-    # For multi-alias perm_ids, probe the canonical first; if unavailable,
-    # the reprobe step walks the remaining aliases with the 15-year window.
-    ticker_intervals = dict(zip(meta_df["ticker"].astype(str), meta_df["intervals"]))
-    canonicals = [p["canonical_ticker"] for p in perm_ids]
-    eodhd_avail = probe_tickers_on_eodhd(
-        canonicals,
-        progress_every=100,
-        ticker_intervals=ticker_intervals,
-    )
-    for p in perm_ids:
-        p["price_unavailable"] = not bool(eodhd_avail.get(p["canonical_ticker"], False))
-    avail_ct = sum(1 for v in eodhd_avail.values() if v)
-    print(f"   {avail_ct} / {len(canonicals)} canonicals available on EODHD")
+    all_rows: list[dict] = []
+    n_tickers = len(meta)
+    t0 = time.time()
+    for i, row in enumerate(meta.itertuples(index=False), 1):
+        ticker = str(row.ticker)
+        elapsed = time.time() - t0
+        rate = i / max(elapsed, 0.001)
+        eta = (n_tickers - i) / max(rate, 0.001)
+        log_file.write(f"\n[{i}/{n_tickers}] {ticker} (elapsed {elapsed:.1f}s, eta {eta:.1f}s)\n")
+        # Redirect this row's progress prints to both stdout (live) and the
+        # log file. The Tiingo probe prints inside process_ticker_row go
+        # through sys.stdout (which we wrapped with utf-8 errors=replace),
+        # so to capture them in the log we tee-prinlate via a custom helper.
+        # Simpler: just call process_ticker_row with verbose=True and re-emit
+        # the row summary line to the log.
+        print(f"[{i}/{n_tickers}] {ticker} ...", flush=True)
+        rows = process_ticker_row(
+            row, legacy_perm_id_map=legacy_map, verbose=False
+        )
+        for r in rows:
+            log_file.write(
+                f"   permaTicker={r['permaTicker']} ticker={r['canonical_ticker']} "
+                f"name={r.get('name')!r} isActive={r['isActive']} "
+                f"price_unavailable={r['price_unavailable']} "
+                f"openfigi={r.get('openfigi')} legacy_perm_id={r.get('legacy_perm_id')}\n"
+            )
+            try:
+                ivs = json.loads(r["wikipedia_intervals"]) if isinstance(r["wikipedia_intervals"], str) else r["wikipedia_intervals"]
+                for iv in ivs:
+                    log_file.write(f"     interval: {iv}\n")
+            except Exception:
+                pass
+        all_rows.extend(rows)
+        log_file.flush()
+    log_file.close()
+    print(f"\nDone processing. Total permaTicker rows: {len(all_rows)}")
+    print(f"Wall time: {time.time() - t0:.1f}s")
 
-    # Second-pass fallback: walk other aliases with the full 15-year window
-    # for perm_ids still marked price_unavailable.
-    reprobe_unavailable_perm_ids(perm_ids, eodhd_avail)
-
-    print("\n[4/4] Writing outputs to db.h5 ...")
-    write_outputs(extended, perm_ids)
-
-    print_audit(extended, perm_ids)
+    df = write_outputs(all_rows)
+    print_audit(df)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,28 @@
 # Company Merge & Canonical Ticker Design
 
+> **⛔ WHOLE DOCUMENT DEPRECATED (2026-07-14).** Both anchor choices documented
+> here (`canonical_ticker` and `cik`-anchored identity) are obsolete.
+> - The `cik` anchor is replaced by **Tiingo `permaTicker`** (identity-stable
+>   across rebrands, mergers, delistings — see
+>   [`01_data/tiingo_permaTicker_audit.md`](tiingo_permaTicker_audit.md)).
+> - For the same reasons this doc proposed `cik` as the right anchor
+>   ("survives renames/rebrands/bankruptcy-Q-suffix delistings"),
+>   `permaTicker` is strictly better: it ALSO survives the same-CIK
+>   reorg case (CHK->EXE separated cleanly) and the same-CIK spinoff
+>   case (CFX->ENOV inherits full history + ESAB gets fresh identity).
+> - This doc references `/metadata/sp400_companies` (per-CIK view)
+>   which was REMOVED in Phase A `02b_build_company_map.py` and replaced
+>   by `/metadata/sp400_perm_ids`; the permaTicker migration replaces
+>   that table AGAIN with `/metadata/sp400_permatickers`.
+> - All forward work should reference the audit doc and forthcoming Phase A
+>   rewrite plan.
+
+* **Status:** **OBSOLETE.** Both this design and its Phase A successor
+>  (`02b_build_company_map.py` based on `perm_id`) are now
+>  deprecated in favor of Tiingo `permaTicker`. Kept here for architecture
+>  history.
 > Status: **Design approved, not yet implemented.** Created for future reference.
-> Owner of this design: agreed in conversation on 2026-07-03.
+> Owner of this design: agreed in conversation on 2026-07-03. (⛔ above)
 
 ## Earnings Alignment (downstream consumer)
 

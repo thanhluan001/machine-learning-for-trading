@@ -1,7 +1,29 @@
 # Quantitative Architecture Specification: Identity Patch
 
+> **⛔ DEPRECATED (2026-07-14):** The entire `perm_id` identity layer
+> specified in this document is **OBSOLETE**. The pipeline is migrating to
+> **Tiingo's `permaTicker`** as the primary entity identifier, which is
+> identity-stable across rebrands, mergers, delistings, and spin-offs
+> (empirically verified across all bug classes from the Phase B audit:
+> Class U/V/W/S are all natively resolved at source by permaTicker).
+> 
+> See [`01_data/tiingo_permaTicker_audit.md`](tiingo_permaTicker_audit.md) for
+> the live probe-based evidence and **the new identity design** that replaces:
+> - The synthetic `perm_id = f"{cik}_{start_ticker}"` derivation (§2, §3.1 below)
+> - The Wikipedia-interval + DERA + CIK-synthesis Phase A `02b_build_company_map.py` (§7.7 disambiguation, §7.3 active-alias extension, §7.4 canonical selection)
+> - The Phase B alias-concatenation bug workaround (§7.7 v2/v2.1 fixes)
+> - The Phase D `(perm_id, fiscal_period_end)` dedup key (§7.7 implication)
+> - The Phase E §7.9 disambiguation-at-gate rule (no longer needed once
+>   identity is `permaTicker`-keyed)
+> 
+> This document is **retained only as historical audit** of why `perm_id`
+> was introduced (the survivor-CIK collision bug of §1 is real, and
+> `permaTicker` solves it correctly — but the underlying bug analysis
+> stays useful context). All forward work MUST reference the audit doc
+> above instead of the `perm_id` machinery defined below.
+
 ## Target Component: Asset Identification and Merger Processing Architecture
-* **Status:** Operational Patch Implementation (July 2026)
+* **Status:** Operational Patch Implementation (July 2026) -- ⛔ see deprecation banner above.
 * **Impacted Code Modules:** `02b_build_company_map.py`, `03_data_gathering.py`, `04_feature_building.py`
 
 ---
@@ -400,7 +422,7 @@ the EODHD `/api/eod/{CANON}.US` endpoint returns fewer rows than the
 perm_id's effective membership window. EODHD's earnings-calendar feed and
 price-history feed can be inconsistent per symbol.
 
-**Empirically observed (24-Jul-2026 Phase E run):**
+**Empirically observed (2026-07-14 Phase E run):**
 
 | canonical | # drops | comment |
 |---|---|---|
@@ -415,7 +437,7 @@ Phase E. The pipeline correctly follows the NaN-policy drop + log path.
 
 **Tiingo fallback option (DEFERRED):**
 
-If `sue_score`-style EODHD gaps start eating into the training universe
+If EODHD gaps start eating into the training universe
 beyond a chosen tolerance (e.g. >2% of train rows lost to T-match failures),
 we can re-introduce Tiingo as a **conditional fallback** specifically for
 perm_ids whose canonical's `/sp400/{canon}` node is too short for the
@@ -431,6 +453,48 @@ Phase F ticket):
   3. Schema is identical (11-col OHLCV + derived adj_* via close/adjusted_close
      in Tiingo returns). Merge with existing EODHD rows (dedup-keep-last per Date).
   4. Re-run Stage 1+2 to repair the dropped events.
+
+---
+
+## §7.11 ARCHITECTURE SUCCESSOR: permaTicker migration (2026-07-14)
+
+After Phase B's contamination audit surfaced 3 distinct bug classes
+(`phase_b_contamination_audit.md`), a deeper probe-based comparison
+(`eodhd_vs_tiingo.md`, `tiingo_permaTicker_audit.md`) led to the
+conclusion that the synthetic `perm_id` mechanism defined in this
+spec was solving a problem Tiingo's data model natively solves.
+Tiingo's `permaTicker` field (queried via
+`/tiingo/utilities/search/{query}?includeDelisted=true&exactTickerMatch=true`)
+returns identity-stable primary keys that survive:
+- ticker renames (META was FB's permaTicker; prices under META perma fetch
+  back to 2013 correctly)
+- multi-ticker rebrand chains (CSII -> PEGY -> SUNE all share one permaTicker,
+  prices retrievable across the entire chain via the permaTicker key)
+- bankruptcy reorgs with a fresh ticker code (Chesapeake CHK perma `US000000000505`,
+  Expand EXE perma `US000000092728` -- distinct even though same SEC CIK)
+- spinoffs producing two separately-traded descendants (Colfax -> ENOV
+  inherits full history + ESAB starts fresh, distinct permaTickers)
+- symbol recycling where two different companies held the same ticker code
+  in different eras (SUNE was SunEdison `US000000002709` AND SUNation
+  `US000000002062` -- both identities retrivable independently via perma)
+
+All bug classes (Class U/V/W/S) documented in `phase_b_contamination_audit.md`
+are eliminated at source by switching the primary key to `permaTicker`:
+- Class U (alias-intertwining): eliminated -- no alias-merge needed; one
+  `/prices` fetch per permaTicker retrieves the full clean history
+  (Tiingo back-merged rebrand history into the modern canonical)
+- Class V (alternating adjusted_close): same as Class U (reclassified as Class U)
+- Class W (NSR retroactive rewiring): eliminated -- Neustar `US000000006945`
+  cleanly returns 2015 real prices, separate from Nomad's perma
+- Class S (SUNE modern era confusion): eliminated -- SunEdison and the
+  CSII/Pineapple/SUNation chain are separate permaTickers
+
+See `tiingo_permaTicker_audit.md` for the full evidence table, lookup
+mechanism, and migration design. Forward Phase A rewrite (`02b_build_company_map.py`)
+will be permaTicker-keyed against the Tiingo search endpoint; all `perm_id`
+references below (and the `02b` algorithm in §7.1-§7.10) are obsolete.
+
+---
 
 This option is intentionally DEFERRED for Phase E. It is documented here
 so a future Phase F can take it up without re-discovering the issue.

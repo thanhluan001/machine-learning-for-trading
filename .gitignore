@@ -5,6 +5,7 @@
 *.zip
 *.txt
 __pycache__/
+models/
 settings.json
 data/mnist/*
 data/fashion_mnist/*
