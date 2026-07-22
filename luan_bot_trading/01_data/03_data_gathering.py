@@ -122,8 +122,6 @@ def get_all_permatickers() -> list[dict]:
     Each dict carries the fields the data fetcher needs:
         permaTicker        : str  -- PRIMARY KEY + /sp400/{permaTicker} path key
         canonical_ticker   : str  -- informational (EODHD calendar join key for Phase D)
-        legacy_perm_id      : str  -- informational (Phase D re-key mapping)
-                                     03 doesn't use it.
         name               : str  -- informational; included for logging
         isActive           : bool -- informational
         sic                : str  -- informational
@@ -169,7 +167,6 @@ def get_all_permatickers() -> list[dict]:
             {
                 "permaTicker": str(row["permaTicker"]),
                 "canonical_ticker": None if pd.isna(row.get("canonical_ticker")) else str(row["canonical_ticker"]),
-                "legacy_perm_id": None if pd.isna(row.get("legacy_perm_id")) else str(row["legacy_perm_id"]),
                 "name": None if pd.isna(row.get("name")) else str(row["name"]),
                 "isActive": bool(row["isActive"]),
                 "sic": None if pd.isna(row.get("sic")) else str(row["sic"]),

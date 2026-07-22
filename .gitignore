@@ -5,6 +5,7 @@
 *.zip
 *.txt
 __pycache__/
+archive/
 models/
 settings.json
 data/mnist/*

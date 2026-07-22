@@ -1,7 +1,28 @@
 #!/usr/bin/env python3
-"""
-Stage 3: Listwise-Ranker Training + Isotonic Calibration  (Phase F v2)
+"""Stage 3: Listwise-Ranker Training + Isotonic Calibration  (Phase F v2)
 ===========================================================================
+
+DEPRECATION NOTE (2024-07-22, post Doc J restructure):
+  - This file's main() / training entry-point is OBSOLETE. It trains the
+    Phase F v2 `rank:ndcg` ranker targeting `car_10d` -- the LEAKY model
+    whose entire OOS edge came from the forward-looking `opening_gap_t1`
+    feature (NaN-ing it dropped Sharpe 4.31 -> -0.14). Do NOT run
+    main() for production.
+  - The DEPLOYABLE Phase G model (Sunday classifier, binary target =
+    pead_pass, 17 Sunday-safe features) is trained by:
+      `03_model/02_phase_g_sunday_classifier.py`
+    (HP selection: `03_model/03_phase_g_sweep.py`).
+  - WHY THIS FILE IS KEPT: it exports the shared utility API used by all
+    Phase G backtest scripts:
+      * `load_train_matrix()`           -- `/features/train_matrix` loader
+      * `apply_priming_cutoff(df, ...)` -- §12 priming-runway filter
+      * `DB_FILE`, `PRIMING_RUNWAY_START`
+      * `split_walk_forward()`, `drop_sparse_weeks()`, `compute_ndcg_at_k_per_group()`
+    These helpers stay load-bearing and are imported via:
+        importlib.util.spec_from_file_location("tm", HERE / "01_train_model.py")
+  - TO ENGINEER A NEXT-GENERATION MODEL ARTIFACT, write a NEW
+    `02_*.py`/`03_*.py` script in `03_model/` rather than touching
+    this `01_train_model.py` main() pipeline.
 
 REVISION: v2 retrain on Phase E v2 train_matrix (permaTicker-keyed, is_bmo
 fixed, eps_surprise_pct capped at +/-300%). v1 was trained on contaminated

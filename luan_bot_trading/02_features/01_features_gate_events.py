@@ -35,7 +35,7 @@ INPUTS (from `01_data/db.h5`; READ-ONLY -- no external API calls):
   * `/metadata/sp400_permatickers` -- columns:
         permaTicker, canonical_ticker, name, isActive, openfigi, cik,
         sic, index_ref, wikipedia_intervals (JSON str),
-        price_unavailable (bool), legacy_perm_id (str|NaN; empty for new run).
+        price_unavailable (bool).
   * `/earnings/raw`              -- Phase D schema (post-migration):
         report_date, fiscal_period_end, code, canonical_ticker,
         cik, actual, estimate, difference, percent, before_after_market,
@@ -155,10 +155,10 @@ _EPS_BUCKETS = [
 def load_permatickers() -> pd.DataFrame:
     """Load /metadata/sp400_permatickers from DB_FILE.
 
-    Required per-row fields (Phase A v2 output schema):
+    Required per-row fields (Phase A v2 output schema, post-cleanup_2024):
         permaTicker, canonical_ticker, name, isActive, openfigi, cik,
         sic, index_ref, wikipedia_intervals (JSON str),
-        price_unavailable (bool), legacy_perm_id (str|NaN).
+        price_unavailable (bool).
     """
     if not DB_FILE.exists():
         raise FileNotFoundError(
@@ -255,6 +255,7 @@ def gate_events(
         "n_permatickers_zero_earnings": 0,
         "n_permatickers_gated_zero": 0,
         "n_buffer_drops": 0,
+        "n_events_dup_collapsed": 0,
         "total_events_processed": 0,
         "total_events_gated": 0,
     }
@@ -327,7 +328,27 @@ def gate_events(
         ],
     )
     if not df.empty:
-        df = df.sort_values(["calendar_week_group", "permaTicker"]).reset_index(drop=True)
+        # Dedup by (permaTicker, report_date) after interval application.
+        # Why: A permaTicker can have multiple `wikipedia_intervals` entries,
+        # and when two intervals both contain the same earnings event
+        # (overlap zone, e.g. GME has [{added: 2016-04-22, removed: null}
+        # AND {added: 2021-08-04, removed: null}] -- both windows still open
+        # today so all 2021-11+ events qualify twice), the loop above emits
+        # 2 duplicate gated rows for one underlying earnings event. We keep
+        # the row whose `added` is EARLIEST (preserves the historical
+        # provenance of the first S&P 400 addition that owns this event).
+        # Sort stably on [permaTicker, report_date, added] so drop_duplicates
+        # deterministically picks the earliest-added interval's row.
+        n_pre_dupmerge = len(df)
+        df = (
+            df.sort_values(["permaTicker", "report_date", "added"], kind="mergesort")
+              .drop_duplicates(subset=["permaTicker", "report_date"], keep="first")
+        )
+        n_dropped_by_merge = n_pre_dupmerge - len(df)
+        if n_dropped_by_merge > 0:
+            audit["n_events_dup_collapsed"] = n_dropped_by_merge
+            # Re-sort to the consumer's expected order.
+            df = df.sort_values(["calendar_week_group", "permaTicker"], kind="mergesort").reset_index(drop=True)
 
     audit["total_events_gated"] = len(df)
     return df, audit
@@ -463,6 +484,8 @@ def print_audit(audit: dict) -> None:
     print(f"  permaTickers gated-to-zero         : {audit['n_permatickers_gated_zero']}")
     print(f"  events processed                   : {audit['total_events_processed']}")
     print(f"  events dropped by buffer/window    : {audit['n_buffer_drops']}")
+    if audit.get('n_events_dup_collapsed', 0) > 0:
+        print(f"  events collapsed (overlap dups)     : {audit['n_events_dup_collapsed']} (multi-interval overlap dedup)")
     print(f"  events gated (survived)            : {audit['total_events_gated']}")
     print(bar)
 

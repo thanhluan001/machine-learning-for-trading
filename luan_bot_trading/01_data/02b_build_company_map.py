@@ -33,8 +33,6 @@ External (Tiingo paid tier):
 Outputs (back into db.h5):
     /metadata/sp400_permatickers   NEW (replaces /metadata/sp400_perm_ids):
         permaTicker         str     PRIMARY KEY (Tiingo's identity-stable ID)
-        legacy_perm_id      str     old perm_id -- kept ONLY for Phase D
-                                    re-key mapping; dropped after Phase D.
         canonical_ticker    str     result.ticker from the chosen search hit,
                                     used by EODHD calendar join downstream.
         name                str     from search response
@@ -482,7 +480,7 @@ def _probe_window(added_ts: pd.Timestamp | None, *, wide: bool = False) -> tuple
 def process_ticker_row(
     row,
     *,
-    legacy_perm_id_map: dict[str, str],
+    legacy_perm_id_map: dict[str, str] | None = None,
     verbose: bool = True,
 ) -> list[dict]:
     """Process one /metadata/sp400 row (one ticker, multiple intervals).
@@ -595,9 +593,10 @@ def process_ticker_row(
                 f"-> price_unavailable=True"
             )
 
-        # Legacy perm_id mapping -- find the original perm_id that mapped
-        # to this ticker code via the existing /metadata/sp400_perm_ids table.
-        legacy_perm_id = legacy_perm_id_map.get(ticker)
+        # Legacy perm_id mapping no longer needed (Phase D migration
+        # complete). The field was a Phase A->D bridge column for one-time
+        # re-keying of /earnings/raw, and is no longer written to the DB
+        # (see cleanup_phase_d_2024_post_doc_j.py).
 
         # Carry SIC/index_ref/cik from the original /metadata/sp400 row.
         sic = get("sic")
@@ -606,7 +605,6 @@ def process_ticker_row(
 
         row_out = {
             "permaTicker": pt,
-            "legacy_perm_id": legacy_perm_id,
             "canonical_ticker": chosen_first.get("ticker", ticker),
             "name": chosen_first.get("name"),
             "isActive": bool(chosen_first.get("isActive")),
@@ -635,7 +633,6 @@ def process_ticker_row(
 
 _PERMATICKER_COLS = [
     "permaTicker",
-    "legacy_perm_id",
     "canonical_ticker",
     "name",
     "isActive",
@@ -662,7 +659,6 @@ def write_outputs(permatickers: list[dict]) -> pd.DataFrame:
         df["isActive"] = df["isActive"].astype(bool)
         df["price_unavailable"] = df["price_unavailable"].astype(bool)
         df["cik"] = df["cik"].astype(object)
-        df["legacy_perm_id"] = df["legacy_perm_id"].astype(object)
         df["openfigi"] = df["openfigi"].astype(object)
 
     with pd.HDFStore(DB_FILE, mode="a") as store:
@@ -692,7 +688,6 @@ def print_audit(df: pd.DataFrame) -> None:
     n_total = len(df)
     n_unavailable = int(df["price_unavailable"].sum())
     n_active = int(df["isActive"].sum())
-    n_with_legacy = int(df["legacy_perm_id"].notna().sum())
     n_openfigi = int(df["openfigi"].notna().sum())
     n_multi_interval = 0
     for s in df["wikipedia_intervals"]:
@@ -707,7 +702,6 @@ def print_audit(df: pd.DataFrame) -> None:
     print(f"  Total permaTicker rows:        {n_total}")
     print(f"  Active (currently trading):     {n_active}")
     print(f"  With openFIGI field:            {n_openfigi}")
-    print(f"  With legacy_perm_id mapping:    {n_with_legacy}")
     print(f"  Multi-interval permaTickers:    {n_multi_interval}")
     print(f"  price_unavailable (0 rows):     {n_unavailable}")
     if n_unavailable:
@@ -763,8 +757,12 @@ def main():
     print(f"Loaded {META_KEY}: {len(meta)} ticker rows")
 
     # Load legacy perm_id -> ticker mapping for the legacy_perm_id column.
+    # (DEPRECATED after cleanup_phase_d_2024; the legacy_perm_id column
+    # is no longer written to the DB but the legacy mapping function is
+    # kept for audit / historical reference.
     legacy_map = load_legacy_perm_id_map()
-    print(f"Loaded {len(legacy_map)} legacy perm_id -> ticker mappings")
+    print(f"Loaded {len(legacy_map)} legacy perm_id -> ticker mappings "
+          f"(DEPRECATED after cleanup_phase_d_2024; legacy_perm_id column removed)")
 
     # Persist a per-ticker disambiguation log to help review ambiguous
     # decisions after the run (e.g. ticker codes with multiple permaTickers).
@@ -796,7 +794,7 @@ def main():
                 f"   permaTicker={r['permaTicker']} ticker={r['canonical_ticker']} "
                 f"name={r.get('name')!r} isActive={r['isActive']} "
                 f"price_unavailable={r['price_unavailable']} "
-                f"openfigi={r.get('openfigi')} legacy_perm_id={r.get('legacy_perm_id')}\n"
+                f"openfigi={r.get('openfigi')}\n"
             )
             try:
                 ivs = json.loads(r["wikipedia_intervals"]) if isinstance(r["wikipedia_intervals"], str) else r["wikipedia_intervals"]
