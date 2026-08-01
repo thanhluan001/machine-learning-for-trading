@@ -147,8 +147,13 @@ FEATURE_COLUMNS = [
     "rel_ret_30d", "sector_adjusted_ret_20d",
     # Block 4 (1)
     "sue_abs_x_inverse_vol",
+    # Block 6 — FMP analyst revision momentum (8, Phase H)
+    "revision_momentum_30d", "revision_momentum_60d",
+    "revision_momentum_90d", "revision_ordinal_momentum_90d",
+    "revision_intensity_90d", "grade_dispersion_90d",
+    "n_analysts_covering", "last_action_days_before_earnings",
 ]
-assert len(FEATURE_COLUMNS) == 21, "features.md §5 says 21 active features"
+assert len(FEATURE_COLUMNS) == 29, "features.md: 21 original + 8 revision momentum = 29"
 
 # Label column
 LABEL_COLUMN = "car_10d"

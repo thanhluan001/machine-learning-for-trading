@@ -31,15 +31,12 @@ spec = importlib.util.spec_from_file_location(
 tm = importlib.util.module_from_spec(spec); spec.loader.exec_module(tm)
 
 # Load exploration helpers for gate computation
-e_spec = importlib.util.spec_from_file_location(
-    "explor", HERE / "_pead_exploration.py")
-em = importlib.util.module_from_spec(e_spec); e_spec.loader.exec_module(em)
-
 DB = tm.DB_FILE
 
-GATE1_CAR_MIN = em.GATE1_CAR_MIN
-GATE2_VOL_RATIO_MIN = em.GATE2_VOL_RATIO_MIN
-GATE3_MAXDD_MIN = em.GATE3_MAXDD_MIN
+# PEAD gate thresholds (inlined from _pead_exploration.py to avoid archived import chain)
+GATE1_CAR_MIN = 0.03      # CAR > 3.0%   (idiosyncratic alpha)
+GATE2_VOL_RATIO_MIN = 2.0 # (Vol_T + Vol_T+1 + Vol_T+2)/3 > 2.0 * vma20
+GATE3_MAXDD_MIN = -0.015  # MaxDD_MA > -1.5%
 
 
 def compute_pead_gates_full(train_matrix: pd.DataFrame) -> pd.DataFrame:

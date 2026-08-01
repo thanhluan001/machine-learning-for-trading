@@ -1,0 +1,194 @@
+{
+  "n_folds": 4,
+  "n_slots": 4,
+  "n_rng_trials": 100,
+  "operating_point": {
+    "theta_screen": 0.2,
+    "gap_lo": 0.02,
+    "gap_hi": 0.15
+  },
+  "sweep_grid": [
+    {
+      "gamma": 3,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 5,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 10,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 20,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    }
+  ],
+  "folds": [
+    [
+      "2023-12-31",
+      "2024-06-30",
+      "2024-12-31"
+    ],
+    [
+      "2024-06-30",
+      "2024-12-31",
+      "2025-06-30"
+    ],
+    [
+      "2024-12-31",
+      "2025-06-30",
+      "2025-12-31"
+    ],
+    [
+      "2025-06-30",
+      "2025-12-31",
+      "2026-06-30"
+    ]
+  ],
+  "fold_results": [
+    {
+      "fold": 1,
+      "train_end": "2023-12-31",
+      "sweep_end": "2024-06-30",
+      "test_end": "2024-12-31",
+      "selected_hp": {
+        "gamma": 3,
+        "min_child_weight": 50,
+        "max_depth": 3,
+        "n_estimators": 300
+      },
+      "selected_hp_reason": "best sweep_val_pnl (n=39, pnl=+3.336%)",
+      "test_n_trades": 16,
+      "test_irr_pct": -2.6234303335580744,
+      "test_sharpe": -0.15029380606128023,
+      "test_max_dd_pct": -9.72345380275459,
+      "test_hit_pct": 62.5,
+      "test_avg_pnl_pct": -0.21055917135104352,
+      "test_auc": 0.6788929835970807,
+      "test_ap": 0.2671455144912838,
+      "random_mean_irr": 1.325659589870958,
+      "random_mean_sharpe": 0.013994055932087992,
+      "random_mean_max_dd": -9.128773771170708,
+      "frac_random_exceeded_sharpe": 0.62,
+      "frac_random_exceeded_irr": 0.63,
+      "n_random_trials": 100,
+      "sel_gamma": 3,
+      "sel_mcw": 50,
+      "sel_md": 3,
+      "sel_n_est": 300
+    },
+    {
+      "fold": 2,
+      "train_end": "2024-06-30",
+      "sweep_end": "2024-12-31",
+      "test_end": "2025-06-30",
+      "selected_hp": {
+        "gamma": 5,
+        "min_child_weight": 50,
+        "max_depth": 3,
+        "n_estimators": 300
+      },
+      "selected_hp_reason": "best sweep_val_pnl (n=38, pnl=+2.100%)",
+      "test_n_trades": 19,
+      "test_irr_pct": -6.477691601748314,
+      "test_sharpe": -0.401559999622976,
+      "test_max_dd_pct": -14.186623736173576,
+      "test_hit_pct": 52.63157894736842,
+      "test_avg_pnl_pct": -0.3617814203847214,
+      "test_auc": 0.6477882621921683,
+      "test_ap": 0.20148532556103663,
+      "random_mean_irr": -0.3041547666373745,
+      "random_mean_sharpe": -0.03487715231677184,
+      "random_mean_max_dd": -13.731444443255803,
+      "frac_random_exceeded_sharpe": 0.69,
+      "frac_random_exceeded_irr": 0.66,
+      "n_random_trials": 100,
+      "sel_gamma": 5,
+      "sel_mcw": 50,
+      "sel_md": 3,
+      "sel_n_est": 300
+    },
+    {
+      "fold": 3,
+      "train_end": "2024-12-31",
+      "sweep_end": "2025-06-30",
+      "test_end": "2025-12-31",
+      "selected_hp": {
+        "gamma": 5,
+        "min_child_weight": 50,
+        "max_depth": 3,
+        "n_estimators": 300
+      },
+      "selected_hp_reason": "best sweep_val_pnl (n=27, pnl=+0.097%)",
+      "test_n_trades": 18,
+      "test_irr_pct": -5.290648785016305,
+      "test_sharpe": -0.3679840783188277,
+      "test_max_dd_pct": -16.968744254529856,
+      "test_hit_pct": 33.33333333333333,
+      "test_avg_pnl_pct": -0.3812229111792298,
+      "test_auc": 0.6424119355839467,
+      "test_ap": 0.23269678812773076,
+      "random_mean_irr": 4.047341947742358,
+      "random_mean_sharpe": 0.20560801806368004,
+      "random_mean_max_dd": -9.348613000101686,
+      "frac_random_exceeded_sharpe": 0.69,
+      "frac_random_exceeded_irr": 0.7,
+      "n_random_trials": 100,
+      "sel_gamma": 5,
+      "sel_mcw": 50,
+      "sel_md": 3,
+      "sel_n_est": 300
+    },
+    {
+      "fold": 4,
+      "train_end": "2025-06-30",
+      "sweep_end": "2025-12-31",
+      "test_end": "2026-06-30",
+      "selected_hp": {
+        "gamma": 3,
+        "min_child_weight": 50,
+        "max_depth": 3,
+        "n_estimators": 300
+      },
+      "selected_hp_reason": "best sweep_val_pnl (n=37, pnl=+0.503%)",
+      "test_n_trades": 14,
+      "test_irr_pct": -0.6460573301973582,
+      "test_sharpe": -0.05350125610091774,
+      "test_max_dd_pct": -12.541568111159107,
+      "test_hit_pct": 42.857142857142854,
+      "test_avg_pnl_pct": 0.06360840837908761,
+      "test_auc": 0.676935006344283,
+      "test_ap": 0.242775317319472,
+      "random_mean_irr": -5.083890463877474,
+      "random_mean_sharpe": -0.39650307422541714,
+      "random_mean_max_dd": -13.114262000929662,
+      "frac_random_exceeded_sharpe": 0.35,
+      "frac_random_exceeded_irr": 0.34,
+      "n_random_trials": 100,
+      "sel_gamma": 3,
+      "sel_mcw": 50,
+      "sel_md": 3,
+      "sel_n_est": 300
+    }
+  ],
+  "aggregate": {
+    "mean_test_irr_pct": -3.759457012630013,
+    "mean_test_sharpe": -0.2433347850260004,
+    "mean_test_max_dd_pct": -13.355097476154281,
+    "mean_test_hit_pct": 47.830513784461154,
+    "mean_test_avg_pnl_pct": -0.22248877363397676,
+    "mean_frac_random_exceeded_sharpe": 0.5875,
+    "mean_frac_random_exceeded_irr": 0.5825
+  },
+  "created_at": "2026-07-27T22:10:03.848982"
+}

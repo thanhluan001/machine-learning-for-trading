@@ -66,9 +66,11 @@ SUNDAY_SAFE_FEATURES = [
     "sue_score", "eps_surprise_pct", "consecutive_surprises",
     "sue_acceleration", "sue_lag_1", "sue_lag_2",
     "car_drift_historical_q1",
-    # Block 2 (5 of 7 -- drop volume_vma20_ratio_pre_event, suv_day_1,
-    #           intraday_range_t, opening_gap_t1)
-    "is_bmo",
+    # Block 2 (4 of 7 -- drop volume_vma20_ratio_pre_event, suv_day_1,
+    #           intraday_range_t, opening_gap_t1, is_bmo)
+    # is_bmo removed 2026-07-23: operational scheduling choice, not a
+    # fundamental PEAD predictor. Became #1 importance after FMP fix but
+    # caused OOS overfitting (nested CV Sharpe +0.50 -> -0.24).
     "pre_event_idiosyncratic_vol",
     "pre_event_volume_trend",
     # Block 3 (6)
@@ -76,8 +78,16 @@ SUNDAY_SAFE_FEATURES = [
     "rel_ret_30d", "sector_adjusted_ret_20d",
     # Block 4 (1)
     "sue_abs_x_inverse_vol",
+    # Block 6 -- FMP analyst revision momentum (8, Phase H)
+    # These are Sunday-safe (computed from data BEFORE report_date only)
+    # Ordinal-magnitude features capture HOW MUCH each revision moved on the
+    # rating scale (Sell->Strong Buy = +4, not just +1 upgrade count)
+    "revision_momentum_30d", "revision_momentum_60d",
+    "revision_momentum_90d", "revision_ordinal_momentum_90d",
+    "revision_intensity_90d", "grade_dispersion_90d",
+    "n_analysts_covering", "last_action_days_before_earnings",
 ]
-assert len(SUNDAY_SAFE_FEATURES) == 17, "Sunday-safe set must be 17 features"
+assert len(SUNDAY_SAFE_FEATURES) == 24, "Sunday-safe set: 16 original (17 - is_bmo) + 8 revision momentum = 24"
 # Defensive cross-check vs the master list:
 _MISSING = [c for c in SUNDAY_SAFE_FEATURES if c not in tm.FEATURE_COLUMNS]
 assert not _MISSING, f"Sunday features not in master FEATURE_COLUMNS: {_MISSING}"

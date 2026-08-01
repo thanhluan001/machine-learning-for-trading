@@ -1,0 +1,159 @@
+{
+  "theta": 0.25,
+  "n_folds": 4,
+  "features": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "pre_event_idiosyncratic_vol",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol",
+    "revision_momentum_30d",
+    "revision_momentum_60d",
+    "revision_momentum_90d",
+    "revision_ordinal_momentum_90d",
+    "revision_intensity_90d",
+    "grade_dispersion_90d",
+    "n_analysts_covering",
+    "last_action_days_before_earnings"
+  ],
+  "sweep_grid": [
+    {
+      "gamma": 3,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 5,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 10,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    },
+    {
+      "gamma": 20,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300
+    }
+  ],
+  "folds": [
+    [
+      "2023-12-31",
+      "2024-06-30",
+      "2024-12-31"
+    ],
+    [
+      "2024-06-30",
+      "2024-12-31",
+      "2025-06-30"
+    ],
+    [
+      "2024-12-31",
+      "2025-06-30",
+      "2025-12-31"
+    ],
+    [
+      "2025-06-30",
+      "2025-12-31",
+      "2026-06-30"
+    ]
+  ],
+  "fold_results": [
+    {
+      "fold": 1,
+      "gamma": 3,
+      "auc_test": 0.6385576992557267,
+      "n_picks": 23,
+      "n_pead_picks": 9,
+      "n_total_pead": 105,
+      "precision": 0.391304347826087,
+      "recall": 0.08571428571428572,
+      "f1": 0.14062500000000003,
+      "n_pead_missed": 96,
+      "avg_pnl_all": 3.2552174702806447,
+      "hit_all": 73.91304347826086,
+      "avg_pnl_pead": 4.374781975402924,
+      "hit_pead": 77.77777777777779,
+      "base_rate": 0.13743455497382198
+    },
+    {
+      "fold": 2,
+      "gamma": 3,
+      "auc_test": 0.6242080176706516,
+      "n_picks": 25,
+      "n_pead_picks": 7,
+      "n_total_pead": 73,
+      "precision": 0.28,
+      "recall": 0.0958904109589041,
+      "f1": 0.14285714285714285,
+      "n_pead_missed": 66,
+      "avg_pnl_all": -0.5732915215308569,
+      "hit_all": 52.0,
+      "avg_pnl_pead": 0.7097540139507972,
+      "hit_pead": 71.42857142857143,
+      "base_rate": 0.09358974358974359
+    },
+    {
+      "fold": 3,
+      "gamma": 5,
+      "auc_test": 0.6201455283864963,
+      "n_picks": 13,
+      "n_pead_picks": 5,
+      "n_total_pead": 106,
+      "precision": 0.38461538461538464,
+      "recall": 0.04716981132075472,
+      "f1": 0.08403361344537816,
+      "n_pead_missed": 101,
+      "avg_pnl_all": 2.4032154128861953,
+      "hit_all": 61.53846153846154,
+      "avg_pnl_pead": 5.923863900701859,
+      "hit_pead": 80.0,
+      "base_rate": 0.1367741935483871
+    },
+    {
+      "fold": 4,
+      "gamma": 3,
+      "auc_test": 0.6659382489778655,
+      "n_picks": 19,
+      "n_pead_picks": 7,
+      "n_total_pead": 82,
+      "precision": 0.3684210526315789,
+      "recall": 0.08536585365853659,
+      "f1": 0.13861386138613863,
+      "n_pead_missed": 75,
+      "avg_pnl_all": 5.761189079690497,
+      "hit_all": 63.1578947368421,
+      "avg_pnl_pead": 16.0034129308255,
+      "hit_pead": 85.71428571428571,
+      "base_rate": 0.10594315245478036
+    }
+  ],
+  "aggregate": {
+    "mean_precision": 0.3560851962682626,
+    "mean_recall": 0.07853509041312029,
+    "mean_f1": 0.12653240442216493,
+    "total_picks": 80,
+    "total_pead_picks": 28,
+    "total_pead": 366,
+    "mean_pnl_all": 2.71158261033162,
+    "mean_pnl_pead": 6.752953205220271
+  },
+  "created_at": "2026-07-28T00:19:06.720942"
+}

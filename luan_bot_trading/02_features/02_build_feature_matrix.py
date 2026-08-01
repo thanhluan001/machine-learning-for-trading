@@ -120,7 +120,7 @@ DB_FILE = Path(__file__).resolve().parent.parent / "01_data" / "db.h5"
 
 GATED_EVENTS_KEY = "/features/gated_events"
 TRAIN_MATRIX_KEY = "/features/train_matrix"
-EARNINGS_KEY = "/earnings/raw"
+EARNINGS_KEY = "/earnings/fmp"
 PERMATICKERS_KEY = "/metadata/sp400_permatickers"
 IJH_KEY = "/macros/IJH"
 DEFAULT_SECTOR_INDEX = "IJH"
@@ -191,18 +191,29 @@ def load_permatickers_map() -> pd.DataFrame:
     return df[["permaTicker", "canonical_ticker", "cik", "index_ref", "wikipedia_intervals"]]
 
 def load_earnings_full() -> pd.DataFrame:
-    """Load the FULL /earnings/raw (Phase D migrated schema). Required columns:
-        report_date, fiscal_period_end, code, canonical_ticker, cik,
-        actual, estimate, difference, percent, before_after_market, currency,
-        permaTicker
+    """Load the FULL /earnings/fmp (FMP schema, replaces EODHD /earnings/raw).
+    Renames FMP columns to match the builder's expected schema.
+
+    Required columns after rename:
+        report_date, fiscal_period_end, actual, estimate, difference,
+        percent, before_after_market, permaTicker
     """
     with pd.HDFStore(DB_FILE, mode="r") as store:
         if EARNINGS_KEY not in store.keys():
             raise FileNotFoundError(
-                f"Key {EARNINGS_KEY} not found. Run 06_earnings_gathering.py + "
-                "phase_d_migrate_earnings_keys.py first."
+                f"Key {EARNINGS_KEY} not found. Run 06b_fmp_earnings_gathering.py first."
             )
-        return store.get(EARNINGS_KEY)
+        df = store.get(EARNINGS_KEY)
+    # Rename FMP columns to match the builder's expected schema
+    rename_map = {
+        "eps_actual": "actual",
+        "eps_estimated": "estimate",
+        "eps_difference": "difference",
+        "eps_surprise_pct": "percent",
+        "period_ending": "fiscal_period_end",
+    }
+    df = df.rename(columns=rename_map)
+    return df
 
 
 def load_stock_prices(permaTicker: str) -> pd.DataFrame:
@@ -361,7 +372,7 @@ def compute_block2_features(
         pre_event_idiosyncratic_vol  : std(stock_ret - ijh_ret, ddof=1) at [T-20:T-1]
         opening_gap_t1                : (Open[T+1] - Close[T]) / Close[T]
         intraday_range_t             : (High[T] - Low[T]) / Close[T]
-        pre_event_volume_trend       : OLS slope of Adj_Volume over [T-10:T-1]
+        pre_event_volume_trend       : OLS slope of log(Adj_Volume) over [T-10:T-1]
 
     NaN-safe per features.md §4. Returns dict with the 7 keys; missing
     lookback data yields NaN.
@@ -430,18 +441,35 @@ def compute_block2_features(
     else:
         intraday_range = np.nan
 
-    # pre_event_volume_trend: OLS slope over [T-10:T-1] of Adj_Volume.
+    # pre_event_volume_trend: OLS slope over [T-10:T-1] of LOG(Adj_Volume).
+    # Log-transformed to normalize across stocks of different liquidity levels.
+    # Raw volume slope (shares/day) was incomparable between AAPL (~50M vol)
+    # and a small mid-cap (~500K vol). Log slope is in units of log(shares)/day,
+    # typically in [-0.1, +0.1] range, cross-stock comparable.
+    #   Positive slope = volume increasing into earnings (anticipation)
+    #   Negative slope = volume decreasing (pre-earnings lull, de-risking)
     pre_trend = _safe_slice(aligned["stock_Adj_Volume"], i - VOLUME_TREND_LOOKBACK, i - 1)
     if pre_trend is not None and pre_trend.notna().sum() >= 2:
         # Drop NaNs; use numeric index for day_index.
         valid = pre_trend.dropna()
         if len(valid) >= 2:
             x = np.arange(len(valid), dtype=float)
-            y = valid.values.astype(float)
-            # polyfit deg=1 returns [slope, intercept]
-            try:
-                slope = float(np.polyfit(x, y, 1)[0])
-            except (np.linalg.LinAlgError, TypeError):
+            # Log-transform volume (safe: Adj_Volume should always be > 0;
+            # defensive clipping for any zero/negative values).
+            vol_vals = valid.values.astype(float)
+            vol_vals = np.where(vol_vals > 0, vol_vals, np.nan)
+            y = np.log(vol_vals)
+            # Drop any NaN from the log transform (zero/negative volumes).
+            finite_mask = np.isfinite(y)
+            if finite_mask.sum() >= 2:
+                x = x[finite_mask]
+                y = y[finite_mask]
+                # polyfit deg=1 returns [slope, intercept]
+                try:
+                    slope = float(np.polyfit(x, y, 1)[0])
+                except (np.linalg.LinAlgError, TypeError):
+                    slope = np.nan
+            else:
                 slope = np.nan
         else:
             slope = np.nan
@@ -571,6 +599,203 @@ def _compute_consecutive_surprises(
     return pd.Series(out, index=actual.index)
 
 
+# ==============================================================================
+# PART 4B -- ANALYST REVISION MOMENTUM FEATURES (Phase H, FMP data)
+# ==============================================================================
+GRADES_GROUP_KEY = "analyst/grades"
+
+# Ordinal mapping for analyst grade labels.
+# Maps string grade labels to a numeric scale so we can compute revision
+# MAGNITUDE (not just count). A "Sell -> Strong Buy" (+5) is vastly more
+# informative than a "Buy -> Outperform" (+0), but a simple upgrade count
+# treats them identically.
+#
+# Scale: 1 (most bearish) -> 6 (most bullish)
+# Based on standard Wall Street rating scales.
+_GRADE_ORDINAL = {
+    # Strong sell (1)
+    "strong sell": 1, "sell": 1, "underweight": 1, "underperform": 1,
+    "reduce": 1, "reduce in price": 1,
+    # Bearish (2)
+    "negative": 2, "below average": 2, "below market": 2,
+    "market underperform": 2, "market underperformer": 2,
+    # Hold / neutral (3)
+    "hold": 3, "neutral": 3, "sector weight": 3, "sector perform": 3,
+    "market perform": 3, "in-line": 3, "peer perform": 3,
+    "equal-weight": 3, "equal weight": 3, "market weight": 3,
+    "fair value": 3, "average": 3, "maintain": 3,
+    # Accumulate / mild buy (4)
+    "accumulate": 4, "add": 4, "overweight": 4, "outperform": 4,
+    "market outperform": 4, "trading buy": 4, "positive": 4,
+    "buy": 4, "sector outperform": 4,
+    # Strong buy (5)
+    "strong buy": 5, "strong outperform": 5, "top pick": 5,
+    "action list buy": 5, "conviction buy": 5,
+}
+
+
+def _grade_to_ordinal(grade: str | None) -> int | None:
+    """Map a grade label string to its ordinal value (1-5).
+    Returns None if the label is unrecognized or null."""
+    if grade is None or not isinstance(grade, str):
+        return None
+    g = grade.strip().lower()
+    if not g:
+        return None
+    # Direct lookup
+    if g in _GRADE_ORDINAL:
+        return _GRADE_ORDINAL[g]
+    # Fuzzy: try partial matches (e.g. "Long-Term Buy" contains "buy")
+    for key, val in _GRADE_ORDINAL.items():
+        if key in g:
+            return val
+    return None
+
+
+def load_grades(permaTicker: str) -> pd.DataFrame | None:
+    """Load /analyst/grades/{permaTicker} if it exists. Returns None if the
+    node doesn't exist (permaTicker has no analyst coverage)."""
+    key = f"/{GRADES_GROUP_KEY}/{permaTicker}"
+    with pd.HDFStore(DB_FILE, mode="r") as store:
+        if key not in store.keys():
+            return None
+        return store.get(key)
+
+
+def compute_revision_momentum(
+    grades_df: pd.DataFrame | None,
+    report_date: pd.Timestamp,
+) -> dict:
+    """Compute analyst revision momentum features for a given report_date.
+
+    Two families of features:
+    1. COUNT-based (original, coarse): net upgrades minus downgrades.
+    2. ORDINAL-magnitude-based (new, richer): sum of ordinal grade changes,
+       capturing HOW MUCH each revision moved on the rating scale.
+
+    A "Sell -> Strong Buy" (ordinal +4) contributes +4 to ordinal momentum
+    but only +1 to count momentum. A "Buy -> Outperform" (ordinal +0)
+    contributes 0 to ordinal momentum but +1 to count momentum. The ordinal
+    version preserves the magnitude information that the literature shows
+    is the #1 PEAD predictor.
+
+    All features are **Sunday-safe** — they use only data BEFORE report_date.
+
+    Args:
+        grades_df: DataFrame with columns date, grading_company, action,
+                   previous_grade, new_grade (sorted by date ascending),
+                   or None if no grades node.
+        report_date: the earnings announcement date T.
+
+    Returns dict with 8 features:
+        revision_momentum_30d            : int   -- count: net upgrades - downgrades in [T-30d, T)
+        revision_momentum_60d            : int   -- same, 60-day window
+        revision_momentum_90d            : int   -- same, 90-day window
+        revision_ordinal_momentum_90d    : float -- sum of ordinal grade changes in [T-90d, T)
+        revision_intensity_90d          : int   -- total upgrades + downgrades in [T-90d, T) (analyst attention)
+        grade_dispersion_90d            : int   -- distinct ordinal levels among covering analysts (uncertainty)
+        n_analysts_covering              : int   -- unique grading firms in [T-90d, T)
+        last_action_days_before_earnings: float -- days from last action to T
+    """
+    nan_result = {
+        "revision_momentum_30d": np.nan,
+        "revision_momentum_60d": np.nan,
+        "revision_momentum_90d": np.nan,
+        "revision_ordinal_momentum_90d": np.nan,
+        "revision_intensity_90d": np.nan,
+        "grade_dispersion_90d": np.nan,
+        "n_analysts_covering": np.nan,
+        "last_action_days_before_earnings": np.nan,
+    }
+
+    if grades_df is None or grades_df.empty:
+        return nan_result
+
+    # Filter to actions STRICTLY BEFORE report_date (exclusive).
+    rd = pd.Timestamp(report_date)
+    pre = grades_df[grades_df["date"] < rd].copy()
+
+    if pre.empty:
+        return {
+            "revision_momentum_30d": 0,
+            "revision_momentum_60d": 0,
+            "revision_momentum_90d": 0,
+            "revision_ordinal_momentum_90d": 0.0,
+            "revision_intensity_90d": 0,
+            "grade_dispersion_90d": 0,
+            "n_analysts_covering": 0,
+            "last_action_days_before_earnings": np.nan,
+        }
+
+    # Compute ordinal values for previous and new grades.
+    pre["prev_ordinal"] = pre["previous_grade"].apply(_grade_to_ordinal)
+    pre["new_ordinal"] = pre["new_grade"].apply(_grade_to_ordinal)
+    # Ordinal change = new - previous (positive = bullish shift, negative = bearish)
+    pre["ordinal_delta"] = pre.apply(
+        lambda r: (r["new_ordinal"] - r["prev_ordinal"])
+        if r["prev_ordinal"] is not None and r["new_ordinal"] is not None
+        else None,
+        axis=1,
+    )
+
+    # Define window start dates.
+    d30 = rd - pd.Timedelta(days=30)
+    d60 = rd - pd.Timedelta(days=60)
+    d90 = rd - pd.Timedelta(days=90)
+
+    def _net_count(df: pd.DataFrame) -> int:
+        """Count-based: net upgrades - downgrades."""
+        if df.empty:
+            return 0
+        ups = int((df["action"] == "upgrade").sum())
+        downs = int((df["action"] == "downgrade").sum())
+        return ups - downs
+
+    def _ordinal_momentum(df: pd.DataFrame) -> float:
+        """Magnitude-based: sum of ordinal grade changes."""
+        if df.empty:
+            return 0.0
+        deltas = df["ordinal_delta"].dropna()
+        if deltas.empty:
+            return 0.0
+        return float(deltas.sum())
+
+    def _intensity(df: pd.DataFrame) -> int:
+        """Total revision activity (upgrades + downgrades, excludes maintains)."""
+        if df.empty:
+            return 0
+        ups = int((df["action"] == "upgrade").sum())
+        downs = int((df["action"] == "downgrade").sum())
+        return ups + downs
+
+    def _dispersion(df: pd.DataFrame) -> int:
+        """Distinct ordinal levels among current grades (uncertainty measure)."""
+        if df.empty:
+            return 0
+        ordinals = df["new_ordinal"].dropna()
+        if ordinals.empty:
+            return 0
+        return int(ordinals.nunique())
+
+    w30 = pre[pre["date"] >= d30]
+    w60 = pre[pre["date"] >= d60]
+    w90 = pre[pre["date"] >= d90]
+
+    last_date = pre["date"].max()
+    last_days = float((rd - last_date).days) if pd.notna(last_date) else np.nan
+
+    return {
+        "revision_momentum_30d": _net_count(w30),
+        "revision_momentum_60d": _net_count(w60),
+        "revision_momentum_90d": _net_count(w90),
+        "revision_ordinal_momentum_90d": _ordinal_momentum(w90),
+        "revision_intensity_90d": _intensity(w90),
+        "grade_dispersion_90d": _dispersion(w90),
+        "n_analysts_covering": int(w90["grading_company"].nunique()) if not w90.empty else 0,
+        "last_action_days_before_earnings": last_days,
+    }
+
+
 def compute_block1_features_per_perm_id(
     permaticker_earnings: pd.DataFrame,      # FULL per-permaTicker earnings
                                               # slice, sorted by report_date asc.
@@ -653,6 +878,10 @@ def process_permaticker(
     stock_df = load_stock_prices(permaTicker)
     stock_dates_np = stock_df["Date"].values  # sorted ascending (load_stock_prices)
 
+    # Load analyst grades for this permaTicker (Phase H, FMP data).
+    # Returns None if no grades node exists (no analyst coverage).
+    grades_df = load_grades(permaTicker)
+
     # Resolve sector ETF.
     if not isinstance(index_ref, str) or not index_ref:
         index_ref = DEFAULT_SECTOR_INDEX
@@ -713,6 +942,9 @@ def process_permaticker(
         block2 = compute_block2_features(aligned, stock_ret_full, ijh_ret_full, t_pos, bam)
         block3 = compute_block3_features(aligned, t_pos)
 
+        # Phase H: analyst revision momentum (Sunday-safe, from FMP /stable/grades)
+        rev_mom = compute_revision_momentum(grades_df, rdate)
+
         row_dict = {
             "permaTicker": permaTicker,
             "canonical_ticker": canonical,
@@ -725,6 +957,7 @@ def process_permaticker(
             "car_60d_pass1": car60,
             **block2,
             **block3,
+            **rev_mom,
         }
         gated_payloads.append(row_dict)
 
@@ -840,6 +1073,11 @@ def print_build_report(
             "rel_ret_30d", "sector_adjusted_ret_20d",
             "sue_abs_x_inverse_vol",
             "car_10d", "car_60d_pass1",
+            # Phase H: analyst revision momentum (Sunday-safe, FMP data)
+            "revision_momentum_30d", "revision_momentum_60d",
+            "revision_momentum_90d", "revision_ordinal_momentum_90d",
+            "revision_intensity_90d", "grade_dispersion_90d",
+            "n_analysts_covering", "last_action_days_before_earnings",
         ]
         for col in feature_cols:
             if col not in df.columns:

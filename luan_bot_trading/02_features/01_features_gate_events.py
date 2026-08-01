@@ -129,7 +129,7 @@ import pandas as pd
 # ==============================================================================
 DB_FILE = Path(__file__).resolve().parent.parent / "01_data" / "db.h5"
 PERMATICKERS_KEY = "/metadata/sp400_permatickers"
-EARNINGS_KEY = "/earnings/raw"
+EARNINGS_KEY = "/earnings/fmp"
 GATED_EVENTS_KEY = "/features/gated_events"
 
 BUFFER_DAYS = 90  # 1 quarter post-addition stabilization window (= first-qtr exclusion)
