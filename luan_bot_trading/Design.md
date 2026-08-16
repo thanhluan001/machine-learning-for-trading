@@ -1122,6 +1122,30 @@ ranking handles), SPY/QQQ capture only 66–72% (overlay for trending clusters,
 not whole portfolio). Phase 2 next: correlation clusters + composite scoring,
 must beat this floor (Kill test C).
 
+**Phase 2 RESULT (2026-08-16): KILL TEST C FAILED — cluster-selection layer
+REJECTED; the simple floor is the strategy.** See
+`archive/findings/megatrend_phase2_findings.md` + script
+`72_megatrend_phase2_clusters.py`. Headline: cluster machinery +251% vs floor
++458% (risk win only: DD −17.4% vs −29.7%, 2022 +1%); the decisive
+survivorship stress test — strip the 7 hand-picked mega-winners — collapses
+the cluster strat (−11%, DD −49.3%) while the floor stays robust (+192%, DD
+−21.6%). The floor's diversification across simultaneous trends is the robust
+structure; top-cluster concentration is the fragile one. Retained: MA10m
+equal-weight trend basket as the carve-out vehicle; cluster labels demoted to
+descriptive semantics (which-trend reporting for the warning role).
+**Phase 3 (redirected):** regime table + BROAD deployment universe (GICS
+sectors + theme ETFs, structurally less survivor-flattered) for the FLOOR —
+open question: does it beat SPY B&H with lower DD on the real universe?
+`archive/findings/megatrend_phase1_findings.md` + script `71_megatrend_phase1_dead_trends.py`.
+Headline: trivial MA200 state machine exits 13 dead megatrends at −28.6% mean
+giveback-from-peak (vs −62..−98% B&H drawdowns; MSTR +2157% vs +653%), keeps
+80–88% of live AI-complex upside, cuts maxDD 17–26pp; MONTHLY-cadence variant
+passes all criteria (13/13 DD-wins, 80% capture) → month-end decision cadence
+is operationally viable. Caveats: ranging assets whipsaw (Phase-2 cluster
+ranking handles), SPY/QQQ capture only 66–72% (overlay for trending clusters,
+not whole portfolio). Phase 2 next: correlation clusters + composite scoring,
+must beat this floor (Kill test C).
+
 ### RC-2: Senate-trade composite (parked, unlikely)
 
 Real drift exists (10–20d CAR +2.13% from disclosure close) but supply
