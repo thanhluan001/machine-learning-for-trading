@@ -1,0 +1,78 @@
+{
+  "split_date": "2024-01-01",
+  "priming_cutoff": "2015-01-01",
+  "min_group_size": 3,
+  "feature_columns": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "is_bmo",
+    "volume_vma20_ratio_pre_event",
+    "suv_day_1",
+    "pre_event_idiosyncratic_vol",
+    "opening_gap_t1",
+    "intraday_range_t",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol"
+  ],
+  "label_column": "car_10d",
+  "group_column": "calendar_week_group",
+  "xgb_params": {
+    "objective": "rank:ndcg",
+    "eval_metric": "ndcg@3",
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "n_buckets": 10,
+  "label_discretization_boundaries": [
+    -4.321782076907288,
+    -0.09146038143751135,
+    -0.052537128110103436,
+    -0.02912177824111585,
+    -0.012937461968937799,
+    0.0014503848613137173,
+    0.01566936543569453,
+    0.0314813360859315,
+    0.0527669392208875,
+    0.08846461111308729,
+    8.199634280865908
+  ],
+  "train_rows": 13667,
+  "val_rows": 4036,
+  "train_groups": 408,
+  "val_groups": 106,
+  "train_seconds": 5.121914863586426,
+  "train_eval": {
+    "ndcg_at_3": 0.7764046381066899,
+    "n_groups": 408,
+    "n_rows": 13667
+  },
+  "val_eval": {
+    "ndcg_at_3": 0.08573528166551239,
+    "n_groups": 106,
+    "n_rows": 4036
+  },
+  "calib_audit": {
+    "n_valid": 4031,
+    "mu_mean": 0.0384724922478199,
+    "mu_median": 0.002142768120393157,
+    "y_arith_mean": 0.038472481778168276,
+    "pearson_raw_vs_actual": 0.030203159613049913
+  },
+  "created_at": "2026-07-15T22:17:23.528080"
+}

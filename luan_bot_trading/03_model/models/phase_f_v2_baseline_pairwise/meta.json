@@ -1,0 +1,47 @@
+{
+  "name": "pairwise_int_md3",
+  "xgb_params": {
+    "objective": "rank:pairwise",
+    "eval_metric": "ndcg@3",
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "train_eval": {
+    "ndcg_at_3": 0.5810213870172725,
+    "n_groups": 407,
+    "n_rows": 13306
+  },
+  "val_eval": {
+    "ndcg_at_3": 0.14913613917358137,
+    "n_groups": 107,
+    "n_rows": 3890
+  },
+  "calib_audit": {
+    "n_valid": 3885,
+    "mu_mean": -0.0023056399077177048,
+    "mu_median": -0.0012133992277085781,
+    "y_arith_mean": -0.00230568256963086,
+    "pearson_raw_vs_actual": 0.5140177119459756
+  },
+  "train_seconds": 0.792008638381958,
+  "n_buckets": 10,
+  "label_discretization_boundaries": [
+    -1.4946867343115606,
+    -0.0901433540569228,
+    -0.05206088638679916,
+    -0.02883706621582317,
+    -0.012850479957476629,
+    0.0013944097094930742,
+    0.015372445038407762,
+    0.030689064151895765,
+    0.05098813481190063,
+    0.08481737596680976,
+    0.7547806599979147
+  ],
+  "created_at": "2026-07-18T01:46:37.510971"
+}

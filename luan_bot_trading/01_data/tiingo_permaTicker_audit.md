@@ -4,7 +4,7 @@
 ** All other docs that previously anchored identity on synthetic `perm_id`
 (`merger_identity_patch.md`, `database_layout.md`, `Design.md` §9b,
 `features.md` §0, `company_merge_design.md`, `earnings_gathering_design.md`,
-`phase_b_contamination_audit.md`, `eodhd_vs_tiingo.md`) carry deprecation
+`phase_b_contamination_audit.md`, `04_backtest/archive/docs/eodhd_vs_tiingo.md` (archived)) carry deprecation
 banners pointing back to THIS file. Forward Phase A rewrite (`02b_build_company_map.py`),
 Phase B rewrite (`03_data_gathering.py`), and Phase D re-keying MUST follow
 the migration design in §"Migration design implication" below.

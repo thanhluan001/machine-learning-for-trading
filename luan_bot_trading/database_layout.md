@@ -2,7 +2,8 @@
 
 > **Authoritative reference** for the current state of `luan_bot_trading/01_data/db.h5`.
 > Snapshot: post Phase-A permaTicker migration + dedup-and-cleanup-2024
-> (2026-07-22). The OLD `perm_id`-based identity layer documented in
+> + V4/V6 honest-model feature expansion + 2026-08 membership refresh
+> (2026-08-08). The OLD `perm_id`-based identity layer documented in
 > earlier versions of this file is OBSOLETE and removed below.
 > See `01_data/phase_a_b_migration_report.md` for the migration history.
 
@@ -11,11 +12,10 @@
 | Property | Value |
 |---|---:|
 | File | `luan_bot_trading/01_data/db.h5` |
-| Size | 704 MB |
-| HDF5 top-level groups | `/sp400`, `/macros`, `/earnings`, `/features`, `/metadata` |
-| Total keys | 956 |
-| Price-data nodes in `/sp400/` | 928 (one per Tiingo `permaTicker`) |
-| Total rows in `/sp400/` | 2,752,968 |
+| Size | 917 MB |
+| HDF5 top-level groups | `/sp400`, `/macros`, `/earnings`, `/features`, `/metadata`, `/analyst` |
+| Total keys | 2,604 |
+| Price-data nodes in `/sp400/` | 932 (one per Tiingo `permaTicker`) |
 | Writes converge to | `(permaTicker, report_date)` keying — **0 dups** at every stage |
 | Primary identifier | Tiingo `permaTicker` (e.g. `US000000001291` for Enovis Corp) |
 
@@ -25,10 +25,11 @@
 db.h5
 │
 ├── /sp400/{permaTicker}                # 15y adjusted OHLCV from Tiingo
-│                                          (one node per permaTicker)
+│                                          (one node per permaTicker; 932 nodes)
 │
 ├── /analyst/
-│   └── grades/{permaTicker}            # FMP analyst upgrade/downgrade history (per-ticker)
+│   ├── grades/{permaTicker}            # FMP /stable/grades (upgrade/downgrade, 807 nodes)
+│   └── grades_historical/{permaTicker} # FMP /stable/grades-historical (836 nodes, v5 research data)
 ├── /macros/
 │   ├── {TICKER}                        # sector ETF + broad SPDR index OHLCV
 │   │                                      (17 keys: IJH, IJJ, IJK, IJS,
@@ -45,12 +46,13 @@ db.h5
 │
 ├── /features/
 │   ├── gated_events                    # Stage-1-gated earnings events (Phase E v2)
-│   └── train_matrix                    # Stage-2 feature matrix (Phase E v2)
+│   ├── train_matrix                    # Stage-2 feature matrix (v3-era, 21-feature set)
+│   └── train_matrix_v4_timing_correct  # V4/V6 deployed matrix (23-feature set + labels)
 │
 └── /metadata/
-    ├── sp400                           # per-TICKER view (993 Wikipedia tickers,
+    ├── sp400                           # per-TICKER view (Wikipedia tickers,
     │                                      with legacy `perm_id`/`canonical_ticker` audit cols)
-    └── sp400_permatickers              # per-PERMATICKER view (962 rows, PRIMARY identity table)
+    └── sp400_permatickers              # per-PERMATICKER view (966 rows, PRIMARY identity table)
 ```
 
 ## Node-by-node detail
@@ -73,7 +75,7 @@ db.h5
 - Current universe (**17 keys**):
   - S&P 400 MidCap ETFs (mapped via `index_ref` per `01_data/SIC_code_to_index.md`): `IJH, IJJ, IJK, IJS, XLB, XLF, XLRE, XLU`
   - Broad SPDRs / sentiment: `XLK, XLI, XLY, XLP, XLV, XLE, XLC, SPY, VIXY`
-- Schema (**6 cols**): `Date, Open, High, Low, Close, Volume` (NOT adjusted — sector ETFs have minimal corporate-action need; this is the raw Tiingo `/prices` shape).
+- Schema (**6 cols**): `Date, Open, High, Low, Close, Volume` — these are **adjusted** columns (`adjClose` mapped to `Close` by `04_index_data_gathering.py`'s `ADJ_COLUMNS` → `OUTPUT_COLUMNS` mapping), NOT raw closes. This matters for CAR computation. The 2026-08-08 stale-benchmark fix added incremental benchmark + macro refresh to `05b_alpaca_live/01_fetch_and_predict.py` so these nodes stay current.
 - Caveats:
   - `XLC` starts 2018 (455 fewer rows than the SPY/IJH baseline of 3768 rows).
   - `XLRE` starts 2019 (1069 fewer rows).
@@ -153,6 +155,14 @@ db.h5
 - 211 unique grading firms across all nodes.
 - Action distribution (first 50 nodes): maintain 9296, downgrade 1791, upgrade 1606.
 
+### `/analyst/grades_historical/{permaTicker}` -- written by `01_data/08_fmp_grades_historical_gathering.py`
+
+- Source: FMP `/stable/grades-historical?symbol={permaTicker}`. FMP $49/mo plan.
+- Per-permaTicker aggregate historical rating (not per-action like `/analyst/grades`).
+- **836 nodes** stored. Fetched for the V5 grades-historical feature experiment
+  (2026-08). **V5 was rejected** after HP tuning (`04_backtest/archive/findings/grades_historical_v5_rejection.md`),
+  but the raw data is **retained** for potential future use.
+- Not consumed by the current V4/V6 23-feature set. See `features.md §0.A`.
 
 ---
 
@@ -177,10 +187,15 @@ db.h5
 
 ---
 
-### `/features/train_matrix` — written by `02_features/02_build_feature_matrix.py` (Phase E v2)
+### `/features/train_matrix` — written by `02_features/02_build_feature_matrix.py` (v3-era)
+
+> **v3-era matrix.** This is the original 21-feature Phase E v2 matrix. The
+> **current deployed matrix is `/features/train_matrix_v4_timing_correct`**
+> (see next section). This matrix is retained for v3 comparison/reproducibility
+> but is NOT consumed by the V4/V6 models.
 
 - Per-event feature matrix consumed by `03_model/02_phase_g_sunday_classifier.py` and downstream `04_backtest/*` scripts.
-- Current state: **20,299 rows × 38 cols**, **0 dup groups** (today's full re-run off /earnings/fmp).
+- Current state: **20,299 rows × 38 cols**, **0 dup groups** (full re-run off /earnings/fmp).
 - Schema: 8 identity + audit cols + 22 feature cols. (Old Phase E v2 had 38 cols incl. `car_10d` and `car_60d_pass1` as label candidates; the column count is still 30 today.)
 - 110 T-match failures logged (mostly US000000001364 — Coherent legacy LEH/COHR; price history ends 2022-07-01 so post-2022 events fail T-match and are dropped).
 
@@ -216,6 +231,43 @@ db.h5
 
 ---
 
+### `/features/train_matrix_v4_timing_correct` — DEPLOYED V4/V6 matrix
+
+> **AUTHORITATIVE deployed matrix.** This is the matrix consumed by the
+> current V4 comparison baseline and V6 gate-decomposition models. Written by
+> `02_features/02_build_feature_matrix.py` (V4 timing-correct build). See
+> `features.md §0.A` for the 23-feature deployed set and `Design.md §17.B.7`
+> (V6) / `§17.C` (V4) for the model specs.
+
+- **16,789 rows × 68 cols**, **0 dup groups**.
+- The timing-correct build shifts BMO price/volume features back one daily bar
+  (AMC uses T-1 close; BMO uses T-2 close per the V4 timing contract).
+- Column groups (68 cols total):
+  - **8 identity/audit**: `permaTicker, canonical_ticker, cik, report_date, T, calendar_week_group, added, index_ref`
+  - **23 deployed features** (V4/V6 `DEPLOY_FEATURES`, per `features.md §0.A`):
+    `sue_lag_1, sue_lag_2, car_drift_historical_q1, consecutive_surprises_pre,
+    pre_event_idiosyncratic_vol, pre_event_volume_trend,
+    rel_ret_3d/5d/10d/20d/30d, sector_adjusted_ret_20d,
+    revision_momentum_30d/60d/90d, revision_ordinal_momentum_90d, revision_intensity_90d,
+    grade_dispersion_90d, n_analysts_covering, last_action_days_before_earnings,
+    unemployment_roc21, fed_funds, vix`
+  - **9 v3-era features** (stored but NOT in the 23-feature deployed set):
+    `is_bmo, volume_vma20_ratio_pre_event, suv_day_1, opening_gap_t1, intraday_range_t,
+    sue_score, eps_surprise_pct, consecutive_surprises, sue_acceleration, sue_abs_x_inverse_vol`
+  - **2 label candidates**: `car_10d, car_60d_pass1`
+  - **3 PEAD gate labels + composite**: `pass_g1, pass_g2, pass_g3, pead_pass`
+    (where `pead_pass == pass_g1 AND pass_g2 AND pass_g3`)
+  - **2 execution columns**: `inst_vol_ratio, maxdd_ma`
+  - **3 pregap execution columns**: `pregap_return, pregap_entry_date, pregap_exit_date`
+  - **1 sector column**: `sector`
+  - **12 macro columns** (3 deployed + 9 stored-but-not-deployed):
+    `vix, vix_roc21, vix_roc63, yield_spread(+roc), fed_funds(+roc),
+    cpi(+roc), unemployment(+roc), oil(+roc)`
+- The 3 DEPLOYED macros are `vix, fed_funds, unemployment_roc21`; the other 9
+  macro columns are stored for research but not in the 23-feature set.
+
+---
+
 ### `/metadata/sp400` — written by `01_metadata_gathering.py` (Step 1), extended by `02_SEC_sector_gathering.py` (Step 2), extended by `02b_build_company_map.py` (Phase A audit cols)
 
 - Per-**ticker** view (one row per ticker symbol on Wikipedia, including removed constituents). 993 rows × 11 cols.
@@ -241,9 +293,10 @@ db.h5
 ### `/metadata/sp400_permatickers` — written by `01_data/02b_build_company_map.py` (Phase A permaTicker rewrite)
 
 - Per-**permaTicker** view. **This is the PRIMARY identity table** the rest of the pipeline iterates over (`03_data_gathering.py`, `06_earnings_gathering.py`, `02_features/01_features_gate_events.py`, `02_features/02_build_feature_matrix.py`).
-- Current state: **962 rows × 10 cols** (was 11 until today's cleanup dropped `legacy_perm_id`).
-- 928 rows have `/sp400/{permaTicker}` price nodes written; 34 are `price_unavailable=True` (Tiingo probe returned no data; skipped).
-- 697 `isActive=True` (Tiingo says still trading today), 265 `isActive=False` (delisted/merged/defunct).
+- Current state: **966 rows × 10 cols** (was 962 pre-2026-08 membership refresh).
+- 932 rows have `/sp400/{permaTicker}` price nodes written; 34 are `price_unavailable=True` (Tiingo probe returned no data; skipped).
+- 701 `isActive=True` (Tiingo says still trading today), 265 `isActive=False` (delisted/merged/defunct).
+- Maintained by `01_data/refresh_sp400_membership.py` (monthly Wikipedia re-parse for graduations) + `02b_build_company_map.py --tickers <new> --merge` (incremental permaTicker mapping for new constituents).
 
   | Column | Type | Description |
   |---|---|---|
@@ -273,16 +326,18 @@ Both legacy per-CIK / per-perm_id tables were purged from `db.h5` by `02b_build_
 
 | Node | Producer | Consumer(s) |
 |---|---|---|
-| `/metadata/sp400` | `01_metadata_gathering.py` (create), `02_SEC_sector_gathering.py` (cols), `02b_build_company_map.py` (audit cols) | `02b_build_company_map.py` (seed input to derive permatable) |
-| `/metadata/sp400_permatickers` | `02b_build_company_map.py` | `03_data_gathering.py`, `06_earnings_gathering.py`, `02_features/01_features_gate_events.py`, `02_features/02_build_feature_matrix.py` |
-| `/sp400/{permaTicker}` | `03_data_gathering.py` (one Tiingo `/prices` fetch per permaTicker) | `02_features/02_build_feature_matrix.py` (price data for feature computation), `04_backtest/*` (price data for backtest) |
-| `/macros/{TICKER}` | `04_index_data_gathering.py` | `02_features/02_build_feature_matrix.py` (relative returns, sector-adjusted) |
-| `/macros/fred_{name}` | `05_fed_data_gathering.py` | `02_features/02_build_feature_matrix.py` (Block-4 macro features) |
-| `/earnings/fmp` | `06b_fmp_earnings_gathering.py` (write) | `02_features/01_features_gate_events.py` (Stage 1 gating) + `02_features/02_build_feature_matrix.py` (Block 1 features) |
-| `/analyst/grades/{pt}` | `07_fmp_grades_gathering.py` (write) | `02_features/02_build_feature_matrix.py` (Block 6 revision momentum) |
+| `/metadata/sp400` | `01_metadata_gathering.py` (create), `02_SEC_sector_gathering.py` (cols), `02b_build_company_map.py` (audit cols) | `02b_build_company_map.py` (seed input to derive permatable), `refresh_sp400_membership.py` (membership refresh) |
+| `/metadata/sp400_permatickers` | `02b_build_company_map.py` (full + `--tickers --merge` incremental), `refresh_sp400_membership.py` (graduation close) | `03_data_gathering.py`, `06_earnings_gathering.py`, `02_features/01_features_gate_events.py`, `02_features/02_build_feature_matrix.py`, `05b_alpaca_live/01_fetch_and_predict.py` (live inference) |
+| `/sp400/{permaTicker}` | `03_data_gathering.py` (one Tiingo `/prices` fetch per permaTicker), `05b_alpaca_live/01_fetch_and_predict.py` (incremental live refresh) | `02_features/02_build_feature_matrix.py` (feature computation), `04_backtest/*` (backtest), `05b_alpaca_live/01_fetch_and_predict.py` (live features) |
+| `/macros/{TICKER}` | `04_index_data_gathering.py`, `05b_alpaca_live/01_fetch_and_predict.py` (incremental live refresh) | `02_features/02_build_feature_matrix.py` (relative returns, sector-adjusted), `05b_alpaca_live/01_fetch_and_predict.py` (live CAR features) |
+| `/macros/fred_{name}` | `05_fed_data_gathering.py`, `05b_alpaca_live/01_fetch_and_predict.py` (incremental live refresh) | `02_features/02_build_feature_matrix.py` (macro features), `05b_alpaca_live/01_fetch_and_predict.py` (live macro features) |
+| `/earnings/fmp` | `06b_fmp_earnings_gathering.py` (write) | `02_features/01_features_gate_events.py` (Stage 1 gating) + `02_features/02_build_feature_matrix.py` (Block 1 features), `05b_alpaca_live/01_fetch_and_predict.py` (live SUE/CAR features) |
+| `/analyst/grades/{pt}` | `07_fmp_grades_gathering.py` (write) | `02_features/02_build_feature_matrix.py` (Block 6 revision momentum), `05b_alpaca_live/01_fetch_and_predict.py` (live revision features) |
+| `/analyst/grades_historical/{pt}` | `08_fmp_grades_historical_gathering.py` (write) | None (V5 rejected; raw data retained for future use) |
 | `/features/gated_events` | `02_features/01_features_gate_events.py` | `02_features/02_build_feature_matrix.py` (Stage 2) |
-| `/features/train_matrix` | `02_features/02_build_feature_matrix.py` | `03_model/01_train_model.py` (helpers; main OBSOLETE), `03_model/02_phase_g_sunday_classifier.py` (deployable model trainer), `04_backtest/*` (OOS backtests) |
-| Model artifacts (`03_model/models/*`) | `03_model/01_train_model.py` (OBSOLETE), `03_model/02_phase_g_sunday_classifier.py` (deployable), `03_model/03_phase_g_sweep.py` (v1.1 sweep) | `04_backtest/*` (load pre-trained model artifacts) |
+| `/features/train_matrix` | `02_features/02_build_feature_matrix.py` | v3-era comparison only (NOT consumed by V4/V6) |
+| `/features/train_matrix_v4_timing_correct` | `02_features/02_build_feature_matrix.py` (timing-correct build) | `03_model/06_freeze_timing_correct_model.py` (V4), `03_model/08_freeze_v6_gate_models.py` (V6), `04_backtest/*` (V4/V6 backtests), `05b_alpaca_live/*` (live inference) |
+| Model artifacts (`03_model/models/*`) | `06_freeze_timing_correct_model.py` (V4), `08_freeze_v6_gate_models.py` (V6), `02_phase_g_sunday_classifier.py` (v3 historical) | `04_backtest/*`, `05b_alpaca_live/01_fetch_and_predict.py` |
 
 ## Write-safety pattern (all producers)
 
@@ -292,7 +347,7 @@ For per-permaTicker node writes (`03_data_gathering.py`), the pattern uses `data
 
 ## Dedup policy (post 2024-07-21 cleanup)
 
-Default rule going forward: **`(permaTicker, report_date)` is a primary key at every layer** (`/earnings/fmp` -> `/features/gated_events` -> `/features/train_matrix`). All three stages were re-run today against the deduped DB; **every table currently has 0 dup groups**. Any future re-run of `01_data/06b_fmp_earnings_gathering.py` should also enforce this dedup at write-time.
+Default rule going forward: **`(permaTicker, report_date)` is a primary key at every layer** (`/earnings/fmp` -> `/features/gated_events` -> `/features/train_matrix` AND `/features/train_matrix_v4_timing_correct`). All stages were re-run against the deduped DB; **every table currently has 0 dup groups**. Any future re-run of `01_data/06b_fmp_earnings_gathering.py` should also enforce this dedup at write-time.
 
 For multi-interval permaTickers (like GME), the dedup passes twice — once in the gate loop (where emissions can overlap interval boundaries) and once at train_matrix construction (the same dups propagate through Stage 2 unless Stage 1 already de-duplicated them, which it now does).
 

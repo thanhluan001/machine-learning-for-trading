@@ -1,0 +1,59 @@
+{
+  "name": "phase_f_v2_pead_classifier",
+  "objective": "binary:logistic",
+  "target_label": "pead_pass (binary 0/1 from 3 PEAD verification gates)",
+  "xgb_params": {
+    "objective": "binary:logistic",
+    "eval_metric": [
+      "logloss",
+      "auc"
+    ],
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "min_child_weight": 50,
+    "gamma": 5.0,
+    "reg_lambda": 1.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "train_rows": 13306,
+  "val_rows": 3890,
+  "train_pead_pos": 1382,
+  "val_pead_pos": 446,
+  "auc_train": 0.8769503041695329,
+  "auc_val": 0.8595692515221116,
+  "ap_train": 0.52564649558206,
+  "ap_val": 0.5256425434887271,
+  "gate_thresholds": {
+    "GATE1_CAR_MIN": 0.03,
+    "GATE2_VOL_RATIO_MIN": 2.0,
+    "GATE3_MAXDD_MIN": -0.015
+  },
+  "feature_columns": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "is_bmo",
+    "volume_vma20_ratio_pre_event",
+    "suv_day_1",
+    "pre_event_idiosyncratic_vol",
+    "opening_gap_t1",
+    "intraday_range_t",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol"
+  ],
+  "created_at": "2026-07-18T11:06:57.959901"
+}

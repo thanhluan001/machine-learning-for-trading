@@ -1,15 +1,15 @@
 # 03_model/ — Model training
 
-**This folder trains the deployable PEAD detection model.**
+**Current paper-executable candidate: phase_g_v6_gate_decomposition.**
+V4 remains the comparison baseline; no live-capital promotion has occurred.
 
-The strategy in 1 line (see `04_backtest/README.md` for the full
-concise summary):
+The V6 strategy in one line (see `04_backtest/README.md`):
 
-> **Binary Sunday classifier** (`binary:logistic`) on 24 Sunday-safe
-> features (is_bmo removed, 8 FMP revision momentum added). Target:
-> `pead_pass` (0/1 from 3 PEAD gates). Accept if **P(PEAD) >= 0.20**.
-> Enter **pre-gap** (Close[T-1] BMO / Close[T] AMC), exit Close[T+5],
-> no stop-loss. See `04_backtest/README.md` for the full summary.
+> Three independent `binary:logistic` classifiers on the same 23 honest,
+> timing-correct features predict the three PEAD gates. Accept when
+> `min(p_pass_g1, p_pass_g2, p_pass_g3) >= 0.30`. Enter pre-gap
+> (Close[T-1] BMO / Close[T] AMC), exit Close[T+5], use the delayed -10% stop,
+> four equal-weight slots, and whole-share MOC orders.
 
 ---
 
@@ -18,10 +18,12 @@ concise summary):
 | # | Script | Role | Outputs |
 |---|---|---|---|
 | 01 | `01_train_model.py` | **(OBSOLETE main(), kept for shared utility API)** The original Phase F v2 listwise-ranker trainer. Its `main()` trains the leaky `rank:ndcg` ranker (Sharpe 4.31 edge was entirely from forward-looking `opening_gap_t1`; NaN-test → -0.14). DO NOT RUN. Kept because it exports the load-bearing helper API: `load_train_matrix()`, `apply_priming_cutoff()`, `DB_FILE`, `PRIMING_RUNWAY_START`, `split_walk_forward()`, etc., imported by every Phase G backtest script. | (no longer produces stable artifacts) |
-| 02 | `02_phase_g_sunday_classifier.py` | **DEPLOYABLE MODEL TRAINER**. Trains `XGBClassifier` (objective `binary:logistic`, target = `pead_pass` from the 3 PEAD verification gates) on the 17 Sunday-safe features (no leak features). Imports `tm` (helpers) + `v3` (gate logic, from `04_backtest/_pead_target_retrain.py`). Single-VAL SINGLE-FOLD preview + threshold sweep. | `03_model/models/phase_g_v1_sunday_classifier/{classifier.json, calibrator.pkl, meta.json, threshold_sweep.csv}` |
-| 03 | `03_phase_g_sweep.py`  *(v1.1, superseded by v2 below)* | **HYPERPARAMETER SELECTION SWEEP** (Phase G v1.1). 72-config grid sweep over `gamma`, `max_depth`, `min_child_weight`, `n_estimators`. Ranks configs by `sweep_val_pnl` and saves the best classifier artifact. | `03_model/models/phase_g_v1_1_sunday_sweep/{classifier.json, calibrator.pkl, leaderboard*, meta.json}` |
+| 02 | `02_phase_g_sunday_classifier.py` | **HISTORICAL MODEL TRAINER**. Trains `XGBClassifier` (objective `binary:logistic`, target = `pead_pass` from the 3 PEAD verification gates) on the 17 Sunday-safe features (no leak features). Imports `tm` (helpers) + `v3` (gate logic, from `04_backtest/_pead_target_retrain.py`). Single-VAL SINGLE-FOLD preview + threshold sweep. | `03_model/models/phase_g_v1_sunday_classifier/{classifier.json, calibrator.pkl, meta.json, threshold_sweep.csv}` |
+| 03 | `03_phase_g_sweep.py`  *(historical v1.1)* | **HISTORICAL HYPERPARAMETER SWEEP** (Phase G v1.1). 72-config grid sweep over `gamma`, `max_depth`, `min_child_weight`, `n_estimators`. Ranks configs by `sweep_val_pnl` and saves the best classifier artifact. | `03_model/models/phase_g_v1_1_sunday_sweep/{classifier.json, calibrator.pkl, leaderboard*, meta.json}` |
 | 04 | `03_freeze_3class_model.py`  *(superseded by 05 below)* | **DEPRECATED 3-class trainer**. Trained `XGBClassifier` (objective `multi:softprob`, 3 classes: no/small/large PEAD). Superseded: 2-stage test proved CAR magnitude is unpredictable, 3-class split adds no value. | `03_model/models/phase_g_v2_3class/{classifier.json, meta.json}` |
-| 05 | `04_freeze_binary_model.py` | **DEPLOYABLE MODEL TRAINER (v2 final)**. Trains `XGBClassifier` (objective `binary:logistic`, target = `pead_pass`) on the 24 Sunday-safe features. Saves the FROZEN artifact for live paper-trading. | `03_model/models/phase_g_v2_binary/{classifier.json, meta.json}` | | **HYPERPARAMETER SELECTION SWEEP** (Phase G v1.1). 72-config grid sweep over `gamma ∈ {3, 5, 10, 100}`, `max_depth ∈ {2, 3}`, `min_child_weight ∈ {50, 100, 1000}`, `n_estimators ∈ {200, 300, 500}`. Ranks configs by `sweep_val_pnl` and saves the best classifier artifact. | `03_model/models/phase_g_v1_1_sunday_sweep/{classifier.json, calibrator.pkl, leaderboard*, meta.json}` |
+| 05 | `04_freeze_binary_model.py` *(SUPERSEDED by 06)* | **v2 binary trainer (LOOK-AHEAD BIAS)**. Trained on 24 features including 5 SUE features that required the current earnings result. Superseded by v3 honest model. | `03_model/models/phase_g_v2_binary/{classifier.json, meta.json}` |
+| 06 | `06_freeze_timing_correct_model.py` | **V4 comparison-baseline trainer**. Trains the timing-correct single classifier on 23 features. | `03_model/models/phase_g_v4_timing_correct/{classifier.json, meta.json}` |
+| 07 | `08_freeze_v6_gate_models.py` | **V6 paper-executable trainer**. Freezes three independent gate classifiers using the frozen V6 HPs. | `03_model/models/phase_g_v6_gate_decomposition/{pass_g1,pass_g2,pass_g3}/classifier.json` |
 
 **For the OOS generalization analysis (4-fold anchored walk-forward
 nested CV)** that produces the per-fold POS-tuned gamma used in the
@@ -35,17 +37,17 @@ deployable rule (gamma = 10/5/3/3), see:
 
 ---
 
-## 2. Producing the FINAL deployable model
+## 2. Producing the paper-executable V6 candidate
 
-The final-deployable artifact is **`phase_g_v2_binary`** (the binary
-classifier). To reproduce:
+Freeze the three gate artifacts with:
 
 ```bash
-conda run -n trading python luan_bot_trading/03_model/04_freeze_binary_model.py
+conda run -n trading python luan_bot_trading/03_model/08_freeze_v6_gate_models.py
 ```
 
-Runs ~2 seconds (single TRAIN+VAL fit on the current 16,789-row
-train_matrix with 24 Sunday-safe features).
+The artifacts are research/paper-trading candidates only. The live pipeline
+uses them for `plan.json`, while the V4 classifier is written to
+`v4_plan.json` for comparison.
 
 The 3-class model (`phase_g_v2_3class`) is kept for reference but is
 **superseded**. The deep comparison (`34_binary_vs_3class_deep.py`)
@@ -67,7 +69,10 @@ no value.
 | `phase_g_v1_sunday_classifier/` | `02_phase_g_sunday_classifier.py` | **CANDIDATE** | Sunday-safe 17-feature v1 classifier (gamma=5). |
 | `phase_g_v1_1_sunday_sweep/` | `03_phase_g_sweep.py` | SUPERSEDED | Sunday-safe 17-feature v1.1 (gamma=10, HP-sweep winner). |
 | `phase_g_v2_3class/` | `03_freeze_3class_model.py` | SUPERSEDED | 3-class softprob. Beaten by binary in deep comparison. |
-| `phase_g_v2_binary/` | `04_freeze_binary_model.py` | **DEPLOYABLE** | Binary logistic on 24 Sunday-safe features (gamma=3). The FROZEN artifact for live paper-trading. |
+| `phase_g_v2_binary/` | `04_freeze_binary_model.py` | SUPERSEDED | **LOOK-AHEAD BIAS**. 24 features incl. 5 SUE look-ahead. Replaced by v3. |
+| `phase_g_v3_honest/` | `05_freeze_honest_model.py` | HISTORICAL | Honest pre-timing-correction model; not used by current inference. |
+| `phase_g_v4_timing_correct/` | `06_freeze_timing_correct_model.py` | COMPARISON BASELINE | Single timing-correct `pead_pass` classifier; V4 plan is never executed. |
+| `phase_g_v6_gate_decomposition/` | `08_freeze_v6_gate_models.py` | PAPER-EXECUTABLE CANDIDATE | Three gate classifiers; score is `min(p1,p2,p3)`, threshold 0.30. |
 
 **NOTE**: Phase G nested-CV runs (App D -- `phase_g_v1_1_nested_cv_n4/`,
 now archived at `04_backtest/archive/experiments/`) do **not** save a

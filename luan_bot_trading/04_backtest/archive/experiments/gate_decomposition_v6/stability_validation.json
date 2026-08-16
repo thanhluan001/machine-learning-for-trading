@@ -1,0 +1,250 @@
+{
+  "model_version": "phase_g_v6_gate_decomposition",
+  "baseline": "phase_g_v4_timing_correct",
+  "policies": {
+    "adaptive_nested": {
+      "n": 168,
+      "win_rate_pct": 62.5,
+      "avg_trade_pct": 2.3710808862752586,
+      "median_trade_pct": 2.5986795511416805,
+      "avg_win_pct": 9.104736241819774,
+      "avg_loss_pct": -8.851678039632267,
+      "executed": 168,
+      "precision": 26.190476190476193,
+      "raw_picks": 0,
+      "nav_pct": 149.22294381476942,
+      "fold_navs_pct": [
+        59.60632748573143,
+        6.871979376475834,
+        21.669717448791136,
+        20.0857747658171
+      ],
+      "min_fold_nav_pct": 6.871979376475834
+    },
+    "product_005": {
+      "n": 169,
+      "win_rate_pct": 60.946745562130175,
+      "avg_trade_pct": 2.214434497475232,
+      "median_trade_pct": 2.3408732246186226,
+      "avg_win_pct": 9.241676839052412,
+      "avg_loss_pct": -8.752322490137644,
+      "executed": 169,
+      "precision": 24.2603550295858,
+      "raw_picks": 0,
+      "nav_pct": 131.2786891916381,
+      "fold_navs_pct": [
+        53.75221217116799,
+        2.953278308681506,
+        21.669717448791136,
+        20.0857747658171
+      ],
+      "min_fold_nav_pct": 2.953278308681506
+    },
+    "minimum_025": {
+      "n": 182,
+      "win_rate_pct": 55.494505494505496,
+      "avg_trade_pct": 1.1008332528094296,
+      "median_trade_pct": 1.6386362332635018,
+      "avg_win_pct": 9.363200109668801,
+      "avg_loss_pct": -9.201624185990527,
+      "executed": 182,
+      "precision": 22.52747252747253,
+      "raw_picks": 0,
+      "nav_pct": 50.18867451028042,
+      "fold_navs_pct": [
+        26.780075390549875,
+        6.871979376475834,
+        -10.4829676988323,
+        23.8273702569876
+      ],
+      "min_fold_nav_pct": -10.4829676988323
+    },
+    "minimum_030": {
+      "n": 158,
+      "win_rate_pct": 63.29113924050633,
+      "avg_trade_pct": 3.8234931275032293,
+      "median_trade_pct": 3.3678652737703985,
+      "avg_win_pct": 10.797612618930021,
+      "avg_loss_pct": -8.20085082323262,
+      "executed": 158,
+      "precision": 27.21518987341772,
+      "raw_picks": 0,
+      "nav_pct": 314.6535743692318,
+      "fold_navs_pct": [
+        59.60632748573143,
+        24.709723666749483,
+        35.8041553566345,
+        53.398789693684165
+      ],
+      "min_fold_nav_pct": 24.709723666749483
+    },
+    "hard_025": {
+      "n": 182,
+      "win_rate_pct": 55.494505494505496,
+      "avg_trade_pct": 1.1008332528094296,
+      "median_trade_pct": 1.6386362332635018,
+      "avg_win_pct": 9.363200109668801,
+      "avg_loss_pct": -9.201624185990527,
+      "executed": 182,
+      "precision": 22.52747252747253,
+      "raw_picks": 0,
+      "nav_pct": 50.18867451028042,
+      "fold_navs_pct": [
+        26.780075390549875,
+        6.871979376475834,
+        -10.4829676988323,
+        23.8273702569876
+      ],
+      "min_fold_nav_pct": -10.4829676988323
+    }
+  },
+  "dependence_bootstrap": {
+    "v6_week_iid": {
+      "weeks": 80,
+      "estimate_nav_pct": 149.22294381476942,
+      "ci95_nav_pct": [
+        15.024486860182588,
+        440.8332743915079
+      ]
+    },
+    "v4_week_iid": {
+      "weeks": 52,
+      "estimate_nav_pct": 89.73248485378609,
+      "ci95_nav_pct": [
+        9.626591999861487,
+        238.84340020739882
+      ]
+    },
+    "v6_week_block4": {
+      "block_weeks": 4,
+      "estimate_nav_pct": 149.22294381476942,
+      "ci95_nav_pct": [
+        13.803898218296421,
+        443.41681566926826
+      ]
+    },
+    "v4_week_block4": {
+      "block_weeks": 4,
+      "estimate_nav_pct": 89.73248485378609,
+      "ci95_nav_pct": [
+        4.573144346235117,
+        191.09648001177626
+      ]
+    },
+    "paired_week_iid": {
+      "weeks": 86,
+      "block_weeks": 1,
+      "estimate_delta_weekly_return_pp": 0.35862948096521435,
+      "ci95_delta_pp": [
+        -0.4940009806164837,
+        1.2461404048519127
+      ],
+      "prob_v6_gt": 0.7892
+    },
+    "paired_week_block4": {
+      "weeks": 86,
+      "block_weeks": 4,
+      "estimate_delta_weekly_return_pp": 0.35862948096521435,
+      "ci95_delta_pp": [
+        -0.4543778640674385,
+        1.2500997433842107
+      ],
+      "prob_v6_gt": 0.8177
+    }
+  },
+  "fixed_minimum_030_validation": {
+    "trade_bootstrap": {
+      "n": 158,
+      "avg_trade_pct": 3.8234931275032293,
+      "avg_trade_ci95_pct": [
+        1.9047968660391772,
+        5.806293066153052
+      ],
+      "win_rate_pct": 63.29113924050633,
+      "win_rate_ci95_pct": [
+        55.69620253164557,
+        70.88607594936708
+      ]
+    },
+    "week_iid": {
+      "weeks": 80,
+      "estimate_nav_pct": 314.6535743692318,
+      "ci95_nav_pct": [
+        100.70082177167386,
+        811.2152994884892
+      ]
+    },
+    "week_block4": {
+      "block_weeks": 4,
+      "estimate_nav_pct": 314.6535743692318,
+      "ci95_nav_pct": [
+        93.07784901970314,
+        857.8285541530748
+      ]
+    },
+    "paired_week_iid_vs_v4": {
+      "weeks": 82,
+      "block_weeks": 1,
+      "estimate_delta_weekly_return_pp": 1.0034721545832332,
+      "ci95_delta_pp": [
+        0.19527017539558358,
+        1.8517005303651362
+      ],
+      "prob_v6_gt": 0.9933
+    },
+    "paired_week_block4_vs_v4": {
+      "weeks": 82,
+      "block_weeks": 4,
+      "estimate_delta_weekly_return_pp": 1.0034721545832332,
+      "ci95_delta_pp": [
+        0.18431223820272274,
+        1.9059714198074142
+      ],
+      "prob_v6_gt": 0.9926
+    }
+  },
+  "overlap": {
+    "common_events": 50,
+    "v6_avg_common_pct": 3.3226677905816104,
+    "v4_avg_common_pct": 3.3226677905816104,
+    "delta_pct_points": 0.0,
+    "v6_wins_common": 30,
+    "v4_wins_common": 30
+  },
+  "fold_policy_choices": {
+    "1": [
+      "minimum",
+      0.3
+    ],
+    "2": [
+      "minimum",
+      0.25
+    ],
+    "3": [
+      "product",
+      0.05
+    ],
+    "4": [
+      "product",
+      0.05
+    ]
+  },
+  "pre_registered_fixed_policies": {
+    "product_005": [
+      "product",
+      0.05
+    ],
+    "minimum_025": [
+      "minimum",
+      0.25
+    ],
+    "minimum_030": [
+      "minimum",
+      0.3
+    ],
+    "hard_025": [
+      "hard",
+      0.25
+    ]
+  }
+}

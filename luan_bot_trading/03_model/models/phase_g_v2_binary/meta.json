@@ -1,0 +1,90 @@
+{
+  "name": "phase_g_v2_binary",
+  "objective": "binary:logistic",
+  "target_label": "pead_pass (binary 0/1 from 3 PEAD verification gates)",
+  "feature_set": "sunday_safe_24",
+  "feature_columns": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "pre_event_idiosyncratic_vol",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol",
+    "revision_momentum_30d",
+    "revision_momentum_60d",
+    "revision_momentum_90d",
+    "revision_ordinal_momentum_90d",
+    "revision_intensity_90d",
+    "grade_dispersion_90d",
+    "n_analysts_covering",
+    "last_action_days_before_earnings"
+  ],
+  "xgb_params": {
+    "objective": "binary:logistic",
+    "eval_metric": [
+      "logloss",
+      "auc"
+    ],
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "min_child_weight": 50,
+    "gamma": 3.0,
+    "reg_lambda": 1.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "train_rows": 15244,
+  "val_rows": 1545,
+  "train_pead_pos": 1605,
+  "val_pead_pos": 188,
+  "auc_train": 0.7345362015057152,
+  "auc_val": 0.6396110004860533,
+  "ap_train": 0.27860074510567023,
+  "ap_val": 0.22678121637376258,
+  "gate_thresholds": {
+    "GATE1_CAR_MIN": 0.03,
+    "GATE2_VOL_RATIO_MIN": 2.0,
+    "GATE3_MAXDD_MIN": -0.015
+  },
+  "deployable_operating_point": {
+    "theta": 0.2,
+    "entry": "pre-gap: Close[T-1] (BMO) / Close[T] (AMC)",
+    "exit": "Close[T+5] (5 trading days from report date)",
+    "stop_loss": "-10% delayed (skip gap day, check days 1+)",
+    "exclude_sectors": [
+      "XLF"
+    ],
+    "exclude_rationale": "Financials have 13% PEAD precision vs 41% for rest. Inference-only filter (model trains on all sectors). Structural: financial earnings are more macro-driven, less surprise-driven.",
+    "max_slots": 4,
+    "sizing": "equal-weight 1/4 NAV",
+    "selection": "weekly batch (per-week sort by P(PEAD), top N = free slots)"
+  },
+  "oos_stats_4fold_nested_cv": {
+    "n_trades": 101,
+    "win_rate_pct": 75.2,
+    "avg_pnl_per_trade_pct": 6.66,
+    "avg_win_pct": 12.36,
+    "avg_loss_pct": -6.3,
+    "payoff": 1.36,
+    "total_pnl_pct": 672.4,
+    "pead_precision_pct": 38.6,
+    "large_pead_n": 21,
+    "large_pead_win_rate_pct": 90.5,
+    "large_pead_avg_return_pct": 19.62
+  },
+  "why_binary_over_3class": "Deep comparison (34_binary_vs_3class_deep.py) showed binary theta=0.20 beats 3-class P(any)>=0.20 on total return (+636% vs +607%) and win rate (69.7% vs 64.6%). The 2-stage test (33_two_stage_model.py) proved CAR magnitude is unpredictable from Sunday-safe features (regression corr ~0), so the 3-class small/large split adds no value. Binary has better-calibrated probabilities for marginal 20-25% band trades.",
+  "created_at": "2026-07-31T19:26:07.936166"
+}

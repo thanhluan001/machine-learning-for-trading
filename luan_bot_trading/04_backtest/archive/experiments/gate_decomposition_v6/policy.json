@@ -1,0 +1,72 @@
+{
+  "model_version": "phase_g_v6_gate_decomposition",
+  "status": "frozen_research_candidate_not_live",
+  "frozen_date": "2026-08-07",
+  "information_set": "v4 timing-correct 23-feature matrix",
+  "matrix": "/features/train_matrix_v4_timing_correct",
+  "gate_models": {
+    "pass_g1": {
+      "label": "CAR > +3%",
+      "gamma": 8,
+      "min_child_weight": 20,
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "reg_lambda": 1.0,
+      "subsample": 0.7,
+      "colsample_bytree": 0.7,
+      "random_state": 42
+    },
+    "pass_g2": {
+      "label": "event volume ratio > 2x baseline",
+      "gamma": 12,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "reg_lambda": 1.0,
+      "subsample": 0.7,
+      "colsample_bytree": 0.7,
+      "random_state": 42
+    },
+    "pass_g3": {
+      "label": "market-adjusted MaxDD > -1.5%",
+      "gamma": 1,
+      "min_child_weight": 50,
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "reg_lambda": 1.0,
+      "subsample": 0.7,
+      "colsample_bytree": 0.7,
+      "random_state": 42
+    }
+  },
+  "ensemble": {
+    "score": "min(p_pass_g1, p_pass_g2, p_pass_g3)",
+    "threshold": 0.33,
+    "threshold_revision": {
+      "date": "2026-08-13",
+      "from": 0.30,
+      "to": 0.33,
+      "rationale": "Bootstrap validation (04_backtest/61_v6_threshold_bootstrap.py): at 0.30 the DEV OOS (folds 1-3) per-trade avg-return CI [-0.77, 3.66] included zero (edge not statistically reliable); at 0.33 the CI [0.56, 5.22] excludes zero. Win rate 57.3->59.3%, avg trade 1.46->2.84%; holds on 2026 H1 holdout (70.0% win). Border-band (0.30-0.33) negativity was a point estimate only and NOT confirmed by the bootstrap (CI [-4.81, 2.79] includes zero). NAV CIs too wide to be decisive."
+    },
+    "sector_exclusion": ["XLF"],
+    "slots": 4,
+    "selection": "weekly descending ensemble score",
+    "entry": "pre-gap Close[T-1] BMO / Close[T] AMC",
+    "exit": "Close[T+5]",
+    "stop_loss": "-10% delayed; skip gap day"
+  },
+  "final_holdout": {
+    "development_end": "2025-06-30",
+    "hp_sweep_window_end": "2025-12-31",
+    "test_window": "2026-01-01 through 2026-06-30",
+    "selection_rule_frozen_before_test": true
+  },
+  "promotion": {
+    "live_model_unchanged": "phase_g_v4_timing_correct",
+    "status": "not_promoted",
+    "requires": "final holdout review and shadow paper-trading validation"
+  }
+}

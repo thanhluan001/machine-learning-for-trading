@@ -1,0 +1,18 @@
+{
+  "n_slots": 4,
+  "n_trades_executed": 56,
+  "n_slots_full_skips": 22,
+  "initial_nav": 100000.0,
+  "final_nav": 157967.35154950473,
+  "n_trading_days": 597,
+  "n_years": 2.369047619047619,
+  "irr_pct": 21.28786974783892,
+  "sharpe_liq_annualized": 1.9194507242864924,
+  "max_drawdown_pct": -6.069892731683635,
+  "hit_rate_pct": 66.07142857142857,
+  "avg_trade_pnl_pct": 3.41207262891216,
+  "daily_log_return_mean_pct": 0.07658596146132934,
+  "daily_log_return_std_pct": 0.6333917512675837,
+  "first_trade_date": "2024-01-26 00:00:00",
+  "last_trade_date": "2026-06-12 00:00:00"
+}

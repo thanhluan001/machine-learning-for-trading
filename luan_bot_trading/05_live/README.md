@@ -70,15 +70,15 @@ re-selection.
 
 | Metric | OOS Value |
 |--------|-----------|
-| N trades | 101 |
-| **Win rate** | **75.2%** |
-| **Expectancy/trade** | **+6.66%** |
-| Avg win | +12.36% |
-| Avg loss | -6.30% |
-| Payoff ratio | 1.36 |
-| **Total PnL (NAV-compounded)** | **+391.3%** (4.91x NAV) |
-| Total PnL (raw sum) | +672.4% |
-| PEAD precision | 38.6% |
+| N trades | 102 |
+| **Win rate** | **62.7%** |
+| **Expectancy/trade** | **+5.71%** |
+| Avg win | +13.06% |
+| Avg loss | -6.68% |
+| Payoff ratio | 1.96 |
+| **Total PnL (NAV-compounded)** | **+293.8%** (3.94x NAV) |
+| Total PnL (raw sum) | +582.3% |
+| PEAD precision | 30.4% |
 
 > **Note**: Total PnL has two representations. The raw sum (+672%) treats
 > each trade as 100% NAV. The NAV-compounded return (+391%, 4.91x) models
@@ -113,7 +113,7 @@ the model hasn't overfit to a specific historical regime. A negative result
 is a flag to investigate — NOT a definitive falsification (small sample).
 
 Accumulate 2-3 live folds before drawing firm conclusions. The live fold
-data point feeds into the P0 priority item in `future_implementation.md`.
+data point feeds into the P0 priority item in `04_backtest/archive/docs/future_implementation.md` (superseded — see Design.md §18).
 
 ## Script: `01_live_fold_pull.py`
 
@@ -168,5 +168,5 @@ For each accepted trade:
   frozen artifact
 - `04_backtest/strategy_v2_synthesis.md` — Doc A-J synthesis
 - `04_backtest/phase_g_bootstrap_ci_findings.md` — Doc-H baseline
-- `future_implementation.md §3.3` — live fold #5 as P0 priority
+- `04_backtest/archive/docs/future_implementation.md §3.3` (superseded) — live fold #5 as P0 priority
 - `Design.md §17.A` — deployable Phase G classifier spec

@@ -1,0 +1,112 @@
+{
+  "name": "phase_g_v2_3class",
+  "objective": "multi:softprob",
+  "num_class": 3,
+  "target_label": "label_3class (0=no PEAD, 1=small PEAD, 2=large PEAD)",
+  "label_definition": {
+    "class_0": "no PEAD (pead_pass == 0, fails >= 1 gate)",
+    "class_1": "small PEAD (pead_pass == 1 AND CAR_10d < 10% linear)",
+    "class_2": "large PEAD (pead_pass == 1 AND CAR_10d >= 10% linear)"
+  },
+  "car_large_threshold_pct": 10.0,
+  "feature_set": "sunday_safe_24",
+  "feature_columns": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "pre_event_idiosyncratic_vol",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol",
+    "revision_momentum_30d",
+    "revision_momentum_60d",
+    "revision_momentum_90d",
+    "revision_ordinal_momentum_90d",
+    "revision_intensity_90d",
+    "grade_dispersion_90d",
+    "n_analysts_covering",
+    "last_action_days_before_earnings"
+  ],
+  "xgb_params": {
+    "objective": "multi:softprob",
+    "num_class": 3,
+    "eval_metric": "mlogloss",
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "min_child_weight": 50,
+    "gamma": 3.0,
+    "reg_lambda": 1.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "train_rows": 15244,
+  "val_rows": 1545,
+  "train_class_counts": {
+    "no_pead": 13639,
+    "small_pead": 967,
+    "large_pead": 638
+  },
+  "val_class_counts": {
+    "no_pead": 1357,
+    "small_pead": 97,
+    "large_pead": 91
+  },
+  "mlogloss_train": 0.3699493110179901,
+  "mlogloss_val": 0.43501725792884827,
+  "auc_val_any_pead": 0.6305131783188824,
+  "gate_thresholds": {
+    "GATE1_CAR_MIN": 0.03,
+    "GATE2_VOL_RATIO_MIN": 2.0,
+    "GATE3_MAXDD_MIN": -0.015
+  },
+  "deployable_operating_point": {
+    "theta_any_pead": 0.2,
+    "entry": "pre-gap: Close[T-1] (BMO) / Close[T] (AMC)",
+    "exit": "Close[T+5] (5 trading days from report date)",
+    "stop_loss": "none (winners overcompensate losers 3.5:1)",
+    "max_slots": 4,
+    "sizing": "equal-weight 1/4 NAV",
+    "selection": "weekly batch (per-week sort by P(any), top N = free slots)"
+  },
+  "oos_stats_4fold_nested_cv": {
+    "n_trades": 99,
+    "win_rate_pct": 64.6,
+    "avg_pnl_per_trade_pct": 6.13,
+    "avg_win_pct": 13.28,
+    "avg_loss_pct": -6.94,
+    "payoff": 1.91,
+    "total_pnl_pct": 607.2,
+    "pead_precision_pct": 33.3,
+    "large_pead_n": 19,
+    "large_pead_win_rate_pct": 94.7,
+    "large_pead_avg_return_pct": 23.55
+  },
+  "bootstrap_ci": {
+    "expectancy_ci_95": [
+      3.46,
+      8.87
+    ],
+    "total_pnl_ci_95": [
+      342.5,
+      878.1
+    ],
+    "win_rate_ci_95": [
+      55.6,
+      73.7
+    ],
+    "n_bootstrap": 10000
+  },
+  "created_at": "2026-07-29T00:55:47.855002"
+}

@@ -492,7 +492,7 @@ None new — the existing scripts have been rewritten.
 - `luan_bot_trading/01_data/phase_b_contamination_audit.md` (file-top resolution notice)
 - `luan_bot_trading/01_data/earnings_gathering_design.md` (file-top identity notice)
 - `luan_bot_trading/01_data/company_merge_design.md` (whole-document deprecation)
-- `luan_bot_trading/eodhd_vs_tiingo.md` (file-top SUPERSEDED banner reversing original Option C recommendation)
+- `04_backtest/archive/docs/eodhd_vs_tiingo.md` (archived 2026-08-15; historical provider comparison)
 
 ### Authoritative reference
 

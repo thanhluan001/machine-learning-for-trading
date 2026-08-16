@@ -185,7 +185,7 @@ def _parse_intervals(raw) -> list[dict]:
 _TIINGO_HEADERS = {"Content-Type": "application/json"}
 
 
-def tiingo_search_ticker(ticker: str, *, verbose: bool = True) -> list[dict]:
+def tiingo_search_ticker(ticker: str, *, verbose: bool = True, retries: int = 4) -> list[dict]:
     """Call Tiingo /utilities/search/{ticker} with includeDelisted + exactTicker.
 
     Returns the list of result dicts (typically a few, sometimes up to ~50 for
@@ -193,7 +193,8 @@ def tiingo_search_ticker(ticker: str, *, verbose: bool = True) -> list[dict]:
         ticker, name, permaTicker, openFIGIComposite, isActive, assetType,
         countryCode, startDate, endDate, ...
 
-    On HTTP error returns []. Caller logs + skips.
+    On HTTP error returns []. Caller logs + skips. Retries transient 5xx
+    (Tiingo's search endpoint intermittently returns 502 Bad Gateway).
     """
     url = f"https://api.tiingo.com/tiingo/utilities/search/{requests.utils.quote(ticker)}"
     params = {
@@ -201,17 +202,30 @@ def tiingo_search_ticker(ticker: str, *, verbose: bool = True) -> list[dict]:
         "includeDelisted": "true",
         "exactTickerMatch": "true",
     }
-    try:
-        r = requests.get(url, params=params, headers=_TIINGO_HEADERS, timeout=20)
-        r.raise_for_status()
-        data = r.json()
-        if not isinstance(data, list):
-            return []
-        return data[:MAX_CANDIDATES_PER_SEARCH]
-    except Exception as e:
-        if verbose:
-            print(f"   [search] {ticker}: error {e}")
-        return []
+    last_err = None
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, params=params, headers=_TIINGO_HEADERS, timeout=20)
+            if r.status_code >= 500 and attempt < retries - 1:
+                if verbose:
+                    print(f"   [search] {ticker}: HTTP {r.status_code}, retry {attempt+1}/{retries}")
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            r.raise_for_status()
+            data = r.json()
+            if not isinstance(data, list):
+                return []
+            return data[:MAX_CANDIDATES_PER_SEARCH]
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                if verbose:
+                    print(f"   [search] {ticker}: error {e}, retry {attempt+1}/{retries}")
+                time.sleep(2.0 * (attempt + 1))
+            else:
+                if verbose:
+                    print(f"   [search] {ticker}: error {e} (gave up after {retries})")
+    return []
 
 
 def tiingo_prices_head(permaTicker: str, start: str, end: str, *, verbose: bool = True) -> list[dict]:
@@ -677,6 +691,43 @@ def write_outputs(permatickers: list[dict]) -> pd.DataFrame:
     return df
 
 
+def write_outputs_merge(permatickers: list[dict]) -> pd.DataFrame:
+    """Upsert new/updated permaTicker rows into the existing table.
+
+    Used by the --tickers + --merge incremental mode: process only a few
+    tickers (e.g. new constituents from refresh_sp400_membership.py) and
+    merge their rows into /metadata/sp400_permatickers by permaTicker,
+    preserving all other existing rows. Never rewrites the whole table.
+    """
+    if not permatickers:
+        print("\nNo new rows to merge.")
+        with pd.HDFStore(DB_FILE, mode="r") as store:
+            if PERMATICKERS_KEY in store:
+                return store[PERMATICKERS_KEY]
+        return pd.DataFrame()
+    new_df = pd.DataFrame(permatickers, columns=_PERMATICKER_COLS)
+    new_df["isActive"] = new_df["isActive"].astype(bool)
+    new_df["price_unavailable"] = new_df["price_unavailable"].astype(bool)
+    new_df["cik"] = new_df["cik"].astype(object)
+    new_df["openfigi"] = new_df["openfigi"].astype(object)
+    new_pts = set(new_df["permaTicker"])
+
+    with pd.HDFStore(DB_FILE, mode="a") as store:
+        if PERMATICKERS_KEY in store:
+            existing = store[PERMATICKERS_KEY]
+            kept = existing[~existing["permaTicker"].isin(new_pts)].copy()
+            combined = pd.concat([kept, new_df], ignore_index=True)
+            store.remove(PERMATICKERS_KEY)
+            store.put(PERMATICKERS_KEY, combined, format="table")
+            print(f"\nMerged {len(new_df)} row(s) into {PERMATICKERS_KEY} "
+                  f"(replaced {len(existing) - len(kept)}; total now {len(combined)})")
+            return combined
+        else:
+            store.put(PERMATICKERS_KEY, new_df, format="table")
+            print(f"\nWrote {PERMATICKERS_KEY} ({len(new_df)} rows)")
+            return new_df
+
+
 # ------------------------------------------------------------------
 # Audit report
 # ------------------------------------------------------------------
@@ -740,11 +791,15 @@ def load_legacy_perm_id_map() -> dict[str, str]:
     return out
 
 
-def main():
+def main(tickers_filter: set | None = None, merge: bool = False):
     print("=" * 70)
     print("02b - Build Company-Level Map (Tiingo permaTicker-anchored)")
     print("=" * 70)
     print(f"DB file: {DB_FILE}")
+    if tickers_filter is not None:
+        print(f"Mode: TARGETED ({len(tickers_filter)} ticker(s): {sorted(tickers_filter)})")
+    if merge:
+        print("Mode: MERGE (upsert into existing table)")
 
     if not DB_FILE.exists():
         raise SystemExit(f"db.h5 not found at {DB_FILE}")
@@ -755,6 +810,9 @@ def main():
             raise SystemExit(f"{META_KEY} not found in {DB_FILE} -- run 01_metadata_gathering first.")
         meta = store[META_KEY]
     print(f"Loaded {META_KEY}: {len(meta)} ticker rows")
+    if tickers_filter is not None:
+        meta = meta[meta["ticker"].astype(str).str.upper().isin(tickers_filter)].copy()
+        print(f"After --tickers filter: {len(meta)} ticker rows to process")
 
     # Load legacy perm_id -> ticker mapping for the legacy_perm_id column.
     # (DEPRECATED after cleanup_phase_d_2024; the legacy_perm_id column
@@ -808,9 +866,22 @@ def main():
     print(f"\nDone processing. Total permaTicker rows: {len(all_rows)}")
     print(f"Wall time: {time.time() - t0:.1f}s")
 
-    df = write_outputs(all_rows)
+    if merge:
+        df = write_outputs_merge(all_rows)
+    else:
+        df = write_outputs(all_rows)
     print_audit(df)
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    p = argparse.ArgumentParser(description="Build company-level permaTicker map")
+    p.add_argument("--tickers", type=str, default=None,
+                   help="Comma-separated tickers to process only (incremental mode)")
+    p.add_argument("--merge", action="store_true",
+                   help="Upsert processed rows into the existing table (use with --tickers)")
+    args = p.parse_args()
+    tf = None
+    if args.tickers:
+        tf = {t.strip().upper() for t in args.tickers.split(",") if t.strip()}
+    main(tickers_filter=tf, merge=args.merge)

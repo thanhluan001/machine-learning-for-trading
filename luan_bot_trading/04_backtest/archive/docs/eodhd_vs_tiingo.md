@@ -1,3 +1,28 @@
+# EODHD vs Tiingo — Data Source Comparison v2 (corrected) [ARCHIVED 2026-08-15]
+
+> **STATUS: ARCHIVED.** Historical provider-comparison document from the
+> data-migration era (July 2026). It already carried an internal SUPERSEDED
+> banner (2026-07-14) reversing its original recommendation; the project
+> has since moved fully to the current stack:
+>
+> - **Prices/identity**: Tiingo (paid) — permaTicker identity, EOD bars
+> - **Earnings/grades/calendar**: FMP (paid) — `/stable/earnings`,
+>   `/stable/grades`, `/stable/calendar/earnings`
+> - **Macros**: FRED REST (auto-refreshed by Script 01)
+> - **EODHD: fully retired** — no live pipeline component references it
+>   (06_earnings_gathering.py is the retired Phase D EODHD fetcher;
+>   06b_fmp_earnings_gathering.py replaced it)
+>
+> Retained in archive for provenance: the bug-class analysis (Class U/V/W/S)
+> and the alias-merge investigation are why permaTicker identity was adopted.
+> Companion docs, also historical: `01_data/tiingo_permaTicker_audit.md`,
+> `01_data/phase_b_contamination_audit.md`, `01_data/merger_identity_patch.md`.
+>
+> Current data-source contract: `feature_sourcing_audit.md` (root).
+
+---
+
+(Original document follows, unchanged.)
 # EODHD vs Tiingo — Data Source Comparison v2 (corrected)
 
 > **⛔ SUPERSEDED (2026-07-14).** This document's final recommendation

@@ -1,0 +1,51 @@
+{
+  "name": "reg_md3_mw50_g5",
+  "xgb_params": {
+    "objective": "rank:ndcg",
+    "eval_metric": "ndcg@3",
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "min_child_weight": 50,
+    "gamma": 5.0,
+    "reg_lambda": 1.0,
+    "reg_alpha": 0.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "train_eval": {
+    "ndcg_at_3": 0.3884241991676401,
+    "n_groups": 407,
+    "n_rows": 13306
+  },
+  "val_eval": {
+    "ndcg_at_3": 0.15929398350865218,
+    "n_groups": 107,
+    "n_rows": 3890
+  },
+  "calib_audit": {
+    "n_valid": 3885,
+    "mu_mean": -0.002305682748556137,
+    "mu_median": -0.006119786761701107,
+    "y_arith_mean": -0.00230568256963086,
+    "pearson_raw_vs_actual": 0.428906826066677
+  },
+  "train_seconds": 0.8311772346496582,
+  "n_buckets": 10,
+  "label_discretization_boundaries": [
+    -1.4946867343115606,
+    -0.0901433540569228,
+    -0.05206088638679916,
+    -0.02883706621582317,
+    -0.012850479957476629,
+    0.0013944097094930742,
+    0.015372445038407762,
+    0.030689064151895765,
+    0.05098813481190063,
+    0.08481737596680976,
+    0.7547806599979147
+  ],
+  "created_at": "2026-07-18T01:45:01.532703"
+}

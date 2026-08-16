@@ -1,0 +1,86 @@
+{
+  "dev_1_3": {
+    "conviction(skip)": {
+      "trades": 112,
+      "win_rate_pct": 58.92857142857143,
+      "avg_win_pct": 10.306837086875623,
+      "avg_loss_pct": -8.596211393236073,
+      "max_dd_pct": -14.13182745441692,
+      "nav_pct": 90.63676524357933,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh(mh=0)": {
+      "trades": 128,
+      "win_rate_pct": 59.375,
+      "avg_win_pct": 10.773307020497132,
+      "avg_loss_pct": -8.513105039321783,
+      "max_dd_pct": -15.597170868246446,
+      "nav_pct": 133.70790176200705,
+      "force_sold": 26,
+      "avg_force_hold": 3.8461538461538463
+    },
+    "force_refresh(mh=3)": {
+      "trades": 127,
+      "win_rate_pct": 59.84251968503938,
+      "avg_win_pct": 10.807127802562452,
+      "avg_loss_pct": -8.593753282293765,
+      "max_dd_pct": -15.597170868246446,
+      "nav_pct": 138.211976099206,
+      "force_sold": 26,
+      "avg_force_hold": 4.038461538461538
+    },
+    "force_refresh(mh=4)": {
+      "trades": 122,
+      "win_rate_pct": 59.01639344262295,
+      "avg_win_pct": 11.144868605952778,
+      "avg_loss_pct": -8.600092742968595,
+      "max_dd_pct": -16.391921384339707,
+      "nav_pct": 132.53507098474765,
+      "force_sold": 18,
+      "avg_force_hold": 4.277777777777778
+    }
+  },
+  "holdout_4": {
+    "conviction(skip)": {
+      "trades": 51,
+      "win_rate_pct": 68.62745098039215,
+      "avg_win_pct": 9.430902021807604,
+      "avg_loss_pct": -7.700594832680534,
+      "max_dd_pct": -4.256017367704676,
+      "nav_pct": 62.98680406619304,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh(mh=0)": {
+      "trades": 66,
+      "win_rate_pct": 66.66666666666666,
+      "avg_win_pct": 10.497490058712243,
+      "avg_loss_pct": -9.587182029648812,
+      "max_dd_pct": -10.683667081219864,
+      "nav_pct": 77.04872376320122,
+      "force_sold": 27,
+      "avg_force_hold": 4.111111111111111
+    },
+    "force_refresh(mh=3)": {
+      "trades": 66,
+      "win_rate_pct": 66.66666666666666,
+      "avg_win_pct": 10.497490058712243,
+      "avg_loss_pct": -9.587182029648812,
+      "max_dd_pct": -10.683667081219864,
+      "nav_pct": 77.04872376320122,
+      "force_sold": 27,
+      "avg_force_hold": 4.111111111111111
+    },
+    "force_refresh(mh=4)": {
+      "trades": 62,
+      "win_rate_pct": 69.35483870967742,
+      "avg_win_pct": 10.404998717097644,
+      "avg_loss_pct": -9.323529830481442,
+      "max_dd_pct": -8.58270480152901,
+      "nav_pct": 87.17319106222487,
+      "force_sold": 20,
+      "avg_force_hold": 4.3
+    }
+  }
+}

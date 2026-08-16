@@ -31,7 +31,7 @@
 > - **Kelly sizing**: deferred per Phase G -- equal-weight 1/4 NAV per slot.
 >   The isotonic calibration bridge in §7's builder skeleton is also dropped
 >   from the deployable pipeline (the classifier does not need a calibrated
->   `mu`; sizing is equal-weight). See `future_implementation.md` for the v2
+>   `mu`; sizing is equal-weight). See `04_backtest/archive/docs/future_implementation.md` (superseded — see Design.md §18) for the v2
 >   roadmap that revives Kelly + the ranker.
 > - **FMP data expansion (NEW 2026-07-23)**: FMP $49/mo plan purchased.
 >   Adds the "expectation/positioning" feature axis that was identified as
@@ -46,9 +46,113 @@
 >
 > This file remains the source of truth for the **feature definitions** (what
 > is computed, from what data, with what NaN policy). The MODELS consuming
-> these features are documented in `Design.md §17 (OBSOLETE) / §17.A (DEPLOYABLE)`.
+> these features are documented in `Design.md §17.B.7 (V6) / §17.C (V4 comparison)`.
+>
+> **The deployed feature set changed on 2026-07-31.** Sections §1.A (17
+> Sunday-safe), §3 (Macro Detachment), §4.A (Macros Excluded), and §5
+> (Summary Table) below describe the **v3-era 21-feature / 17-Sunday-safe
+> set** and are retained as historical reference. They are **SUPERSEDED by
+> §0.A** below, which documents the current **23-feature V4/V6 deployed
+> set**. The per-feature *formulas* in §1 Block 1-3 and the NaN policy in §4
+> remain authoritative and unchanged; only *which features are deployed*
+> changed.
 
 group structure, isotonic calibration, live sizing) this schema feeds into.
+
+---
+
+## 0.A. DEPLOYED FEATURE SET — V4/V6 (23 features, 2026-07-31 onwards)
+
+> **AUTHORITATIVE.** This section is the single source of truth for the
+> features consumed by the current paper-executable V6 gate models and the
+> V4 comparison baseline. It overrides §1.A, §3, §4.A, and §5 where they
+> conflict. See `Design.md §17.B.7` (V6) and `§17.C` (V4) for the model
+> specs.
+
+### The 23 deployed features
+
+The deployed V4/V6 models consume exactly **23 features**, defined in
+`DEPLOY_FEATURES` in `05b_alpaca_live/01_fetch_and_predict.py` and frozen in
+`03_model/06_freeze_timing_correct_model.py` (V4) /
+`03_model/08_freeze_v6_gate_models.py` (V6). They are grouped into 5 blocks:
+
+| # | Block | Feature | Source / formula (full detail in §1) |
+|---:|---|---|---|
+| 1 | 1 — Earnings history | `sue_lag_1` | Prior-quarter SUE (`difference / σ_12Q`), shifted 1 per permaTicker |
+| 2 | 1 | `sue_lag_2` | SUE shifted 2 quarters per permaTicker |
+| 3 | 1 | `car_drift_historical_q1` | Prior event's 60-day IJH-adjusted CAR, `.shift(1)` per permaTicker (log units) |
+| 4 | 1 | `consecutive_surprises_pre` | Running beat count at the most recent REPORTED quarter (renamed from v3's `consecutive_surprises`) |
+| 5 | 2 — Microstructure | `pre_event_idiosyncratic_vol` | `std(log_ret_stock − log_ret_IJH, ddof=1)` over T-20..T-1 |
+| 6 | 2 | `pre_event_volume_trend` | OLS slope of `log(Adj_Volume)` over T-10..T-1 |
+| 7 | 3 — Relative returns | `rel_ret_3d` | `log_stock_ret(3d) − log_IJH_ret(3d)` |
+| 8 | 3 | `rel_ret_5d` | same, 5-day horizon |
+| 9 | 3 | `rel_ret_10d` | same, 10-day horizon |
+| 10 | 3 | `rel_ret_20d` | same, 20-day horizon |
+| 11 | 3 | `rel_ret_30d` | same, 30-day horizon |
+| 12 | 3 | `sector_adjusted_ret_20d` | `log_stock_ret(20d) − log_sector_ETF_ret(20d)` via SIC-mapped `index_ref` |
+| 13 | 6 — Analyst revisions | `revision_momentum_30d` | `count(upgrades) − count(downgrades)` in 30d pre-earnings (FMP `/stable/grades`) |
+| 14 | 6 | `revision_momentum_60d` | same, 60-day window |
+| 15 | 6 | `revision_momentum_90d` | same, 90-day window |
+| 16 | 6 | `revision_ordinal_momentum_90d` | ordinal net shift (e.g. Sell→Buy = +2) over 90d |
+| 17 | 6 | `revision_intensity_90d` | total count of analyst actions (up+down+maintain) over 90d |
+| 18 | 6 | `grade_dispersion_90d` | count of distinct grade values held in last 90d (analyst disagreement) |
+| 19 | 6 | `n_analysts_covering` | unique `grading_company` count in last 90d |
+| 20 | 6 | `last_action_days_before_earnings` | days from last analyst action to `report_date` |
+| 21 | Macro | `unemployment_roc21` | `pct_change(21)` of FRED `UNRATE` unemployment series |
+| 22 | Macro | `fed_funds` | FRED `DFF` fed funds rate (backward-lookup value at feature date) |
+| 23 | Macro | `vix` | FRED `VIXCLS` VIX close (backward-lookup value at feature date) |
+
+### What changed from the v3 17-Sunday-safe set (2026-07-31 honest-model cut)
+
+The V4/V6 23-feature set differs from the v3-era 17-Sunday-safe set (§1.A) in
+four ways:
+
+1. **5 SUE look-ahead features DROPPED:** `sue_score`, `eps_surprise_pct`,
+   `sue_acceleration`, `sue_abs_x_inverse_vol`, and `is_bmo`. The first four
+   are either redundant with the lagged SUE features or caused minor
+   look-ahead contamination; `is_bmo` is an operational scheduling choice,
+   not a PEAD predictor, and caused OOS overfitting.
+2. **8 FMP analyst-revision features ADDED** (Block 6 — the "expectation /
+   positioning" axis identified as the #1 gap in Doc K). These were described
+   as "PLANNED" in the v3-era §1.B Block 6 below; they are now BUILT and
+   DEPLOYED. Source: FMP `/stable/grades` via `01_data/07_fmp_grades_gathering.py`.
+3. **3 macros ADDED** (`vix`, `fed_funds`, `unemployment_roc21`). The v3-era
+   §3 (Macro Detachment) and §4.A (Macros Excluded) argued against macros,
+   but a subsequent 23-feature honest-model rebuild found that these 3
+   slow-moving macro levels add mild cross-fold signal without the
+   overfitting that the full 12-macro A/B test (§4.A) suffered. They are
+   consumed via backward lookup at the feature date (no look-ahead; FRED
+   data always lags).
+4. **`consecutive_surprises` renamed** to `consecutive_surprises_pre` to
+   distinguish the live feature (beat streak at the most recent REPORTED
+   quarter) from the training-time label.
+
+### Macro backward-lookup contract (no look-ahead)
+
+The 3 macro features use a point-in-time backward lookup:
+
+```python
+# compute_macro_features(feature_date, macro_cache):
+for name in ["vix", "fed_funds", "unemployment"]:
+    val = macro_cache[name].loc[Date <= feature_date, name].iloc[-1]
+```
+
+`feature_date` is the latest completed daily close used for the price/volume
+features (AMC = T-1 close, BMO = T-2 close per the V4 timing contract). FRED
+daily series (VIXCLS, DFF) lag ~1 day; UNRATE is monthly and lags ~6 weeks.
+This guarantees no future macro observation leaks into the feature vector.
+
+### NaN policy (unchanged from §4)
+
+Never drop rows. XGBoost handles NaN natively. Cases that produce NaN:
+- `car_drift_historical_q1` when the prior event's 60-day CAR window hasn't
+  fully matured (fewer than 60 trading days since the prior report).
+- `sue_lag_1`/`sue_lag_2` for the 1st/2nd reported quarter of a permaTicker.
+- All Block 6 features are `0` (not NaN) when no analyst coverage exists —
+  `revision_momentum_*` = 0, `n_analysts_covering` = 0,
+  `last_action_days_before_earnings` = NaN only if no earnings date exists.
+- Macro features use backward lookup; a missing series value evaluates to the
+  most recent prior observation (ffill-equivalent via `.iloc[-1]`).
 
 ---
 
@@ -207,7 +311,7 @@ Increment by 1 on a beat; reset to 0 otherwise.
   in the pipeline is on the **target** `car_10d` at the Stage-3 isotonic
   calibration bridge of the OBSOLETE ranker (§17.4 of `Design.md`) — Phase G's
   classifier has no such bridge (it uses equal-weight sizing, see
-  `future_implementation.md` §2.1). Log units also incidentally improve training
+  `04_backtest/archive/docs/future_implementation.md` (superseded — see Design.md §18) §2.1). Log units also incidentally improve training
   quality here: they symmetrize positive vs negative long-horizon (60-day)
   drift magnitudes, giving cleaner tree-split breakpoints.
 
@@ -275,7 +379,7 @@ the SEC SIC-mapped `index_ref` from **`/metadata/sp400_permatickers`**
 (prior to Phase A this was `/metadata/sp400_companies`, PURGED), computed per
 `01_data/SIC_code_to_index.md` (e.g. `IJK`, `IJJ`, `XLB`, `XLF`, `XLU`, `XLRE`).
 Companies whose `index_ref` is missing default to the mid-cap blend `IJH`.
-(Phase v2 plan to make sector-matched CAR the primary benchmark instead of fiat IJH: see `future_implementation.md §2.3`.)
+(Phase v2 plan to make sector-matched CAR the primary benchmark instead of fiat IJH: see `04_backtest/archive/docs/future_implementation.md §2.3` (superseded — see Design.md §18).)
 
 * `rel_ret_3d` / `rel_ret_5d` / `rel_ret_10d` / `rel_ret_20d` / `rel_ret_30d`
   (Float): `log(Adj_Close_stock[T-1] / Adj_Close_stock[T-1-h]) -
@@ -293,7 +397,13 @@ Companies whose `index_ref` is missing default to the mid-cap blend `IJH`.
   — Surprise-to-risk ratio. Filters noise when idiosyncratic volatility is high.
   NaN-safe: if the denominator is NaN or 0, the result is NaN.
 
-### Block 1.A — Sunday-Safe Subset (Phase G classifier)
+### Block 1.A — Sunday-Safe Subset (Phase G v3 classifier — SUPERSEDED by §0.A)
+
+> **SUPERSEDED 2026-08-08.** This section describes the v3-era 17-Sunday-safe
+> set. The current V4/V6 deployed set is **23 features** — see **§0.A** above.
+> The 17-Sunday-safe set dropped `sue_score`, `eps_surprise_pct`,
+> `sue_acceleration`, `sue_abs_x_inverse_vol`, and `is_bmo`, then ADDED 8 FMP
+> revision features + 3 macros to reach 23.
 
 > The Phase G deployable model trains on a **17-feature subset** of the 21
 > feature columns dropped in §1 above. This subset is `SUNDAY_SAFE_FEATURES`
@@ -311,7 +421,7 @@ Sunday-side data alone:
   NOT as a Sunday classifier input.
 * **`intraday_range_t`**, **`volume_vma20_ratio_pre_event`**, **`suv_day_1`**
   (Block 2) — all use Day-T market-close entities. Phase G classifies them as
-  Day-T features for a weekday re-rank pass (`future_implementation.md §2.5`).
+  Day-T features for a weekday re-rank pass (`04_backtest/archive/docs/future_implementation.md §2.5` (superseded — see Design.md §18)).
 
 The 17 Sunday-safe features (the classifier's `X`):
 
@@ -348,7 +458,16 @@ SHELVED — they are not part of the v1 active feature matrix. They may be
 revisited later if the v1 model underperforms and the next iteration needs
 additional signal.
 
-### Block 6 — FMP Expectation/Positioning Features (PLANNED, Phase H)
+### Block 6 — FMP Expectation/Positioning Features (DEPLOYED in V4/V6 — see §0.A)
+
+> **UPDATED 2026-08-08.** These features are no longer "PLANNED" — they are
+> BUILT and DEPLOYED in the current 23-feature V4/V6 set (see **§0.A** above).
+> The feature definitions below remain accurate. The data is fetched by
+> `01_data/07_fmp_grades_gathering.py` into `/analyst/grades/{permaTicker}`
+> and consumed by both the training matrix builder and the live inference
+> script. The `revision_velocity` and revenue-surprise features (6.1/6.2)
+> remain unbuilt; only the 8 revision/grade features in §0.A rows 13-20 were
+> promoted.
 
 > **STATUS**: PLANNED, not yet built. Data source confirmed (FMP $49/mo,
 > see `feature_sourcing_audit.md` §4A). These features address the #1 gap
@@ -440,7 +559,15 @@ These features are NOT available from FMP and would need a separate source:
 
 ---
 
-## 3. Macro Detachment (Macro Features Are NOT in `X`)
+## 3. Macro Detachment (Macro Features Are NOT in `X`) — SUPERSEDED by §0.A
+
+> **SUPERSEDED 2026-08-08.** The current V4/V6 deployed set INCLUDES 3 macros
+> (`vix`, `fed_funds`, `unemployment_roc21`) — see **§0.A** above. The
+> v3-era argument below (that macros hurt and should be excluded) applied to
+> the full 12-macro A/B test; the subsequent 23-feature honest-model rebuild
+> found that these 3 slow-moving levels add mild cross-fold signal. The
+> reasoning about fold-axis time collinearity (§3) remains valid context for
+> why only 3 (not all 12) macros were promoted.
 
 * `vix_close`, `fed_funds_rate`, `yield_curve_spread`, `wti_oil`,
   `cpi`, `unemployment_rate`, plus the sector-ETF / SPY prices stored at
@@ -538,10 +665,13 @@ need a dedicated experiment (call it **Phase G PLUS macro probe**):
    re-tag this section (macros become IN). If not → keep the regime overlay
    architecture and skip them from the classifier `X`.
 
-This is parked as a Phase v2 candidate at `future_implementation.md §3.5
-Regime Probe` (separate sub-model / overlay, not input columns) and references
-the broader confidence-calibrated sizing question at `future_implementation.md
-§3.4`. Don't run it on the deployable artifact today.
+This is parked as a Phase v2 candidate at
+`04_backtest/archive/docs/future_implementation.md §3.5
+Regime Probe` (superseded — see Design.md §18) (separate sub-model /
+overlay, not input columns) and references
+the broader confidence-calibrated sizing question at
+`04_backtest/archive/docs/future_implementation.md
+§3.4` (superseded — see Design.md §18). Don't run it on the deployable artifact today.
 
 ### Convenience note (data is already there)
 
@@ -582,7 +712,14 @@ unless H_macro is cleared above.
 
 ---
 
-## 4.A. Macro features — EXCLUDED (empirically validated)
+## 4.A. Macro features — EXCLUDED (empirically validated) — SUPERSEDED by §0.A
+
+> **SUPERSEDED 2026-08-08.** The 12-macro A/B test below is valid history,
+> but the conclusion ("macros HURT, exclude all") was revised by the
+> 23-feature honest-model rebuild: 3 macros (`vix`, `fed_funds`,
+> `unemployment_roc21`) are now INCLUDED in the deployed V4/V6 set. See
+> **§0.A** above. The full-12-macro exclusion remains correct — only the 3
+> slow-moving levels survived the honest-model cut.
 
 **A/B test (2026-07-30, `04_backtest/35_macro_ab_test.py`)**: Tested adding
 12 macro features (6 FRED series + 6 20-day rate-of-change) to the
@@ -620,7 +757,13 @@ Macros are NOT included.
 
 ---
 
-## 5. Active Feature Summary Table
+## 5. Active Feature Summary Table — v3-era (SUPERSEDED by §0.A)
+
+> **SUPERSEDED 2026-08-08.** The table below lists the v3-era 21 stored
+> features / 17 Sunday-safe. The current V4/V6 deployed set is **23
+> features** — see **§0.A** above for the authoritative list. This table is
+> retained because the per-feature formulas (Calculation column) remain
+> correct for the features that survived into the 23-feature set.
 
 | # | Block | Feature | Calculation | Priority |
 |---|-------|---------|-------------|----------|
@@ -652,7 +795,7 @@ Deployable classifier trains on the 17-feature subset (see `03_model/02_phase_g_
 The remaining 4 (`opening_gap_t1`, `intraday_range_t`,
 `volume_vma20_ratio_pre_event`, `suv_day_1`) are Day-T or T+1 features reserved
 for the weekday pass (or for the NEXT-iteration re-rank model, see
-`future_implementation.md §2.5`).
+`04_backtest/archive/docs/future_implementation.md §2.5` (superseded — see Design.md §18)).
 
 The Phase F `XGBRanker` (OBSOLETE -- see `Design.md §17`) ingested all 21 including
 the leak feature `opening_gap_t1`. Its edge was contaminated (Phase G leak-test
@@ -704,7 +847,7 @@ Sunday classifier, and the execution layer. Today `20,265 rows × 30 cols, 0 dup
   §17.4 isotonic calibration bridge was `y_arith = np.expm1(car_10d_log)`;
   the calibrator's output `mu` was then in true percentage units and was
   consumed directly by Kelly (no further transformation). Phase G drops this
-  bridge (equal-weight sizing, see `future_implementation.md §2.1`).
+  bridge (equal-weight sizing, see `04_backtest/archive/docs/future_implementation.md §2.1` (superseded — see Design.md §18)).
 * `car_60d_pass1` (float) — Oracle 60-day post-event CAR (pass-1, computed
   once for the long-horizon drift horizon). Stored as `car_60d_pass1` in log
   units. NOT used by the classifier `X` — used by the **label-derivation
@@ -746,11 +889,11 @@ Sunday classifier, and the execution layer. Today `20,265 rows × 30 cols, 0 dup
 > - Kelly sizing is REPLACED by equal-weight 1/4 NAV per slot per Phase G
 >   (= `04_backtest/04_phase_g_portfolio.py:simulate_portfolio(n_slots=4)`),
 >   and the isotonic calibration bridge restoration is parked for Phase v2
->   (`future_implementation.md §2.1`).
+>   (`04_backtest/archive/docs/future_implementation.md §2.1` (superseded — see Design.md §18)).
 >
 > The skeleton below is preserved as a HISTORICAL reference for what the Phase F
 > ranker+calibrator looked like; it is NOT a contract for Phase v2 either — see
-> `future_implementation.md §2.2` for the leak-clean ranker plans.
+> `04_backtest/archive/docs/future_implementation.md §2.2` (superseded — see Design.md §18) for the leak-clean ranker plans.
 
 The full implementation lives in `02_features/02_build_feature_matrix.py`
 (NOT in this doc). The Phase F reference contract below shows the OLD shape
@@ -849,7 +992,16 @@ def train_and_calibrate_pipeline_obsolete(X_train, y_train, groups_train,
 
 ---
 
-## 8. Sunday / Weekday Inference Pipeline Requirement
+## 8. Sunday / Weekday Inference Pipeline Requirement — SUPERSEDED
+
+> **SUPERSEDED 2026-08-08.** The Sunday/weekday two-pass pipeline below is
+> OBSOLETE. The current live system is a **single-pass daily inference**
+> (`05b_alpaca_live/01_fetch_and_predict.py`) that computes all 23 features
+> from the freshest completed daily close and predicts V6 gate probabilities
+> directly — no Sunday pre-screen, no weekday gap-confirmation filter, no
+> `opening_gap_t1` morning pass. See `Design.md §17.C.5` for the current
+> fresh actionable-list inference contract. The text below is retained as
+> historical reference for the v3-era two-pass design.
 
 > **STATUS NOTE (2026-07-22).** The "Perfect Beat Baseline" simulation trick
 > (Sunday substitutes `SUE_current=2.0`, `SUV_day_1=3.0` for unrealized live
@@ -893,6 +1045,7 @@ accepted = sunday_watchlist[
 ```
 
 The accepted set enters **pre-gap** (`Close[T-1]` BMO / `Close[T]` AMC, before the earnings announcement), exits `Close[T+5]` (5-day hold), -10% delayed stop, equal-weight. Uses a **binary classifier** (`binary:logistic`, target = `pead_pass`), accepting picks where **P(PEAD) >= 0.20** and sector != XLF
+                           (23 honest features, no look-ahead)
 `1/4 NAV` per trade with max 4 simultaneous slots (Doc H baseline).
 
 ### Pipeline shape contract
@@ -921,5 +1074,5 @@ distribution is what matters.
 - `04_backtest/04_phase_g_portfolio.py:simulate_portfolio(n_slots=4)` —
   equal-weight portfolio simulator (no Kelly, no transaction cost).
 - For the v2 ambition (Kelly sizing + ranker + Day-T re-rank + tier hurdles
-  etc.), see `future_implementation.md`.
+  etc.), see `04_backtest/archive/docs/future_implementation.md` (superseded — see Design.md §18).
 

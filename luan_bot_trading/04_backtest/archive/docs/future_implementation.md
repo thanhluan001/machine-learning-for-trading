@@ -1,3 +1,41 @@
+# Future Implementation — Phase v2 Roadmap [SUPERSEDED 2026-08-15]
+
+> **STATUS: HISTORICAL DOCUMENT — superseded by `Design.md` §18 (Research
+> Backlog) and `04_backtest/archive/findings/edge_landscape_memo.md`.**
+>
+> This roadmap was written at the end of the Phase G v1/v2 era (July 2026)
+> and much of it has since been overtaken by events. It is retained in
+> `archive/` for provenance: it documents the Phase F leak discovery, the
+> scope cuts taken for Phase G, and the prioritization logic of that era.
+>
+> **How each item was resolved (2026-08 audit):**
+>
+> | Roadmap item | Resolution |
+> |---|---|
+> | §3.6 dedup retrain (P0) | **Done** — superseded by the v4 timing-correct matrix (16,789 rows, 68 cols) and the V6 gate models; dups are long gone |
+> | §3.3 live fold #5 (P0) | **Done differently** — superseded by `05b_alpaca_live/` live paper execution (V6 @ 0.33, force-refresh mh=4), which is the ongoing forward-looking test |
+> | §3.2 nested-CV theta re-sweep (P1) | **Done** — V6 threshold raised 0.30→0.33 via `61_v6_threshold_bootstrap.py` (bootstrap CI excluded zero only at 0.33) |
+> | §3.1 3-class classifier (P1) | **Closed — rejected** (§17.A.8: degenerate argmax; binary dominates) |
+> | §2.1 Kelly sizing (P2) | Superseded by current policy: equal-weight 1/4 slots; revisit only via a research cycle |
+> | §2.2 leak-clean XGBRanker (P2) | Superseded — the gate-decomposition path (V6, three independent classifiers) became the chosen architecture instead |
+> | §2.3 sector-ETF CAR (P2) | Not pursued; IJH-relative CAR retained everywhere (§17.B) |
+> | §2.4 tier hurdles / Perfect-Beat sim (P3) | Closed — superseded by the V6 gate architecture |
+> | §2.5 Day-T re-rank (P3) | Superseded by pre-gap entry timing contract (§17.C.2) |
+> | §2.6 short side / pair trading (P3) | Not pursued; long-only retained |
+> | §2.7 transaction costs (P3) | Still open — must be modeled before live capital (§17.A.11) |
+> | §3.4 confidence sizing (P2) | Not pursued (equal-weight retained) |
+> | §3.5 regime probe (P3) | Superseded — macros tested and mostly excluded (§17.A.7); top-3 macros live inside the 23-feature set |
+>
+> **For current research priorities, see `Design.md` §18** (RC-1 insider
+> features, RC-2 senate, RC-3 Polymarket design, RC-4 megatrend watcher)
+> and the **Analysis-Depth Doctrine** in
+> `04_backtest/archive/findings/edge_landscape_memo.md`.
+
+---
+
+(Original document follows, unchanged, for historical reference.)
+
+---
 # Future Implementation — Phase v2 Roadmap
 
 > **Status**: Architectural roadmap and research priorities for the

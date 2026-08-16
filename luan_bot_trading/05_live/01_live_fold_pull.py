@@ -5,16 +5,16 @@ Live Fold #5 — Incremental Pull + Frozen Binary Model Inference
 
 PURPOSE
 -------
-After the deployable binary classifier was frozen on
-2026-07-30 (trained on all available data, 24 Sunday-safe features,
-binary pead_pass target), the NEXT forward-looking OOS data point is
-the live fold. This script:
+After the deployable honest classifier was frozen on
+2026-07-31 (trained on all available data, 23 honest features
+NO look-ahead, binary pead_pass target), the NEXT forward-looking
+OOS data point is the live fold. This script:
 
   1. INCREMENTALLY fetches new Tiingo prices (only dates after last stored)
   2. RE-RUNS FMP earnings fetch (06b) + FMP grades fetch (07)
   3. RE-RUNS Stage 1 (gate events) + Stage 2 (build feature matrix)
-  4. LOADS the FROZEN binary classifier from
-     `03_model/models/phase_g_v2_binary/classifier.json`
+  4. LOADS the FROZEN honest classifier from
+     `03_model/models/phase_g_v3_honest/classifier.json`
   5. PREDICTS P(PEAD) on live-fold events
   6. APPLIES the deployable rule: P(PEAD) >= 0.20
   7. COMPUTES realized PnL using PRE-GAP entry:
@@ -38,7 +38,7 @@ USAGE
 
 PREREQUISITES
 -------------
-- Frozen classifier at `03_model/models/phase_g_v2_binary/`
+- Frozen classifier at `03_model/models/phase_g_v3_honest/`
 - db.h5 with Phase A/B/D/E/F data (run 02b, 03, 06b, 07, 01, 02 first)
 - .env with TIINGO_API_KEY and FMP_API_KEY
 
@@ -81,9 +81,9 @@ DATA_DIR = PROJECT_ROOT / "01_data"
 FEATURES_DIR = PROJECT_ROOT / "02_features"
 MODEL_DIR = PROJECT_ROOT / "03_model"
 
-# Frozen classifier artifact
-FROZEN_CLASSIFIER_PATH = MODEL_DIR / "models" / "phase_g_v2_binary" / "classifier.json"
-FROZEN_META_PATH = MODEL_DIR / "models" / "phase_g_v2_binary" / "meta.json"
+# Frozen classifier artifact (v3 honest — no look-ahead)
+FROZEN_CLASSIFIER_PATH = MODEL_DIR / "models" / "phase_g_v3_honest" / "classifier.json"
+FROZEN_META_PATH = MODEL_DIR / "models" / "phase_g_v3_honest" / "meta.json"
 
 # Deployable operating point (binary, pre-gap, -10% delayed stop, exclude XLF)
 THETA = 0.20           # P(PEAD) >= 0.20
@@ -109,33 +109,51 @@ OUTPUT_COLUMNS = [
     "Adj_Open", "Adj_High", "Adj_Low", "Adj_Close", "Adj_Volume",
 ]
 
-# 24 Sunday-safe features (must match 03_freeze_3class_model.py)
-SUNDAY_SAFE_FEATURES = [
-    "sue_score", "eps_surprise_pct", "consecutive_surprises",
-    "sue_acceleration", "sue_lag_1", "sue_lag_2",
-    "car_drift_historical_q1",
+# 23 honest features (must match 05_freeze_honest_model.py)
+# NO look-ahead: 5 SUE features DROPPED (required current earnings result)
+# Added: consecutive_surprises_pre + 3 macro regime features
+DEPLOY_FEATURES = [
+    # 19 base pre-event (no current-quarter SUE)
+    "sue_lag_1", "sue_lag_2", "car_drift_historical_q1",
     "pre_event_idiosyncratic_vol", "pre_event_volume_trend",
     "rel_ret_3d", "rel_ret_5d", "rel_ret_10d", "rel_ret_20d",
     "rel_ret_30d", "sector_adjusted_ret_20d",
-    "sue_abs_x_inverse_vol",
     "revision_momentum_30d", "revision_momentum_60d",
     "revision_momentum_90d", "revision_ordinal_momentum_90d",
-    "revision_intensity_90d", "grade_dispersion_90d",
-    "n_analysts_covering", "last_action_days_before_earnings",
+    "revision_intensity_90d",
+    "grade_dispersion_90d", "n_analysts_covering",
+    "last_action_days_before_earnings",
+    # prior-quarter beat streak (computed at inference time)
+    "consecutive_surprises_pre",
+    # macro regime features (computed at inference time from FRED data)
+    "unemployment_roc21", "fed_funds", "vix",
 ]
 
-# Baseline expectations (from 4-fold nested CV, binary theta=0.20, exclude XLF, -10% delayed stop)
+# Dropped look-ahead features (for documentation — NOT used at inference)
+DROPPED_LOOKAHEAD = [
+    "sue_score", "eps_surprise_pct", "consecutive_surprises",
+    "sue_acceleration", "sue_abs_x_inverse_vol",
+]
+
+# Macro FRED keys for inference-time computation
+MACRO_FRED_KEYS = {
+    "vix": "/macros/fred_vix_close",
+    "fed_funds": "/macros/fed_funds_rate",
+    "unemployment": "/macros/fred_unemployment_rate",
+}
+
+# Baseline expectations (from 4-fold nested CV, v3 honest, theta=0.20)
 BASELINE_STATS = {
-    "n_trades": 101,
-    "win_rate": 0.752,
-    "avg_pnl": 6.66,
-    "avg_win": 12.36,
-    "avg_loss": -6.30,
-    "payoff": 1.36,
-    "total_pnl": 672.4,
-    "pead_precision": 0.386,
-    "large_pead_win_rate": 0.905,
-    "label": "Binary P(PEAD)>=0.20, pre-gap, 5-day hold, exclude XLF, -10% delayed stop (101 trades, 4-fold CV)",
+    "n_trades": 102,
+    "win_rate": 0.627,
+    "avg_pnl": 5.71,
+    "avg_win": 13.06,
+    "avg_loss": -6.68,
+    "payoff": 1.96,
+    "total_pnl": 582.3,
+    "pead_precision": 0.304,
+    "large_pead_win_rate": 0.85,
+    "label": "v3 Honest P(PEAD)>=0.20, pre-gap, 5-day hold, exclude XLF, -10% delayed stop (102 trades, 4-fold CV)",
 }
 
 
@@ -324,23 +342,76 @@ def rerun_stage2(dry_run: bool = False) -> bool:
 
 
 # ==============================================================================
-# PART 3: LIVE-FOLD INFERENCE (FROZEN 3-CLASS CLASSIFIER)
+# PART 3: LIVE-FOLD INFERENCE (FROZEN V3 HONEST CLASSIFIER)
 # ==============================================================================
+
+def add_inference_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute the 4 inference-time features not stored in train_matrix:
+    consecutive_surprises_pre, unemployment_roc21, fed_funds, vix.
+    """
+    # 1. consecutive_surprises_pre (shift of consecutive_surprises by 1 per permaTicker)
+    if "consecutive_surprises" in df.columns:
+        df = df.sort_values(["permaTicker", "report_date"]).copy()
+        df["consecutive_surprises_pre"] = np.nan
+        for pt, grp in df.groupby("permaTicker"):
+            df.loc[grp.index, "consecutive_surprises_pre"] = grp["consecutive_surprises"].shift(1)
+        print(f"    consecutive_surprises_pre: {df['consecutive_surprises_pre'].notna().sum()} non-null")
+
+    # 2-4. Macro features (merge_asof from FRED data)
+    report_dates = pd.to_datetime(df["report_date"])
+    df = df.copy()
+    df["report_date"] = report_dates
+    df = df.sort_values("report_date")
+
+    for name, fred_key in MACRO_FRED_KEYS.items():
+        try:
+            with pd.HDFStore(DB_FILE, mode="r") as s:
+                if fred_key not in s:
+                    print(f"    WARNING: {fred_key} not in db.h5 — {name} will be NaN")
+                    df[name] = np.nan
+                    continue
+                m = s[fred_key].copy()
+        except Exception as e:
+            print(f"    WARNING: Could not load {fred_key}: {e}")
+            df[name] = np.nan
+            continue
+
+        m["Date"] = pd.to_datetime(m["Date"])
+        m = m.sort_values("Date").rename(columns={"Date": "report_date"})
+        close_col = "Close" if "Close" in m.columns else m.columns[1]
+        m[name] = pd.to_numeric(m[close_col], errors="coerce")
+
+        if name == "unemployment":
+            # Compute 21-day ROC
+            m = m.sort_values("report_date")
+            m[f"{name}_roc21"] = m[name].pct_change(21).replace([np.inf, -np.inf], np.nan)
+            df = pd.merge_asof(df, m[["report_date", f"{name}_roc21"]],
+                             on="report_date", direction="backward")
+        else:
+            df = pd.merge_asof(df, m[["report_date", name]],
+                             on="report_date", direction="backward")
+        cov = df[[name if name != "unemployment" else f"{name}_roc21"]].iloc[:, 0].notna().sum()
+        print(f"    {name}: {cov} non-null")
+
+    return df
 def get_live_fold_start() -> pd.Timestamp:
     """Live fold = events AFTER the classifier was frozen."""
     if FROZEN_META_PATH.exists():
         with open(FROZEN_META_PATH, "r", encoding="utf-8") as f:
             meta = json.load(f)
-        created = pd.Timestamp(meta.get("created_at", ""))
-        return created.normalize()
-    return pd.Timestamp("2026-07-29")
+        created_str = meta.get("created_at", "")
+        if created_str:
+            created = pd.Timestamp(created_str)
+            if pd.notna(created):
+                return created.normalize()
+    return pd.Timestamp("2026-07-31")
 
 
 def load_frozen_classifier() -> xgb.XGBClassifier:
     if not FROZEN_CLASSIFIER_PATH.exists():
         raise FileNotFoundError(
             f"Frozen classifier not found at {FROZEN_CLASSIFIER_PATH}\n"
-            "Run 03_model/03_freeze_3class_model.py first."
+            "Run 03_model/05_freeze_honest_model.py first."
         )
     clf = xgb.XGBClassifier()
     clf.load_model(str(FROZEN_CLASSIFIER_PATH))
@@ -423,7 +494,7 @@ def compute_pregap_pnl(df: pd.DataFrame) -> pd.DataFrame:
 
 def run_inference(dry_run: bool = False):
     print("\n" + "=" * 70)
-    print("  [5] LIVE-FOLD INFERENCE (FROZEN 3-CLASS CLASSIFIER)")
+    print("  [5] LIVE-FOLD INFERENCE (FROZEN V3 HONEST CLASSIFIER)")
     print("=" * 70)
 
     live_fold_start = get_live_fold_start()
@@ -431,7 +502,7 @@ def run_inference(dry_run: bool = False):
 
     if dry_run:
         print("  [DRY] Would load train_matrix, filter to live-fold events,")
-        print("        predict 3-class probabilities, apply deployable rule,")
+        print("        predict P(PEAD) via 23 honest features, apply deployable rule,")
         print("        compute pre-gap PnL.")
         return
 
@@ -570,7 +641,7 @@ def run_inference(dry_run: bool = False):
 # ==============================================================================
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Live Fold #5: incremental pull + frozen 3-class model inference")
+    parser = argparse.ArgumentParser(description="Live Fold #5: incremental pull + frozen v3 honest model inference")
     parser.add_argument("--skip-fetch", action="store_true",
                         help="Skip data fetching -- inference only on existing db.h5 data")
     parser.add_argument("--dry-run", action="store_true",
@@ -584,6 +655,7 @@ def main():
     print(f"  Classifier:   {FROZEN_CLASSIFIER_PATH}")
     print(f"  Deployable:   P(PEAD)>={THETA}, exclude {EXCLUDE_SECTORS}, pre-gap entry,")
     print(f"                exit=Close[T+{EXIT_DAYS}], -{STOP_LOSS*100:.0f}% delayed stop, n_slots={N_SLOTS}")
+    print(f"  Model:        v3 honest (23 features, gamma=3, mcw=100, md=2)")
     print(f"  Dry run:      {args.dry_run}")
     print("=" * 70)
 

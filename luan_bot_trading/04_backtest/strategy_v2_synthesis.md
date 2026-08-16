@@ -1,25 +1,19 @@
 # Final PEAD Strategy v2 -- Synthesis after Phase G v2 (FMP + Revision Momentum)
 
 > **Status**: AUTHORITATIVE specification for the deployable model.
-> UPDATED 2026-07-30: XLF EXCLUSION. Exclude Financials (XLF) at
-> inference only (model still trains on XLF). Financials have 13% PEAD
-> precision vs 41% for rest. Structural: financial earnings are more
-> macro-driven, less surprise-driven. This is the ONLY precision lever
-> that improves BOTH precision AND total return (+672% vs +636%).
+> **UPDATED 2026-07-31: V3 HONEST MODEL.** The previous 24-feature model
+> (phase_g_v2_binary) had LOOK-AHEAD BIAS: 5 features (sue_score,
+> eps_surprise_pct, consecutive_surprises, sue_acceleration,
+> sue_abs_x_inverse_vol) used the current earnings result, which is NOT
+> available at pre-gap entry time. V3 drops these 5 features and adds
+> consecutive_surprises_pre (prior-quarter beat streak) + 3 macro regime
+> features (unemployment_roc21, fed_funds, vix). HP re-tuned: mcw=100,
+> md=2. The honest model BEATS the look-ahead model on NAV (+294% vs
+> +281%) and stability (fold range 18pp vs 71pp).
 >
-> UPDATED 2026-07-30: BINARY CLASSIFIER (final). The 3-class softprob
-> model was tested and found inferior to binary theta=0.20. The 2-stage
-> test (CAR regression as Stage 2) proved CAR magnitude is unpredictable
-> from Sunday-safe features (correlation ~0), so the small/large PEAD
-> split adds no value.
->
-> UPDATED 2026-07-29: PRE-GAP ENTRY. Entry timing changed from
-> Open[T+1] (post-gap) to Close[T-1]/Close[T] (pre-gap). No stop-loss
-> needed -- a -10% delayed stop is statistically neutral but caps tail.
->
-> UPDATED 2026-07-28: Phase G v2 supersedes all prior Phase G docs
-> (A-K). 24 Sunday-safe features (is_bmo removed, 8 FMP revision
-> momentum added), NO gap filter, PEAD capture as PRIMARY objective.
+> UPDATED 2026-07-30: XLF EXCLUSION. Exclude Financials at inference
+> only. BINARY CLASSIFIER (final). Pre-gap entry. 5-day hold confirmed
+> optimal (2.5x NAV vs 10-day).
 
 
 ---
@@ -29,15 +23,15 @@
 The strategy that has cleared **honest out-of-sample defensibility**
 is:
 
-> **Binary Sunday classifier** on the **24-feature Sunday-safe set**
-> (17 original minus `is_bmo` plus 8 FMP analyst revision momentum
-> features), predicted probability `P(PEAD) >= 0.20`, **NO gap filter**,
-> **-10% delayed stop**. **Exclude XLF (Financials)** at inference only
-> (model still trains on XLF). Enter **pre-gap** (before the earnings
-> announcement): `Close[T-1]` for BMO, `Close[T]` for AMC. Exit
-> `Close[T+5]` (5-day hold from report date). Max **4 simultaneous
-> slots**, equal-weight **1/4 NAV** each.
-> Fixed HP: gamma=3, min_child_weight=50, max_depth=3, n_est=300.
+> **Binary Sunday classifier** on the **23-feature honest set** (19 base
+> pre-event + consecutive_surprises_pre + 3 macro regime features),
+> predicted probability `P(PEAD) >= 0.20`, **NO look-ahead features**
+> (5 SUE-based features dropped — they required the current earnings
+> result). **Exclude XLF (Financials)** at inference only. Enter
+> **pre-gap** (before the earnings announcement): `Close[T-1]` for BMO,
+> `Close[T]` for AMC. Exit `Close[T+5]` (5-day hold). Max **4 slots**,
+> equal-weight **1/4 NAV** each.
+> Fixed HP: gamma=3, min_child_weight=100, max_depth=2, n_est=300.
 > Objective: `binary:logistic`.
 
 ### Key changes from Phase G v1 (old NEG_only)
@@ -62,49 +56,39 @@ is:
 | PnL per pick (PEAD only) | **+6.75%** | [+3.76%, +11.90%] |
 | Model beats random | 99%+ of trials | -- |
 
-### Practical trade stats (4-slot portfolio simulation, binary pre-gap, exclude XLF)
+### Practical trade stats (4-slot portfolio, 23-feat honest, NAV-compounded)
 
 | Metric | Value |
 |---|---:|
-| Raw picks (theta threshold) | ~200 |
-| Executed trades (4-slot) | 101 |
-| **Expectancy per trade** | **+6.66%** |
-| **Win rate** | **75.2%** |
-| Avg win | +12.36% |
-| Avg loss | -6.30% |
-| Payoff ratio | 1.36 |
-| Std per trade | 12.70% |
-| Total PnL (raw sum) | +672.4% |
-| **Total PnL (NAV-compounded)** | **+391.3%** (4.91x) |
-| Trades per week | mean 1.9, median 2, max 4 |
-| Trades per year | ~50 |
-| PEAD precision (executed) | 38.6% |
+| Executed trades (4-slot) | 102 |
+| **Win rate** | **62.7%** |
+| **Expectancy per trade** | **+5.71%** |
+| Median per trade | +3.40% |
+| Avg win | +13.06% |
+| Avg loss | -6.68% |
+| **Payoff ratio** | **1.96** |
+| Profit factor | 3.30 |
+| Total PnL (raw sum) | +582.3% |
+| **Total PnL (NAV-compounded)** | **+293.8% (3.94x)** |
+| Max DD (NAV) | -5.9% |
+| Trades per year | ~51 |
+| PEAD precision | 30.4% |
+| Large PEAD (CAR>=10%) | 20 trades, 85% win, +20.66% avg |
 
-> **Total PnL note**: The raw sum (+672%) treats each trade as 100%
-> NAV. With 4 slots at 1/4 NAV and weekly compounding, the actual
-> portfolio return is **+391%** (4.91x NAV). See
-> `44_slot_sweep_nav_sizing.py`. Per-trade metrics (win rate, avg,
-> payoff, profit factor) are unaffected by sizing.
+> **Look-ahead audit**: The previous 24-feature model used 5 SUE-based
+> features that required the CURRENT earnings result — not available at
+> pre-gap entry time. V3 drops them and replaces with prior-quarter
+> proxies + macro regime features. The honest model BEATS the look-ahead
+> model on NAV (+294% vs +281%) because the HP re-tuning (mcw=100, md=2)
+> produces a more conservative, stable model.
 >
-> **Why exclude XLF**: the false-positive analysis
-> (`40_false_positive_analysis.py`) showed Financials (XLF) have 13%
-> PEAD precision vs 41% for the rest. XLF contributed -28.6% to total
-> PnL. Excluding XLF at inference lifts BOTH precision (35.8% -> 38.6%)
-> AND total return (+636% -> +672% raw sum, NAV-compounded: +338% -> +391%) — the only precision lever that
-> doesn't trade precision for total return. Structural rationale:
-> financial earnings are more macro-driven, less surprise-driven.
-> Model still trains on XLF; we just don't trade them.
+> **Macro features**: unemployment_roc21, fed_funds, vix. Without
+> current SUE, macros provide regime context (the 2025 H1 mini-recession
+> was correctly navigated). 3 macros is optimal — more macros cause
+> overfitting (script 50).
 >
-> **Why binary over 3-class**: binary theta=0.20 beats 3-class on total
-> return and win rate. 2-stage test proved CAR magnitude is unpredictable.
->
-> **Why pre-gap entry**: the PEAD drift is front-loaded into the overnight
-> gap. Entering pre-gap captures it.
->
-> **Why -10% delayed stop**: statistically neutral, caps worst case.
->
-> **5-day hold**: frees slots weekly. A Friday entry still blocks into
-> next week.
+> **5-day hold confirmed**: 2.5x NAV vs 10-day (+294% vs +116%). The
+> PEAD drift is front-loaded; holding longer adds noise (script 52).
 
 ### Data pipeline (Phase H)
 

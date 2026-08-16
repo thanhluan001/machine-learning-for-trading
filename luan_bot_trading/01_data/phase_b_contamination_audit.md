@@ -72,7 +72,7 @@ For both EODHD and Tiingo, the path forward looks identical:
   2. Add a `name`-sanity check against the expected perm_id name to catch
      Class W cases (NSR / SUNE / other).
 
-See `eodhd_vs_tiingo.md` for the full provider-comparison review.
+See `04_backtest/archive/docs/eodhd_vs_tiingo.md` (archived) for the full provider-comparison review.
 
 ---
 

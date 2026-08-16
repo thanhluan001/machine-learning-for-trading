@@ -1,0 +1,69 @@
+{
+  "name": "phase_g_v1_1_sunday_sweep_best",
+  "objective": "binary:logistic",
+  "feature_set": "sunday_safe_17",
+  "feature_columns": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "is_bmo",
+    "pre_event_idiosyncratic_vol",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "sue_abs_x_inverse_vol"
+  ],
+  "xgb_params": {
+    "objective": "binary:logistic",
+    "eval_metric": [
+      "logloss",
+      "auc"
+    ],
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "min_child_weight": 50,
+    "gamma": 10.0,
+    "reg_lambda": 1.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "selection_criterion": "max b_avg_pnl_pct subject to b_n >= 30",
+  "auc_train": 0.682818638885639,
+  "auc_val": 0.6377823523590777,
+  "ap_train": 0.2251117856423557,
+  "ap_val": 0.2026904910229531,
+  "b_n": 78,
+  "b_avg_pnl_pct": 2.496009701157284,
+  "b_hit_pct": 58.97435897435898,
+  "b_sharpe": 2.385089426312574,
+  "b_recall_pct": 8.520179372197308,
+  "vs_phase_g_v1_baseline": {
+    "v1_gamma": 5,
+    "v1_mcw": 50,
+    "v1_md": 3,
+    "v1_n_est": 300,
+    "v1_auc_val": 0.642,
+    "v1_b_n": 98,
+    "v1_b_avg_pnl_pct": 1.716,
+    "v1_b_sharpe": 1.55,
+    "v1_b_recall_pct": 9.19
+  },
+  "gate_thresholds": {
+    "GATE1_CAR_MIN": 0.03,
+    "GATE2_VOL_RATIO_MIN": 2.0,
+    "GATE3_MAXDD_MIN": -0.015
+  },
+  "sweep_grid_size": 108,
+  "created_at": "2026-07-19T16:53:55.113748"
+}

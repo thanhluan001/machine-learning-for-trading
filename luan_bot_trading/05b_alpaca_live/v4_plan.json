@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-08-15T00:26:08.379586",
+  "model": "phase_g_v4_timing_correct",
+  "model_features": 23,
+  "theta": 0.2,
+  "lookahead_audit": "All features use only pre-event data; no current-quarter earnings result used.",
+  "calendar_window_weeks": 2,
+  "total_candidates": 20,
+  "accepted_after_filters": 0,
+  "picks": [],
+  "status": "comparison_only_not_executed",
+  "accepted_after_theta": 0,
+  "accepted_after_xlf": 0
+}

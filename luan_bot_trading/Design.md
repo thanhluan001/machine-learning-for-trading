@@ -1,9 +1,80 @@
 # Quantitative Architecture Specification: PEAD Algorithmic Trading Bot
 ## Target Universe: S&P 400 Mid-Cap (approximately 400 Assets)
 
-> **STATUS NOTE (2026-07-22).** This document is the ORIGINAL Phase F-era
-> aspiration architecture. Sections §1, §9 (survivorship/inclusion rules),
-> §10, §11, §12, §13, §14, §16 are still authoritative.
+> **AUTHORITATIVE CURRENT STATUS — 2026-08-07.** The paper-executable system is
+> **phase_g_v6_gate_decomposition**. V4 remains the frozen comparison baseline;
+> historical Phase F/v3/v4 sections below are retained for provenance. This
+> current-status block and **§17.B.7** override older conflicting text.
+>
+> **Current paper model:** three `XGBClassifier` (`binary:logistic`) gate models
+> using the 23-feature timing-correct information set:
+>
+> ```text
+> phase_g_v6_gate_decomposition/{pass_g1,pass_g2,pass_g3}/classifier.json
+> /features/train_matrix_v4_timing_correct
+> ```
+>
+> Gate labels are `CAR > +3%`, event volume ratio `> 2x` baseline, and
+> market-adjusted MaxDD `> -1.5%`. The executable score is
+> `min(p_pass_g1, p_pass_g2, p_pass_g3)` and the threshold is `0.33` (raised
+> from `0.30` on 2026-08-13 after bootstrap validation; see §17.B.7).
+> V6 is a paper-trading candidate, not a live-capital production promotion.
+>
+> **V6 validation reference:** final frozen 2026 H1 holdout produced 47
+> executed trades, 63.8% win rate, +3.88% average trade, and +53.4% compounded
+> holdout NAV. The four-week block bootstrap for average trade was +0.19% to
+> +7.93%; block-NAV uncertainty remained wide. Earlier nested OOS results were
+> 158 trades, 63.3% win rate, +3.82% average trade, +314.7% NAV, but the fixed
+> policy was selected from the broader research comparison and must not be
+> treated as an untouched final estimate.
+>
+> **Point-in-time timing contract:** for an earnings event on trading day T,
+> AMC features use the latest completed daily close through T-1 (entry at T
+> close); BMO features use the latest completed daily close through T-2 (entry
+> at T-1 close). Price/volume, analyst revisions, and macro observations use
+> the same executable cutoff. Prior reported earnings history is historical
+> information and remains valid.
+>
+> **Plan routing:** Script 01 writes the V6 executable plan to
+> `05b_alpaca_live/plan.json`; Script 02 reads only that file and refuses to
+> trade a plan whose model is not V6. Script 01 also writes the V4 comparison
+> plan to `v4_plan.json` and records V4 hypothetical events in
+> `v4_shadow_trades.json`. V4 comparison files are never executed.
+>
+> **Fresh actionable inference:** remove events whose entry date has passed.
+> Tiingo paid daily OHLCV is refreshed through the latest completed close.
+> Script 01 **also self-refreshes benchmark ETFs (IJH + needed sector ETFs) and
+> FRED macros (VIX, fed funds, unemployment)** before feature computation — a
+> stale benchmark silently corrupts every `rel_ret` / `car_drift` feature (the
+> 2026-08-08 stale-IJH incident). FMP uses
+> `/stable/earnings-calendar?from=today-1&to=today+weeks*7&includeReportTimes=true`;
+> the per-ticker fallback is bounded by the same window. No partial intraday
+> bars are used.
+>
+> **Universe maintenance:** `01_data/refresh_sp400_membership.py` re-parses
+> Wikipedia monthly to close graduated stocks and flag new constituents;
+> `02b_build_company_map.py --tickers <new> --merge` maps only the new
+> permaTickers incrementally (no full re-disambiguation). This prevents the
+> AMD-style failure mode of trading a stock that left the S&P 400.
+>
+> **Current execution:** Alpaca paper trading, four equal-weight slots,
+> whole-share immediate-market (`DAY`) orders for both buys and sells —
+> manual position management,
+> no bracket orders. Script 02 reserves only V6 candidates whose entry date is
+> today through today + 7 calendar days; farther candidates are reconsidered
+> on later runs. Dry-run mode does not modify `positions.json`.
+>
+> **Current paper state:** WTS 2 shares active; DBX 9 shares active from a
+> partial MOC fill; no pending orders at the last verified run. V4 shadow
+> outcomes are recorded separately and do not consume slots.
+>
+> **Legacy status:** Sections §1, §9 (survivorship/inclusion rules), §10, §11,
+> §12, §13, §14, and §16 remain useful where not contradicted by this block.
+> Phase F ranker text and older Phase G/v4 model text are historical.
+
+> **HISTORICAL STATUS NOTE (2026-07-22).** The following legacy block is
+> retained for provenance. Where it conflicts with the 2026-08-06 authority
+> block above or §17.B, the current block/§17.B wins.
 >
 > Sections describing the WORKING pipeline state have been UPDATED to reflect
 > the Phase A permaTicker migration AND the Phase G working backtester+
@@ -18,9 +89,10 @@
 >   is gone — Tiingo returns adjusted columns natively.
 > - **Model class (§17).** The deployable model is **`XGBClassifier`
 >   (`binary:logistic`)** targeting the 3 PEAD gates (`pead_pass`), trained
->   on **24 Sunday-safe features** (17 base + 8 FMP analyst revision momentum,
->   `is_bmo` removed) — see `03_model/02_phase_g_sunday_classifier.py`.
->   The `XGBRanker` (`rank:ndcg`) in §17rank:ndcg`) in §17 + `01_train_model.py main()` is the
+>   on **23 honest features** (19 base + consecutive_surprises_pre + 3 macros;
+>   5 SUE look-ahead features DROPPED 2026-07-31)
+>   — see `03_model/05_freeze_honest_model.py`.
+>   The `XGBRanker` (`rank:ndcg`) in §17rank:ndcg`) in §17rank:ndcg`) in §17 + `01_train_model.py main()` is the
 >   OBSOLETE Phase F design; it has known feature-leak contamination from
 >   `opening_gap_t1` and is NOT usable for live trading. See `04_backtest/`
 >   README + `strategy_v2_synthesis.md` for the working alpha + statistics.
@@ -52,7 +124,13 @@
     $$CAR_{i} = \sum_{t=T+1}^{T+11} \left( R_{i,t} - R_{m,t} \right)$$
     *   $R_{i,t}$: Daily log return of stock $i$ on day $t$.
     *   $R_{m,t}$: Daily log return of the broad-market proxy on day $t$. For S&P 400 mid-caps we use **IJH** (iShares Core S&P Mid-Cap ETF) as the flat benchmark for all stocks, per §14.
-*   **Model Type (UPDATED FROM PHASE F).** The DEPLOYABLE Phase G model is **`XGBClassifier` (`binary:logistic`)** targeting the 3 PEAD gates (`pead_pass`) — see **§17.A** for the full architecture. The Phase F-era `XGBRanker (Listwise Learning-to-Rank)` design described in §17 below is the OBSOLETE leaky model (edge came entirely from `opening_gap_t1`, a forward-looking feature using Open[T+1]). The Phase G classifier targets the same `car_10d` drift indirectly via the `pead_pass` gates (`car_60d_pass1`-based) instead of as a continuous CAR regression target, and uses a T+1 gap confirmation stage (see §17.A.5) to consume the genuinely realized `opening_gap_t1`. Do NOT deploy the §17 ranker.
+*   **Model Type (UPDATED FROM PHASE F).** The current paper-executable V6
+    architecture uses three **`XGBClassifier` (`binary:logistic`)** gate models
+    — see **§17.B.7**. The V4 single classifier is retained as the comparison
+    baseline in §17.C. The Phase F-era `XGBRanker (Listwise Learning-to-Rank)`
+    design described in §17 below is the OBSOLETE leaky model (edge came
+    entirely from `opening_gap_t1`, a forward-looking feature using Open[T+1]).
+    Do NOT deploy the §17 ranker.
 
 ---
 
@@ -61,12 +139,10 @@
 > **STATUS NOTE (2026-07-22).** The "Perfect Beat Baseline" simulation trick
 > + "Model Signal-to-Noise Ratio" + Tier-1/2/3 watchlist construction described
 > below is the ORIGINAL Phase F design intent. **Phase G replaces it with a
-> direct XGBClassifier** trained on 24 Sunday-safe features (see §17.A) to
-> produce `P(PEAD)` directly from real pre-event features. No Sunday-simulated
-> "Perfect Beat" features, no signal-to-noise sorting, no tier splitting. The
-> Sunday classifier is the same model that runs at inference time (the live
-> weekday morning has no separate confirmation stage — the Sunday classifier
-> IS the inference model (pre-gap entry eliminates the gap-filter step). See `03_model/02_phase_g_sunday_classifier.py`.
+> direct timing-correct classifiers** trained on 23 features (see §17.B.7)
+> to produce V6 gate probabilities from real pre-event features. There is no Sunday
+> simulation stage. Script 01 is the live inference engine and uses the
+> freshest completed daily data for the actionable event set.
 
 *   **Data Scope:** Process 600 universe assets to extract long-term historical features on Sunday: `SUE_trend_1Y`, `SUE_trend_3Y`, `Turnaround Ratio`, and rolling 60-day historical variance ($\sigma^2$).
 *   **The Simulation Trick:** Because real-world catalyst features (`SUE_current`, `SUV_day_1`, `VWAP_Coherence`) are unavailable until weekday market open, the Sunday script evaluates candidates by substituting missing attributes with a "Perfect Beat Baseline" (`SUE_current = 2.0`, `SUV_day_1 = 3.0`).
@@ -79,14 +155,15 @@
 
 ---
 
-## 3. Weekday Engine: Tiered Hurdles & Real-Time Inferences
+## 3. Weekday Engine: Actionable Daily Inference
 
 > **STATUS NOTE (2026-07-22, updated 2026-07-30).** The tiered hurdle structure below
 > (Tier-1/2/3 with 1.5%/2.5%/4.0% CAR thresholds) is the ORIGINAL
 > Phase F aspiration design. **Phase G v2 replaces it with a single
 > rule** (see `04_backtest/strategy_v2_synthesis.md`):
-> 1. Sunday classifier returns `P(PEAD)` for each event.
-> 2. **Accept** iff `P(PEAD) >= 0.20` AND sector != XLF (Financials
+> 1. V6 gate classifiers return three gate probabilities for each event.
+> 2. **Accept** iff `min(p_pass_g1, p_pass_g2, p_pass_g3) >= 0.33` and sector
+>    != XLF (Financials
 >    excluded at inference only — model still trains on XLF).
 > 3. **Pre-gap entry:** `Close[T-1]` for BMO, `Close[T]` for AMC.
 > 4. **Exit** at `Close[T+5]` or -10% delayed stop (whichever first).
@@ -110,7 +187,9 @@
 ## 4. Portfolio Architecture: Fixed Independent Slot-Pod Structure
 *   **Capacity Mapping (UPDATED).** The portfolio uses a strict **4-slot** parallel configuration layout. (Original aspiration was 5 slots; tested design uses 4 — see `04_phase_g_portfolio.py`'s `n_slots=4` default + `04_backtest/strategy_v2_synthesis.md` §3.)
 *   **Slot Capitalization (UPDATED).** Each virtual slot baseline is allocated exactly **25% of NAV** (1/4 = 25%). Position sizing is **equal-weight** — NO Kelly, NO volatility scaling (this is a Phase G baseline simplification; Kelly sizing in §5 is an untested future enhancement).
-*   **Saturation Guardrail.** If all 4 slots are holding active 10-day positions, the weekday engine enters Standby Mode. Any fresh market triggers generated during saturation are discarded to avoid path-dependent liquidity dilution.
+*   **Saturation Guardrail.** If all 4 slots are holding active 5-day positions
+    or pending entry orders, the engine does not open another slot. P(PEAD)
+    priority reserves free slots for the highest-ranked candidates.
 *   **No Slot Merging:** Under no circumstances should leftover capital from multiple under-allocated slots be merged into a temporary 5th slot. Maximum absolute capital exposure is hard-capped at 100% NAV.
 
 ---
@@ -137,24 +216,31 @@
 ## 6. Capital Compounding & Net Asset Value (NAV) Sweeps
 *   **Daily Re-baselining:** Total Equity ($E$) must be updated daily at market close using the following asset loop calculation:
     $$E = \text{Liquid Cash Reserve} + \sum (\text{Unrealized Current Fair Market Value of Open Positions})$$
-*   **Compounding Feed:** Every morning, scale the 5 individual virtual slots to match the updated portfolio baseline:
-    $$\text{Updated Individual Slot Capacity} = \frac{E}{5}$$
+*   **Compounding Feed:** Each slot targets approximately E/4, subject to
+    whole-share MOC sizing and buying-power constraints. Leftover cash is
+    allowed; fractional/notional MOC orders are not used.
 *   **Execution Value:** Position sizing calculations use the latest slot baseline value. Profits from exited trades organically compound into larger subsequent positions, while active open unrealized gains are preserved in baseline calculations to avoid under-leverage decay.
 
 ---
 
 ## 7. Portfolio Slot Constraints & Sunday Ranking Logic
 * **Fixed Architecture Limits (UPDATED):** The portfolio configuration is hard-constrained to exactly **4** virtual parallel slots (each representing a **25% Allocation Capacity** of current total NAV). (Original Phase F aspiration was 5 slots × 20%; Phase G tested design uses 4 slots × 25%.)
-* **Sunday Watchlist Ceiling:** The Sunday screening program must rank all upcoming weekly earnings events by their **real-feature `P(PEAD)` output** from the XGBClassifier (24 Sunday-safe features, no `opening_gap_t1` — see §17.A). The weekly watchlist handed down to the weekday execution script is capped at the top tier-1 candidates whose `P(PEAD) >= theta` (theta=0.20 is the tested operating point).
-* **Capital Saturation Protocol:** If all 4 slots are occupied by active 5-day post-earnings drift positions, the weekday execution engine must enter Standby Mode and cease all real-time data ingestion and order generation until an active slot is officially vacated via a target horizon close.
+* **Actionable bench:** Script 01 ranks all actionable events in its bounded
+  FMP lookahead window by the V6 min-gate score, writes the executable bench to
+  `plan.json`, writes the V4 comparison bench to `v4_plan.json`, and records
+  V4 hypothetical events in `v4_shadow_trades.json`. Script 02 applies
+  four-slot V6-score-priority reservation only within a seven-calendar-day
+  entry horizon.
+* **Capital Saturation Protocol:** If all 4 slots are occupied by active 5-day post-earnings drift positions, the weekday execution engine must enter Standby Mode and cease order generation until an active slot is vacated. A future event more than seven calendar days away does not reserve a free slot.
 
 ---
 
 ## 8. Weekday Execution Tiering & Hurdle Logic
 
 > **STATUS NOTE (2026-07-22, updated 2026-07-30).** OBSOLETE per Phase G — see §3 note. Phase G
-> replaces tiered hurdles with a single rule: `P(PEAD) >= 0.20`, exclude XLF,
-> pre-gap entry, 5-day hold, -10% delayed stop. No gap filter.
+> replaces tiered hurdles with the V6 rule: `min(p_pass_g1, p_pass_g2,
+> p_pass_g3) >= 0.33`, exclude XLF, pre-gap entry, 5-day hold, -10% delayed
+> stop. No gap filter.
 
 * **Dynamic Activation Gates:*** **Dynamic Activation Gates:** The Weekday execution script must read the Sunday ranking tier to dynamically adjust the final predicted validation barrier required to execute a market entry:
   * **Watchlist Rank 1-3 (Tier 1):** Trigger buy order if Live Weekday Final Predicted CAR > 1.5%
@@ -229,8 +315,13 @@ The feature matrix has **one row per earnings event** (not per ticker symbol; ea
 * **Index Membership vs. Feature Lookback Separation:** The 3-year feature lookback requirement applies strictly to the presence of raw historical pricing and fundamental lines inside the HDF5 data storage node. It is NOT a requirement for historical index membership. If an asset has 3 years of trading history available, its rows are fully eligible for training immediately after the 90-day index stabilization buffer passes, regardless of its pre-inclusion index classification.
 
 
-## 13. Calendar Scheduling & Live Watchlist Ingestion
-* **Schedule Provider:** The Sunday scheduling module queries the **FMP Earnings Calendar API** (`/stable/earning-calendar`), passing a 5-day forward-looking date array (`from` to `to`). EODHD is CANCELLED — FMP replaced it for earnings data.
+## 13. Calendar Scheduling & Live Actionable-List Ingestion
+* **Schedule Provider:** Script 01 queries FMP `/stable/earnings-calendar`
+  with `from=today-1`, `to=today+weeks*7`, and
+  `includeReportTimes=true`. Starting one day early prevents FMP from
+  dropping events whose report date equals the query start. The per-ticker
+  `/stable/earnings?symbol=...` fallback obeys the same window. EODHD is
+  cancelled.
 * **Cross-Sectional Filtering:** The fetched raw global calendar must immediately be cross-referenced against the local HDF5 `in_index_clean` array for that specific calendar date. Any reporting ticker not actively clearing the S&P 400 point-in-time membership filter must be instantly pruned from memory.
 * **Pre-Earnings Ingestion Matrix:** For the remaining valid weekly candidates, parse the `epsEstimated` and `date` strings. Save this structure to a temporary runtime matrix (`weekly_schedule_queue`) to dictate the active weekday activation order and seed the placeholder values for Sunday's point-estimation simulator.
 
@@ -353,7 +444,408 @@ During live trading weeks or backtest steps:
 
 ---
 
-## 17.A. DEPLOYABLE: Phase G v2 Binary Sunday-Safe Classifier
+## 17.B. CURRENT PAPER-EXECUTABLE: Phase G v6 Gate-Decomposition Candidate
+
+### 17.B.7 V6 paper-execution specification
+
+V6 is the current paper-executable research candidate. It does not replace the
+V4 baseline as a validated production artifact yet.
+
+#### Artifacts and labels
+
+```text
+03_model/models/phase_g_v6_gate_decomposition/pass_g1/classifier.json
+03_model/models/phase_g_v6_gate_decomposition/pass_g2/classifier.json
+03_model/models/phase_g_v6_gate_decomposition/pass_g3/classifier.json
+03_model/models/phase_g_v6_gate_decomposition/meta.json
+/features/train_matrix_v4_timing_correct
+```
+
+All three models use the same 23 timing-correct features and independently
+predict:
+
+```text
+pass_g1: CAR > +3%
+pass_g2: event volume ratio > 2x baseline
+pass_g3: market-adjusted MaxDD > -1.5%
+```
+
+The frozen executable score is:
+
+```python
+v6_score = min(p_pass_g1, p_pass_g2, p_pass_g3)
+accept if v6_score >= 0.33
+```
+
+XLF remains excluded at inference. The historical V6 policy does not apply the
+V4 LEG-like filter. Entry, exit, stop, sizing, and universe rules otherwise
+remain the same as the V4 execution contract.
+
+#### Plan and execution routing
+
+```text
+01_fetch_and_predict.py
+    ├── plan.json              V6 default; consumed by Script 02
+    ├── v4_plan.json           V4 comparison-only plan
+    └── v4_shadow_trades.json  hypothetical V4 event/entry/exit ledger
+
+02_paper_trade.py reads only plan.json and rejects a non-V6 model plan.
+```
+
+The V4 ledger stores hypothetical entry and planned exit information and is
+updated on later inference runs. It does not create Alpaca orders, consume
+slots, or alter `positions.json`.
+
+#### Weekly slot-refresh entry policy (force-refresh, mh=4 guard)
+
+Script 02 refreshes all four slots each ISO week with that week's top V6 picks.
+For each pick DUE TODAY (in `p_pead` priority order):
+
+```text
+slate = this ISO week's threshold-passing picks (not held), top-4 by p_pead
+for each due-today slate pick:
+    if a slot is free            -> buy into it
+    elif a force-sellable slot   -> force-sell it, buy the new pick
+    else                         -> skip
+```
+
+A slot is **force-sellable** iff the occupying position was entered in a PRIOR
+ISO week AND has been held >= `MIN_FORCE_HOLD` (=4) business days — i.e. it is
+near its T+5 exit. The mh=4 guard means only near-T+5 positions are displaced,
+so negligible drift is sacrificed.
+
+Rationale: front-loaded PEAD (§17.B.8) means a position held since last week
+has already banked most of its drift, while a fresh this-week pick has the
+full front-loaded drift ahead of it. Refreshing slots weekly captures picks
+that the prior conviction-priority policy skipped when all slots were full —
+which is EV-positive.
+
+This **replaces conviction-priority** (revised 2026-08-13), which skipped
+due-today picks when all slots were full and held them for future
+higher-conviction names. Validation (`04_backtest/63_force_refresh_backtest.py`,
+`64_force_refresh_guard_bootstrap.py`) on the nested OOS folds + 2026 H1 holdout:
+
+```text
+                       conviction(skip)   force_refresh mh=4
+DEV folds 1-3  NAV%         90.6               132.5
+2026 H1 holdout NAV%        63.0                87.2
+2026 H1 holdout maxDD%      -4.3                -8.6
+2026 H1 holdout win%        68.6                69.4
+```
+
+Force-refresh mh=4 wins on NAV in every fold and on the untouched holdout,
+with similar win rate, at the cost of somewhat deeper drawdown (more
+aggressive slot usage). Honest caveat: the bootstrap statistical edge over
+conviction-skip is **suggestive, not decisive** (overlapping per-trade CIs;
+basic force-refresh's holdout NAV CI dips negative, but the mh=4 guard
+restores a reliably-positive NAV CI). Approved for paper execution;
+live-capital promotion awaits corroborating live paper evidence. The three
+gate classifiers, the threshold (0.33), and `db.h5` are unchanged — this is a
+portfolio-construction policy revision. Dry-run mode does not write local
+position state.
+
+#### V6 validation status
+
+The original 0.30-threshold holdout (2026 H1) produced 47 executed trades, 63.8%
+win rate, +3.88% average trade, and +53.4% compounded NAV; four-week block-NAV
+bootstrap interval was -5.9% to +175.1%. The current policy threshold is 0.33
+(raised 2026-08-13; the 0.33-threshold holdout: 40 trades, 70.0% win, +3.91%
+avg, per-trade CI [0.17, 8.00] excludes zero — see the Threshold revision note
+below). V6 is approved for controlled paper execution and shadow comparison
+against V4, but is not promoted to live-capital production.
+
+#### Threshold revision (2026-08-13): 0.30 → 0.33
+
+The min-gate threshold was raised from `0.30` to `0.33` after bootstrap
+validation (`04_backtest/61_v6_threshold_bootstrap.py`). On the DEV OOS surface
+(nested folds 1-3, the selection surface), the per-trade avg-return CI at `0.30`
+was `[-0.77, 3.66]` — it **included zero**, i.e. the per-trade edge was not
+statistically reliable. At `0.33` the CI is `[0.56, 5.22]` (excludes zero), win
+rate rose 57.3 → 59.3% and avg trade 1.46 → 2.84%; the 2026 H1 holdout confirms
+direction (70.0% win, CI `[0.17, 8.00]`). Two honest caveats: (1) the
+border-band negativity (scores 0.30-0.33 averaged -1.0%) was a **point
+estimate only** — its bootstrap CI `[-4.81, 2.79]` includes zero, so border
+trades are *not* proven losers; (2) NAV CIs at these trade counts are too wide
+to be decisive. The defensible gain is that `0.33` makes the per-trade edge
+statistically reliable where `0.30` did not. `0.35` was data-stronger (tighter
+positive CI, higher win rate) but was beyond the requested 0.30-0.33 range and
+cuts to 66 trades; retained as a candidate if more aggression is later wanted.
+The three gate classifiers are unchanged — this is a policy-threshold revision,
+not a model change. Gate classifiers and `db.h5` are untouched.
+
+### 17.B.8 Label horizon vs. execution horizon (train-10, hold-5); persistence-gate path closed
+
+This subsection records two durable design conclusions that are not obvious
+from the entry/exit rules alone. It is the authoritative record after the
+transient G4 research scripts/artifacts were cleaned up.
+
+#### Train-10 / harvest-5 is a deliberate label/instrument mismatch
+
+The classification labels (`car_10d`, and the G1 CAR gate) are measured over
+the 10-trading-day window T+1→T+10 (§17.A.3), but execution holds only 5 days
+and exits at `Close[T+5]` (§17.A.5.7). This is intentional, not legacy:
+
+- **The 10-day horizon is a denoising target.** It forces the classifiers to
+  learn the *shape* of a sustained post-earnings drift rather than a one-day
+  gap-and-pop that reverts. A shorter label would conflate true PEAD with
+  transient overnight noise.
+- **The 5-day hold is the harvest window.** The drift is front-loaded
+  (`52_hold_period_comparison.py`: 5-day hold ≈ 2.5× the NAV of 10-day); the
+  back half of the horizon (days 6–10) is where drift fades and mean-reverts,
+  adding noise. Executing at 5 days captures the high-SNR front window and
+  exits before the tail fade.
+
+Learn the full shape, harvest the cleanest part. This mismatch is load-bearing
+and is part of why the models hold up out-of-sample across the 2014–2024 train
+/ H2 2024–H1 2026 test span, which spans multiple regimes (QT cycle, COVID,
+the 2021 mania, the 2022 rate-shock bear, the 2023–24 recovery).
+
+#### Why a fourth (persistence) gate is structurally closed
+
+A drift-persistence gate — "does abnormal drift continue in the back half of
+the horizon?" (`CAR[T+6:T+10] > 0`, the researched "G4") — was investigated
+and rejected. It cannot improve the executable PnL for a structural reason,
+not a tuning one:
+
+- **The orthogonal definition is irrelevant.** Late-window persistence
+  (days 6–10) measures drift in the portion of the horizon the strategy does
+  not hold. Predicting returns in the discarded window does not affect
+  realized PnL. This was the tested G4 definition; it was non-binding across a
+  0.30–0.70 threshold sweep and did not improve the untouched 2026 H1 holdout
+  NAV under nested selection.
+- **The relevant definition is redundant.** Front-loaded persistence
+  (days 1–5) measures the monetized window, but that signal is already
+  captured by G1: G1's 10-day CAR label is dominated by the front-loaded
+  contribution, so an early-window gate would be near-duplicate to G1.
+
+Orthogonal definition is irrelevant; relevant definition is redundant. The
+gate-decomposition search is therefore closed at three gates. Future precision
+work should add **structurally different edges** (e.g. timestamped consensus
+revisions) rather than a fourth persistence gate on the same post-earnings
+event.
+
+#### Ongoing PEAD posture
+
+V6 remains the paper-executable model. With ~4 slots × ~25 turn/year against a
+~100-trade/year supply, the strategy is near slot capacity, so additional
+filtering discards trades that would fill slots anyway rather than freeing
+capacity. The marginal value of further gates is below the effort threshold;
+the binding open question is not "add signal" but whether PEAD itself persists
+forward. Live paper execution doubles as a decay monitor; a pre-registered
+rolling kill rule (e.g. rolling 30-trade win rate < 50% or avg trade < +1%)
+should gate any live-capital promotion.
+
+## 17.C. V4 Timing-Correct Comparison Baseline
+
+### 17.C.1 Model and artifact
+The V4 comparison baseline is an `XGBClassifier` with
+`objective="binary:logistic"`, trained on 23 features and the same `pead_pass`
+three-gate target used by v3. The frozen artifact is:
+
+```text
+03_model/models/phase_g_v4_timing_correct/classifier.json
+03_model/models/phase_g_v4_timing_correct/meta.json
+/features/train_matrix_v4_timing_correct
+```
+
+The trainer is `03_model/06_freeze_timing_correct_model.py`. It writes a
+separate matrix and model; v3 is not overwritten.
+
+### 17.C.2 Information-set contract
+For an event on trading day T:
+
+| Event | entry | Latest completed daily data at decision | v4 training/inference cutoff |
+|---|---|---|---|
+| AMC on T | Close[T] | Close[T-1] | T-1 |
+| BMO on T | Close[T-1] | Close[T-2] | T-2 |
+
+The corrected BMO rows shift price/volume features back one daily bar. Analyst
+revision and macro features are also evaluated at the same cutoff. Prior
+reported earnings features remain historical. No partial intraday data is used.
+
+### 17.C.3 Features and filters
+The 23 features are:
+
+```text
+sue_lag_1, sue_lag_2, car_drift_historical_q1,
+pre_event_idiosyncratic_vol, pre_event_volume_trend,
+rel_ret_3d, rel_ret_5d, rel_ret_10d, rel_ret_20d, rel_ret_30d,
+sector_adjusted_ret_20d,
+revision_momentum_30d, revision_momentum_60d, revision_momentum_90d,
+revision_ordinal_momentum_90d, revision_intensity_90d,
+grade_dispersion_90d, n_analysts_covering, last_action_days_before_earnings,
+consecutive_surprises_pre, unemployment_roc21, fed_funds, vix
+```
+
+The V4 comparison plan requires `P(PEAD) >= 0.20`, current S&P 400 membership,
+sector not XLF, and not the LEG-like profile:
+`sue_lag_1 < -0.5 AND consecutive_surprises_pre == 0 AND rel_ret_20d < -0.05`.
+
+### 17.C.4 Walk-forward reference statistics
+The v4 four-fold walk-forward test is approximately **1.92 years of executed
+out-of-sample time**, not one year:
+
+```text
+Executed-entry span: 2024-07-23 -> 2026-06-24
+Fold 1 test: 2024 H2
+Fold 2 test: 2025 H1
+Fold 3 test: 2025 H2
+Fold 4 test: 2026 H1
+```
+
+Detailed recomputation using the v4 matrix, theta=0.20, four slots, weekly
+P(PEAD)-priority selection, pre-gap entry, five-day hold, and delayed -10%
+stop:
+
+```text
+99 executed trades
+57 wins / 42 losses
+57.6% win rate
++2.78% average trade
++1.59% median trade
+11.93% trade-return standard deviation
++10.43% average winning trade
+-7.61% average losing trade
+1.37 payoff ratio
+1.86 profit factor
++39.74% best trade
+-20.77% worst trade
++274.97% raw sum of trade returns
+
+Final NAV: 1.897x
+Compounded NAV return: +89.73%
+Approximate CAGR over executed span: +39.61%
+Maximum weekly portfolio drawdown: -12.46%
+Weeks with trades: 52
+PEAD precision: 24.3%
+```
+
+Per-fold details:
+
+```text
+Fold 1: 16 trades, 75.0% win, +7.78% avg, +34.35% NAV
+Fold 2: 30 trades, 60.0% win, +2.95% avg, +23.61% NAV
+Fold 3: 26 trades, 42.3% win, +0.47% avg,  +1.94% NAV
+Fold 4: 27 trades, 59.3% win, +1.85% avg, +12.08% NAV
+```
+
+These replace v3's +293.8% NAV headline for deployment decisions. The result
+is positive in every fold but materially weaker and less stable than v3; this
+is the cost of removing the unavailable BMO day. The maximum drawdown above is
+computed from the weekly equal-weight portfolio NAV curve; it is not the same
+as the worst fold return.
+
+### 17.C.5 Fresh actionable-list inference
+Script `05b_alpaca_live/01_fetch_and_predict.py` is an as-of-now engine:
+
+* It always refreshes Tiingo daily data through the latest completed close.
+* **It refreshes benchmark ETFs (IJH + needed sector ETFs) from Tiingo** before
+  loading them — stale benchmarks corrupt every `rel_ret` / `car_drift`
+  feature. (Added 2026-08-08 after the stale-IJH incident: IJH was a month
+  behind, silently biasing all candidates.)
+* **It refreshes FRED macros (VIXCLS, DFF, UNRATE) via REST API** before
+  loading them — stale macros corrupt the `vix` / `fed_funds` /
+  `unemployment_roc21` features.
+* It queries FMP with `from=today-1` to avoid the boundary omission observed for
+  ROKU, and bounds the per-ticker fallback by the same `--weeks` horizon.
+* It drops events whose entry date has passed.
+* During market hours, today's AMC/BMO entries remain actionable. After the
+  close, only entries after today remain actionable.
+* The list is therefore provisional for future events and must be refreshed
+  again before their entry date.
+
+Examples:
+
+```text
+Aug 6 market hours: AMC Aug 6+ and BMO Aug 7+
+After Aug 6 close: AMC Aug 7+ and BMO Aug 8+
+```
+
+### 17.C.6 Execution and order-state rules
+Script `05b_alpaca_live/02_paper_trade.py` manages four equal-weight slots and
+uses whole-share immediate-market (`TimeInForce.DAY`) orders for both buys
+and sells — fills are reliable in paper and live, same-day sell→buy pairs
+execute against cleared buying power, and there is no dependence on Alpaca
+MOC/CLS support (which needs elite smart-router routing live and is simulated
+with injected partial fills in paper). No bracket orders are used; exits are
+managed through the delayed -10% stop and T+5 rules.
+
+Order reconciliation must use actual broker quantities, not only terminal
+status. Exit orders have a separate `pending_exits` lifecycle:
+
+* A T+5 or stop exit is submitted as an immediate DAY market sell and removed
+  from `active` only after the sell is broker-verified.
+* Filled sells move to `closed` using the actual filled quantity and price.
+* Partial sells close the filled quantity and restore the residual quantity to
+  `active`.
+* Rejected/canceled/expired zero-fill sells restore the position to `active`.
+* A broker-accepted pending sell may free a same-run replacement slot, but the
+  sell remains in `pending_exits` until the actual fill is confirmed on the next
+  run.
+* Replacement buys are blocked if the same-run sell cannot be broker-verified.
+
+Entry order reconciliation must use actual broker quantities, not only terminal
+status:
+
+* Entry `filled_qty > 0` plus `expired`/`canceled` means a real active
+  partial-fill position; move only the filled quantity to `active`.
+* Record `planned_qty`, `filled_qty`, `unfilled_qty`, `fill_status`, and final
+  order status.
+* A terminal zero-fill order is recorded as unfilled/expired and frees its slot.
+* A manual close sets `exit_date` to the actual close date and preserves the
+  original planned date as `planned_exit_date`.
+
+**Order type (2026-08-12): both buys and sells use immediate `DAY` market
+orders, not MOC (`CLS`).** Two independent lines of reasoning converged here:
+
+*Sell side (2026-08-08, front-loaded-PEAD rationale):* the execution-side
+expression of the same front-loaded-PEAD principle as the train-10/harvest-5
+label choice (§17.B.8) — the tail of the horizon is low-value, so do not spend
+fill-fidelity or lock capital protecting it. At T+5 a slot is earning ~0
+marginal drift (deep in the harvest tail), while a fresh pick entering that
+slot has the full front-loaded drift ahead of it, so accelerating turnover is
+EV-positive. An unfilled MOC sell also used to leave a dead position holding
+into T+6/T+7 (no drift left + slot locked + blocks the next entry); immediate
+market fills eliminate that failure mode.
+
+*Buy side (2026-08-12) — DAY market is the correct PAPER choice; live is
+deferred and may revert to MOC.* Alpaca developer relations confirmed two
+paper-specific facts: (1) paper trading intentionally injects a higher
+partial-fill rate (partial fills "are rare" in live), so the observed MOC-buy
+pattern (HRB 22/22 filled; TWLO 0/5, DBX 9/29, ENS 0/5 expired) is a paper
+artifact, not a live reliability signal; (2) paper `CLS` orders are simulated
+as plain market orders at the close that cross the spread — they do NOT fill
+at the actual closing-auction price, so the close-price fidelity MOC was
+chosen for was never delivered in paper anyway. Both make DAY market the right
+paper choice: reliable fills, and no fidelity is lost (paper MOC never
+delivered auction fidelity to begin with). A live caveat also surfaced: live
+MOC/CLS is not generally supported unless the account uses elite smart-router
+order handling. For LIVE, the buy order type is deferred to promotion time:
+real closing-cross liquidity makes partial fills rare and real MOC fills at
+the actual auction price (delivering the Close[T] fidelity the backtest
+assumes), so live MOC may be preferable if elite routing is available; the
+decision rests on forum/Alpaca findings still in progress.
+
+*Timing implication (operational, under DAY-market execution):* unlike MOC —
+which fills at the close regardless of submission time — a DAY market order
+fills at script-run time. To approximate the Close[T] entry the backtest
+assumes, Script 02 must run near the close (~3:45 PM ET), not at market open;
+the prior market-open runs were harmless under MOC (orders sat until the
+close) but would produce morning entries (~6h early) under DAY market. If live
+reverts to MOC, this discipline relaxes again — MOC fills at the close
+regardless of run time.
+
+Net effect: same-day sell→buy pairs execute against cleared buying power with
+reliable fills on both legs; the `ENTRY_PRICE_BUFFER` (a 1% qty cushion for the
+MOC close-overshoot) was removed because market fills execute at ~the sizing
+price. Fill quantity/price are still reconciled by `sync_exit_orders` on the
+next run.
+
+## 17.A. HISTORICAL: Phase G v3 Honest Binary Classifier (No Look-Ahead)
+
+> v3 is retained as the prior deployable baseline for comparison. It is not
+> the current live artifact. The current timing-correct v4 specification is
+> §17.B.7 (V6) and §17.C (V4 comparison) below.
 
 > **AUTHORITATIVE deployable model spec.** This is what
 > `03_model/04_freeze_binary_model.py` freezes, what `04_backtest/`
@@ -402,7 +894,7 @@ Base rate ~10.7% of earnings events pass all 3 gates. See `_pead_target_retrain.
 4.  **Pre-gap entry:** Enter at `Close[T-1]` for BMO announcements (day before), `Close[T]` for AMC announcements (same-day close). PEAD drift is front-loaded into the overnight gap; pre-gap captures it. Entering post-gap (Open[T+1]) gets eaten by the gap (`22_bmo_amc_pregap.py`).
 5.  **Position sizing** — equal-weight `1/4 NAV` per slot. NO Kelly, NO volatility scaling.
 6.  **Weekly batch selection** — sort each week's accepted picks by `P(PEAD)` descending, take top N = free slots. This fixes a global-sort bias (user-identified).
-7.  **Exit** — `Close[T+5]` (5-day hold from report date). Frees slots weekly, cuts losses short. 5-day dominates 10-day on every metric (`30_hold_comparison_bootstrap.py`).
+7.  **Exit** — `Close[T+5]` (5-day hold from report date). Frees slots weekly, cuts losses short. 5-day dominates 10-day on every metric (`30_hold_comparison_bootstrap.py`). The 10-day *label* is retained on purpose; see §17.B.8.
 8.  **Stop-loss** — `-10% delayed` (skip gap day, check days 1+). Statistically neutral but caps worst case from -37% to -34%. All 13 stopped trades were losers (`37_wider_stop_test.py`).
 
 ### 17.A.6 Why the Gap Filter Was Deleted
@@ -422,31 +914,208 @@ Adding 12 macro features (6 FRED levels: DGS10, DGS2, T10YIE, VIXCLS, FEDFUNDS, 
 - **2-stage model** (binary + CAR regression, `33_two_stage_model.py`): Stage 2 CAR regression has correlation ~0 with returns. CAR magnitude is unpredictable from Sunday-safe features. The features that predict PEAD occurrence cannot predict PEAD magnitude.
 - **eps_surprise_pct secondary filter** (`39_eps_filter_test.py`): Improves precision (+4.7pp at eps>=20%) but drops total PnL (-13%). Non-PEAD picks are profitable (+2.11%), filtering them loses alpha.
 
-### 17.A.9 OOS Performance (4-fold nested CV, exclude XLF, pre-gap, -10% delayed stop)
+### 17.A.9 Historical v3 OOS Performance (not the current benchmark)
 From `42_xlf_excluded_detailed_stats.py`:
-- **101 OOS trades across 4 folds** (~51 trades/year)
-- **Win rate: 75.2%** (76W / 25L)
-- **PEAD precision: 38.6%** (39 true PEAD / 62 false positives)
-- **Expectancy per trade: +6.72%** (median +5.99%, std 13.03%)
-- **Avg win: +11.66%**, **avg loss: -8.28%**, payoff 1.41, profit factor 4.28
+- **102 OOS trades across 4 folds** (~51 trades/year)
+- **Win rate: 62.7%** (64W / 38L)
+- **PEAD precision: 30.4%** (31 true PEAD / 71 false positives)
+- **Expectancy per trade: +5.71%** (median +3.40%, std 13.14%)
+- **Avg win: +13.06%**, **avg loss: -6.68%**, payoff 1.96, profit factor 3.30
 - **Total PnL (raw sum):** +679.1% (with stop), +672.4% (no stop)
-- **Total PnL (NAV-compounded):** **+391.3%** (4.91x NAV, 4 slots at 1/4 NAV, weekly compounding). Raw sum treats each trade as 100% NAV; NAV-compounded is the realistic portfolio return. See `44_slot_sweep_nav_sizing.py`.
+- **Total PnL (NAV-compounded):** **+293.8%** (3.94x NAV). Honest model — no look-ahead.
 - **Best/worst trade: +51.82% / -30.54%**
-- **Max drawdown (NAV-compounded): -7.1%** (raw-sum cumulative: -32.0%)
+- **Max drawdown (NAV-compounded): -5.9%**
 - **Annualized Sharpe (approx): 3.71**
-- **No losing fold** (per-fold totals: +154%, +134%, +280%, +111%)
-- Bootstrap CI: expectancy [+3.46%, +8.87%], total [+342%, +878%]. All CIs exclude 0.
-- **Large PEAD (CAR>=10%):** 22 trades, 86% win, +18.23% avg, contribute +401% raw sum (+59% of total raw PnL).
+- **No losing fold** (per-fold NAV: +43%, +41%, +31%, +49%)
+- Fold range: only 18.3pp (min +30.9%, max +49.2%) — most stable model yet
+- **Large PEAD (CAR>=10%):** 20 trades, 85% win, +20.66% avg.
 
-### 17.A.10 How to Run the Deployable Model
-1.  Train + freeze: `conda run -n trading python 03_model/04_freeze_binary_model.py`
-2.  Detailed stats: `conda run -n trading python 04_backtest/42_xlf_excluded_detailed_stats.py`
-3.  Bootstrap CI: `conda run -n trading python 04_backtest/30_hold_comparison_bootstrap.py`
-4.  **Live paper-trading:** `conda run -n trading python 05_live/01_live_fold_pull.py`
+### 17.A.10 Historical v3 Artifacts
+The v3 trainer and artifact remain available for comparison only:
 
-Artifacts: `03_model/models/phase_g_v2_binary/{classifier.json, meta.json}`.
+```text
+03_model/05_freeze_honest_model.py
+03_model/models/phase_g_v3_honest/{classifier.json, meta.json}
+```
+
+Do not use v3 for new plans. Use V6 §17.B.7 for paper execution and V4 §17.C for comparison.
 
 ### 17.A.11 Acknowledged Gaps in Evidence
 - **No live paper-trading fold #5** — the first true forward-looking OOS data point. The live script (`05_live/01_live_fold_pull.py`) is ready; run around 2026-09-30 for 2 months of forward-looking data.
 - **Precision at 38.6%** — every precision lever tested (theta increase, 3-class, eps filter, CAR regression) improves precision but hurts total PnL because non-PEAD picks are profitable (+2.11%). Better FEATURES (not filters) are needed. Options: FMP estimate revision trajectory, SEC Form 4 insider trading, FINRA short interest.
 - **Transaction costs + slippage not modeled** — must be added before live capital deployment.
+
+---
+
+## 18. RESEARCH BACKLOG (post-freeze candidates)
+
+> Full narrative record of the 2026-08 edge search and the governing doctrine
+> ("we compete on depth of analysis, not speed"): see
+> `archive/findings/edge_landscape_memo.md` — the authoritative summary of
+> all 10 candidates, the institutional-advantage map, and the pattern laws.
+
+Gated behind the model freeze (§17.B): nothing here is actionable until the
+paper-evidence period closes and a research cycle is explicitly approved.
+Each item records hypothesis, mechanism, data source, validation bar, and
+revisit trigger — so a closed investigation never needs re-litigating.
+
+### Background: the slow-week edge search (2026-08, closed)
+
+Seven candidates were tested with honest event studies (execution from first
+tradeable close, CAR vs IJH, tail-vs-dispersion test, ex-ante conditioning):
+
+| Candidate | Script | Result | Status |
+|---|---|---|---|
+| Analyst upgrade drift | 68 | Day-0 +3.27% (untradeable), post drift +0.09% | CLOSED |
+| S&P 400 index additions | 45 | Abnormal ret −0.00% vs IJH post-2020 | CLOSED |
+| Insider cluster buying | 69 | 5–10d CAR +0.11% (49% win); only 60d has drift | CLOSED (as edge) |
+| Pre-ex dividend run-up (raw) | 70 | Mean ≈ 0; 35% tail is pure dispersion | CLOSED |
+| Pre-ex dividend run-up (filtered: yield>2.5%, SMA50, ADV) | 70 | −0.10%..−0.22%; yield anti-predictive | CLOSED |
+| Senate trades (disclosure-date entry) | probe | Real 10–20d drift (+2.13% CAR) but ~1.7 Sep events/mo, 28d staleness | PARKED |
+| S&P 500 PEAD expansion | 66/67 | Transfer works (+663% NAV) but home universe wins (61.4% vs 55.5% win) | PARKED, low pri |
+| FMP fundraisers (Form D/C) | probe | Private-market, untradeable; sp400 supply dead since 2016 | CLOSED |
+
+Pattern established: every scheduled or instantly-public event is arbitraged
+to zero; edge survives only where information requires slow interpretation.
+Composite-event testing of these candidates is pre-rejected: sparse ∩ sparse
+(senate 0.23%/stock-wk × insider cluster 1.2% → ~1 event/yr universe-wide)
+cannot be validated, and both legs share the same mechanism (informed-capital
+optimism) so they substitute rather than compound.
+
+### RC-1: Insider-accumulation pre-event features for PEAD
+
+- **Hypothesis (mechanism-backed):** Piotroski & Roulstone (2005) — insider
+  trades predict future earnings surprises; informed capital accumulates
+  ahead of good quarters. PEAD after a beat should be LARGER when the beat
+  was preceded by net insider buying.
+- **Proposed features (join to gated earnings events):**
+  - `insider_net_buy_90d` (flag: net P-purchase dollars > 0 in [T−90d, T))
+  - `insider_cluster_90d` (flag: ≥2 distinct insiders bought, ≥$50k total)
+  - `insider_dollars_90d` (log net dollars)
+- **Data:** already cached — `01_data/db_insider.h5` (Script 69, 71,663 Form 4
+  records, 959 tickers, P-purchases only, filing dates for leak-free joins).
+- **Supply estimate:** ~690 material purchases/yr → feature non-zero for
+  ~15–25% of earnings events. Adequate for tree learning.
+- **Precedent:** analyst grades failed as an edge (V5, script 68) yet function
+  as features — features need conditional information, not standalone alpha.
+  Caveat: revision-momentum features rank low in importance; weak signals
+  usually stay weak as features. Mechanism here is stronger (informed capital
+  front-running fundamentals vs repackaged opinions).
+- **Validation bar (same as everything):** walk-forward retrain with feature
+  vs frozen V6 baseline; bootstrap CI on per-trade edge; accept only if DEV
+  folds show lift without holdout degradation.
+- **Trigger:** paper-evidence period closes and freeze lifts; requires its own
+  approved research cycle (no silent feature additions to a frozen model).
+
+### RC-3: Polymarket whale-lifecycle tracker (design notes, venue-gated)
+
+Design-stage only (2026-08-15, no data pulled). Killed at the Phase-0 legal
+gate: France (ANJ) ISP-blocks Polymarket; venue risk not worth the gray zone
+for the operator. Design is sound and preserved here for revival if the legal
+state changes (or an EU-licensed public-ledger equivalent emerges; Kalshi
+lacks public account data, which is disqualifying for this design).
+
+Structure (slow institutional-style lifecycle tracker — competes on analysis
+depth, not speed):
+
+```text
+Phase A WATCH     observe new wallets as they trade; log per-bet fill +
+                  resulting crowd size (small same-direction order flood); no capital
+Phase B VALIDATE  statistical skill bars (CLV persistence, shrinkage, min fills)
+                  → monitored list
+Phase C COPY      mirror validated wallets' bets ONLY while per-bet crowd size
+                  is below a measured threshold band (the load-bearing param —
+                  backtestable ex ante from on-chain crowd curves)
+Phase D RETIRE    crowd size/acceleration crosses the alpha-exhausted line →
+                  stop copying, return to watchlist
+```
+
+Key principles captured:
+- crowd size is a STATE VARIABLE, not a race — enter where thin, exit on its
+  acceleration (level is lagging; rate is leading); the whole crowd watches
+  the same signal so exit thresholds race downward
+- validation gates skill-vs-luck (a small crowd around a lucky wallet is a
+  mini-bubble; flow profit + negative informational drift = bag holder)
+- entry-price discipline: profit = whale's informational drift (only if entry
+  near their fill) + crowd flow carrying the position; miss the fill wave and
+  expectancy flips negative
+- wallet rotation handled by wallet-graph clustering (funding sources,
+  correlated timing) — track operators, not addresses
+- legal-market analog: small-activist 13D coattailing in micro/small caps
+  (obscure filers, untracked by the Ackman/Icahn crowd, positive abnormal
+  returns documented around early 13D positions)
+
+See `archive/findings/edge_landscape_memo.md` §2 #10 and §4 for the full
+discussion (including the crowd-as-feature insight and the institutional
+advantage map).
+
+### RC-4: Megatrend watcher (design notes; OVERLAY for the 90% core book, not the PEAD sleeve)
+
+Design-stage (2026-08-15). Long-horizon trend-following / time-series momentum
+on sector clusters. NOT a slot-filler for the PEAD book — months-long holds are
+architecturally incompatible with the 5-day 4-slot sleeve. Role: a WARNING /
+ALLOCATION indicator governing a small carve-out of the core 90% portfolio
+(real estate + S&P 500/blue-chip buy-and-hold, e.g. TotalEnergies, Danone).
+
+**Premise (verified 2026-08-15, Tiingo):** megatrends persist for years because
+institutional repositioning is constrained (career risk, benchmark hugging,
+capacity, redemptions) — underreaction at macro scale. Being late is fine.
+
+```text
+NVDA 2022->2026: +650%, ATH-days/yr 1/17/47/28/6, max DD from ATH -62.7%
+TSM  2022->2026: +256%, ATH-days/yr 4/0/24/28/23, max DD from ATH -56.5%
+200d-MA rule beat buy&hold on BOTH (+228% vs +201% logret NVDA; +142% vs
++127% TSM) while invested only ~70% of days — the trivial-rule bar the
+machinery must clear.
+```
+
+**Design skeleton:**
+- L1 TREND DETECTION — cluster-level scoring (12m momentum, 200d-MA distance,
+  ATH cadence/breadth) on sector ETFs + baskets. Price/breadth only; narratives
+  ("AI bubble" chatter) are the LAST signal to arrive — never inputs.
+- L2 LEADERSHIP — rank constituents within cluster (momentum + breadth).
+- L3 RISK CLUSTERING — cluster by RETURN CORRELATION, not GICS labels (solves
+  the multi-sector-company nuance automatically); correlated active trends =
+  ONE risk position (AI compute + shovels/TSM/Samsung/memory = one cluster,
+  one crash).
+- L4 ENTRY — slow build / pyramiding (thirds on confirmation; adds on
+  pullback-to-trend or new ATH bases).
+- L5 EXIT — cluster-composite trend break (composite < 150/200d MA, breadth
+  rollover). Fading is slow at CLUSTER level (distribution over months) but
+  violent at stock level (halvings in weeks) — detect on the composite only.
+
+**Honest classification:** this is documented trend-following (200 years of
+evidence, survives publication) — a RISK PREMIUM, not a hidden crack. Expect
+long flat periods (CTA lost decade 2011-2019) and momentum crashes
+(Daniel-Moskowitz) when sharp reversals hit crowded trends. Long-only equity
+variant: crashes = exit to cash, no short leg. Size assuming -50% cluster
+drawdowns are NORMAL, not tail events.
+
+**Validation bar (kill tests):**
+- A — SURVIVORSHIP: run 2020-2026 across ALL candidate megatrends incl. the
+dead (ARK-style innovation, crypto-adjacent, China tech, biotech, cleantech
+2021): must exit dead ones with acceptable loss AND ride the live ones.
+A backtest on winners only is a eulogy written in advance.
+- B — REGIME TABLE: 2008, 2011, 2015, 2018Q4, 2020 crash, 2022, 2023 chop.
+- C — TRIVIAL RULE BAR: machinery must beat 200d-MA-on-ETFs after costs; the
+  trivial rule already beat buy&hold on the motivating examples.
+
+**Deployment plan (user, 2026-08):** core 90% stays real estate + index/blue-
+chip buy-and-hold; a SMALL carve-out of the core (not the PEAD sleeve) tilts
+toward active megatrend clusters on signal, sized so cluster-crash scenarios
+do not threaten the core. PEAD sleeve remains 5-8% of net worth, unchanged.
+
+**Data:** in hand (Tiingo daily bars; sector ETFs cached in db.h5). Turnover
+low — whipsaw, not friction, is the enemy.
+
+**Phase-1 probe (when a research cycle opens):** the dead-trends exit test
+(Kill test A) on ETF proxies + leaders, 2015-2026.
+
+### RC-2: Senate-trade composite (parked, unlikely)
+
+Real drift exists (10–20d CAR +2.13% from disclosure close) but supply
+(~4.5 events/mo universe-wide, ~1.7 in September), 28-day median staleness,
+and horizon mismatch (5-day architecture vs 10–20d drift) park it.
+As a PEAD *feature* it also fails: ~1–2% row coverage → XGBoost learns noise.
+Revisit only if disclosure rules shorten (real-time filing legislation) or a
+10–20d horizon variant is ever approved.

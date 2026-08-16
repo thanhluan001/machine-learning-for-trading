@@ -460,7 +460,7 @@ Phase F ticket):
 
 After Phase B's contamination audit surfaced 3 distinct bug classes
 (`phase_b_contamination_audit.md`), a deeper probe-based comparison
-(`eodhd_vs_tiingo.md`, `tiingo_permaTicker_audit.md`) led to the
+(`04_backtest/archive/docs/eodhd_vs_tiingo.md` (archived), `tiingo_permaTicker_audit.md`) led to the
 conclusion that the synthetic `perm_id` mechanism defined in this
 spec was solving a problem Tiingo's data model natively solves.
 Tiingo's `permaTicker` field (queried via

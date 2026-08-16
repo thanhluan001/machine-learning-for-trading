@@ -1,0 +1,141 @@
+{
+  "model_class": "XGBClassifier",
+  "objective": "binary:logistic",
+  "features": [
+    "sue_lag_1",
+    "sue_lag_2",
+    "car_drift_historical_q1",
+    "pre_event_idiosyncratic_vol",
+    "pre_event_volume_trend",
+    "rel_ret_3d",
+    "rel_ret_5d",
+    "rel_ret_10d",
+    "rel_ret_20d",
+    "rel_ret_30d",
+    "sector_adjusted_ret_20d",
+    "revision_momentum_30d",
+    "revision_momentum_60d",
+    "revision_momentum_90d",
+    "revision_ordinal_momentum_90d",
+    "revision_intensity_90d",
+    "grade_dispersion_90d",
+    "n_analysts_covering",
+    "last_action_days_before_earnings",
+    "consecutive_surprises_pre",
+    "unemployment_roc21",
+    "fed_funds",
+    "vix"
+  ],
+  "dropped_features": [
+    "sue_score",
+    "eps_surprise_pct",
+    "consecutive_surprises",
+    "sue_acceleration",
+    "sue_abs_x_inverse_vol"
+  ],
+  "dropped_rationale": "These 5 features require the CURRENT earnings result (actual EPS), which is not available at pre-gap entry time (Close[T-1] BMO / Close[T] AMC). Using them constitutes look-ahead bias.",
+  "n_features": 23,
+  "hyperparameters": {
+    "gamma": 3,
+    "min_child_weight": 100,
+    "max_depth": 2,
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "reg_lambda": 1.0,
+    "subsample": 0.7,
+    "colsample_bytree": 0.7,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "theta": 0.2,
+  "training_rows": 16789,
+  "training_pead_events": 1793,
+  "training_pead_rate": 0.10679611650485436,
+  "deployable_operating_point": {
+    "theta": 0.2,
+    "entry": "pre-gap: Close[T-1] (BMO) / Close[T] (AMC)",
+    "exit": "Close[T+5] (5 trading days from report date)",
+    "stop_loss": "-10% delayed (skip gap day, check days 1+)",
+    "exclude_sectors": [
+      "XLF"
+    ],
+    "max_slots": 4,
+    "sizing": "equal-weight 1/4 NAV",
+    "selection": "weekly batch (per-week sort by P(PEAD), top N = free slots)"
+  },
+  "oos_stats_4fold_nested_cv": {
+    "n_trades": 102,
+    "win_rate_pct": 62.7,
+    "avg_pnl_per_trade_pct": 5.71,
+    "median_pnl_pct": 3.4,
+    "avg_win_pct": 13.06,
+    "avg_loss_pct": -6.68,
+    "payoff_ratio": 1.96,
+    "profit_factor": 3.3,
+    "total_pnl_raw_sum_pct": 582.3,
+    "total_pnl_nav_compounded_pct": 293.8,
+    "nav_multiplier": 3.94,
+    "max_drawdown_nav_pct": -5.9,
+    "pead_precision_pct": 30.4,
+    "large_pead_n": 20,
+    "large_pead_win_rate_pct": 85.0,
+    "large_pead_avg_return_pct": 20.66,
+    "annualized_sharpe_approx": 3.1,
+    "per_fold_nav_pct": [
+      42.7,
+      41.4,
+      30.9,
+      49.2
+    ],
+    "per_fold_win_pct": [
+      75,
+      70,
+      46,
+      64
+    ],
+    "min_fold_nav_pct": 30.9,
+    "fold_range_pp": 18.3
+  },
+  "lookahead_audit": {
+    "issue": "The previous 24-feature model (phase_g_v2_binary) had look-ahead bias from 5 SUE-based features that required the current earnings result.",
+    "fix": "Dropped 5 features, added consecutive_surprises_pre (prior-quarter beat streak) + 3 macro regime features (unemployment_roc21, fed_funds, vix).",
+    "macro_rationale": "Without current SUE, macros provide regime context that helps filter bad-environment picks. The 2025 H1 mini-recession (fold 2) was correctly navigated by macro features.",
+    "honest_vs_lookahead_nav": "293.8% honest vs 280.7% look-ahead (look-ahead was INFLATED by using future information)"
+  },
+  "feature_groups": {
+    "prior_earnings": [
+      "sue_lag_1",
+      "sue_lag_2",
+      "car_drift_historical_q1",
+      "consecutive_surprises_pre"
+    ],
+    "price_momentum": [
+      "rel_ret_3d",
+      "rel_ret_5d",
+      "rel_ret_10d",
+      "rel_ret_20d",
+      "rel_ret_30d",
+      "sector_adjusted_ret_20d"
+    ],
+    "volatility_volume": [
+      "pre_event_idiosyncratic_vol",
+      "pre_event_volume_trend"
+    ],
+    "analyst_revisions": [
+      "revision_momentum_30d",
+      "revision_momentum_60d",
+      "revision_momentum_90d",
+      "revision_ordinal_momentum_90d",
+      "revision_intensity_90d",
+      "grade_dispersion_90d",
+      "n_analysts_covering",
+      "last_action_days_before_earnings"
+    ],
+    "macro_regime": [
+      "unemployment_roc21",
+      "fed_funds",
+      "vix"
+    ]
+  },
+  "training_artifact_note": "consecutive_surprises_pre and macro features are computed at inference time (not stored in train_matrix). The live script must compute these before model.predict_proba()."
+}

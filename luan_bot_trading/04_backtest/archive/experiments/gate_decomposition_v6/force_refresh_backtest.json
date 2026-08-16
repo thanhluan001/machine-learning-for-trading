@@ -1,0 +1,137 @@
+{
+  "dev_1_3": {
+    "select_weekly_ref": {
+      "trades": 91,
+      "win_rate_pct": 59.34065934065934,
+      "nav_pct": 83.07280937599278
+    },
+    "conviction_skip": {
+      "trades": 112,
+      "win_rate_pct": 58.92857142857143,
+      "avg_win_pct": 10.306837086875623,
+      "avg_loss_pct": -8.596211393236073,
+      "max_dd_pct": -14.13182745441692,
+      "nav_pct": 90.63676524357933,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh": {
+      "trades": 128,
+      "win_rate_pct": 59.375,
+      "avg_win_pct": 10.773307020497132,
+      "avg_loss_pct": -8.513105039321783,
+      "max_dd_pct": -15.597170868246446,
+      "nav_pct": 133.70790176200705,
+      "force_sold": 26,
+      "avg_force_hold": 3.8461538461538463
+    }
+  },
+  "fold_1": {
+    "select_weekly_ref": {
+      "trades": 23,
+      "win_rate_pct": 60.86956521739131,
+      "nav_pct": 10.006252234580494
+    },
+    "conviction_skip": {
+      "trades": 28,
+      "win_rate_pct": 57.14285714285714,
+      "avg_win_pct": 10.818166869530264,
+      "avg_loss_pct": -9.955922569504223,
+      "max_dd_pct": -14.13182745441692,
+      "nav_pct": 11.167188427090458,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh": {
+      "trades": 33,
+      "win_rate_pct": 60.60606060606061,
+      "avg_win_pct": 11.590128724413532,
+      "avg_loss_pct": -9.598490322496527,
+      "max_dd_pct": -9.55927425479921,
+      "nav_pct": 26.76253118222749,
+      "force_sold": 8,
+      "avg_force_hold": 4.125
+    }
+  },
+  "fold_2": {
+    "select_weekly_ref": {
+      "trades": 37,
+      "win_rate_pct": 64.86486486486487,
+      "nav_pct": 52.74797339869026
+    },
+    "conviction_skip": {
+      "trades": 47,
+      "win_rate_pct": 65.95744680851064,
+      "avg_win_pct": 11.164544848120673,
+      "avg_loss_pct": -7.301115616499176,
+      "max_dd_pct": -5.680516802440583,
+      "nav_pct": 72.84343713949737,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh": {
+      "trades": 53,
+      "win_rate_pct": 66.0377358490566,
+      "avg_win_pct": 10.84782335505042,
+      "avg_loss_pct": -7.370759823592373,
+      "max_dd_pct": -9.716187931501494,
+      "nav_pct": 78.73335807528665,
+      "force_sold": 9,
+      "avg_force_hold": 3.4444444444444446
+    }
+  },
+  "fold_3": {
+    "select_weekly_ref": {
+      "trades": 31,
+      "win_rate_pct": 51.61290322580645,
+      "nav_pct": 8.950949671614161
+    },
+    "conviction_skip": {
+      "trades": 37,
+      "win_rate_pct": 51.35135135135135,
+      "avg_win_pct": 8.476825659450844,
+      "avg_loss_pct": -8.84093352171233,
+      "max_dd_pct": -11.24222279083991,
+      "nav_pct": -0.7850439604931925,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh": {
+      "trades": 42,
+      "win_rate_pct": 50.0,
+      "avg_win_pct": 9.871187697273655,
+      "avg_loss_pct": -8.820352906076911,
+      "max_dd_pct": -15.59717086824645,
+      "nav_pct": 3.151816126810858,
+      "force_sold": 9,
+      "avg_force_hold": 4.0
+    }
+  },
+  "fold_4": {
+    "select_weekly_ref": {
+      "trades": 40,
+      "win_rate_pct": 70.0,
+      "nav_pct": 43.72227362118897
+    },
+    "conviction_skip": {
+      "trades": 51,
+      "win_rate_pct": 68.62745098039215,
+      "avg_win_pct": 9.430902021807604,
+      "avg_loss_pct": -7.700594832680534,
+      "max_dd_pct": -4.256017367704676,
+      "nav_pct": 62.98680406619304,
+      "force_sold": 0,
+      "avg_force_hold": 0.0
+    },
+    "force_refresh": {
+      "trades": 66,
+      "win_rate_pct": 66.66666666666666,
+      "avg_win_pct": 10.497490058712243,
+      "avg_loss_pct": -9.587182029648812,
+      "max_dd_pct": -10.683667081219864,
+      "nav_pct": 77.04872376320122,
+      "force_sold": 27,
+      "avg_force_hold": 4.111111111111111
+    }
+  }
+}
