@@ -1111,6 +1111,17 @@ low — whipsaw, not friction, is the enemy.
 **Phase-1 probe (when a research cycle opens):** the dead-trends exit test
 (Kill test A) on ETF proxies + leaders, 2015-2026.
 
+**Phase 1 RESULT (2026-08-16): KILL TEST A PASSED** — see
+`archive/findings/megatrend_phase1_findings.md` + script `71_megatrend_phase1_dead_trends.py`.
+Headline: trivial MA200 state machine exits 13 dead megatrends at −28.6% mean
+giveback-from-peak (vs −62..−98% B&H drawdowns; MSTR +2157% vs +653%), keeps
+80–88% of live AI-complex upside, cuts maxDD 17–26pp; MONTHLY-cadence variant
+passes all criteria (13/13 DD-wins, 80% capture) → month-end decision cadence
+is operationally viable. Caveats: ranging assets whipsaw (Phase-2 cluster
+ranking handles), SPY/QQQ capture only 66–72% (overlay for trending clusters,
+not whole portfolio). Phase 2 next: correlation clusters + composite scoring,
+must beat this floor (Kill test C).
+
 ### RC-2: Senate-trade composite (parked, unlikely)
 
 Real drift exists (10–20d CAR +2.13% from disclosure close) but supply
