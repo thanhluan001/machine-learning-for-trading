@@ -1219,6 +1219,19 @@ superiority or forward-validation evidence. Next gate: benchmark excess-return
 and drawdown bootstrap, rolling chronology, proxy/missing-capex stress, and
 leave-one-theme-out testing. Manual operational watcher remains unchanged.
 
+**RC-4 final benchmark/stress gate (2026-08-17): return advantage, risk failure.**
+Script `85_megatrend_partial_exposure_final_stress_gate.py` compared A–D with
+SPY/static 60/40, 50/100bp costs, 3/6/12-month capex delays, missing capex,
+rolling 36-month excess return, block bootstrap, and leave-one-theme-out stress.
+All four beat SPY on cumulative return in the 2014–2026 proxy sample, but all
+had materially worse active drawdown (~-43% to -46% vs SPY ~-24%). D remained
+strongest; its edge survived capex delays but degraded with missing capex. The
+AI leave-one-theme-out test made D underperform SPY and showed worse drawdown.
+Conclusion: partial rotation is an interesting high-risk thematic portfolio,
+not a validated low-risk core-book overlay. No automatic or manual allocation
+rule is promoted; the watcher remains the operational endpoint. Findings:
+`archive/findings/megatrend_partial_exposure_final_stress_gate_findings.md`.
+
 **Phase 2b/2c (2026-08-16, post-closure refinements): gradual momentum pivot
 REJECTED + capex tilt REJECTED.** See
 `archive/findings/megatrend_phase2b2c_findings.md` + scripts `75`/`76`.
