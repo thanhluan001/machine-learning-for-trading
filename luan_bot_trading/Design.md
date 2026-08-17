@@ -1153,6 +1153,21 @@ Deployed component = monthly breadth report (fraction of 26-asset universe
 above 10m mean; current reading 20/26) on month-end cadence, zero capital.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
+
+**Phase 2b/2c (2026-08-16, post-closure refinements): gradual momentum pivot
+REJECTED + capex tilt REJECTED.** See
+`archive/findings/megatrend_phase2b2c_findings.md` + scripts `75`/`76`.
+Pivot (k-swept momentum tilt): +449%/−33.0% vs floor +390%/−29.7% full; worse
+on BOTH dims ex-winners (+141%/−26.8%) — maximal trailing momentum = maximal
+weight immediately before death; gradualness does not fix fattest-at-top.
+Capex probe: user's scale hypothesis CONFIRMED (AI capex 174–401x crypto,
+$574B TTM 2026) but the natural experiment kills the tilt role — clean-energy
+capex ROSE +13% into ICLN's −43%..−58% (peaked 3 years after price; rolled
+over only 2024) = capex LAGS at death (capital-cycle oversupply mode).
+Salvage: capex as descriptive context in the breadth report (never selection).
+General law added: for long-only trend participation, ANY confirmation signal
+is procyclical at trend death — the confirmation IS the crowding. Pivot path
+closed at every layer (binary P2 / gradual 2b / fundamental 2c).
 `archive/findings/megatrend_phase1_findings.md` + script `71_megatrend_phase1_dead_trends.py`.
 Headline: trivial MA200 state machine exits 13 dead megatrends at −28.6% mean
 giveback-from-peak (vs −62..−98% B&H drawdowns; MSTR +2157% vs +653%), keeps
