@@ -207,3 +207,51 @@ Next gate: independently join these normalized month-end observations to the
 fixed equity-stress and recovery episodes, measure false-reentry reduction and
 missed recoveries, and keep the result research-only unless it clears the
 pre-registered episode bar. Script 74 remains the sole deployed component.
+
+## Step 4 false-reentry test (2026-08-16)
+
+Script `81_megatrend_false_reentry_test.py` performed the fixed episode test.
+The first run was rejected because the 17-name equity panel was historically
+incomplete (only SPY/QQQ existed in the cache in 2008). The corrected run uses
+an expanding, category-fixed panel and requires at least five names with valid
+10-month means. It also excludes the current partial month and prevents one
+recovery from being reused by overlapping stress onsets.
+
+### Corrected result
+
+```text
+complete non-overlapping recovery episodes: 9
+baseline allowed-reentry relapse rate:       33.3%
+insider-filter blocked episodes:              3
+insider-filter blocked relapse rate:         33.3%
+insider-filter blocked positive recoveries:  66.7%
+news-filter blocked episodes:                  0
+```
+
+Episode observations included 2020 and 2022, but only five valid historical
+equity names were available in those years. 2008 is explicitly marked
+`NO_VALID_STRESS` under the five-name coverage requirement; it is not reported
+as a zero-relapse success. This means the result is underpowered and should not
+be read as a general historical validation.
+
+The normalized insider filter did not reduce relapse and blocked profitable
+recoveries. The normalized news candidate produced no recovery blocks. The
+channels therefore **fail the timing-confirmation test** and are not promoted
+to Script 74, automatic exits, or automatic re-entry logic.
+
+### Status after Step 4
+
+```text
+ADOPT:       panelized monthly dashboard (Script 74)
+CONTEXT:     relative capex; normalized insider/news diagnostics
+CLOSED:      insider/news as current false-reentry filters
+NOT tested:  causal predictive value; PEAD features (separate RC-1 cycle)
+```
+
+Artifacts:
+
+```text
+04_backtest/81_megatrend_false_reentry_test.py
+04_backtest/archive/experiments/rc4_false_reentry_episodes.csv
+04_backtest/archive/experiments/rc4_false_reentry_summary.json
+```

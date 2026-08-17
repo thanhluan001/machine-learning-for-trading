@@ -1,0 +1,148 @@
+{
+ "script": "81_megatrend_false_reentry_test.py",
+ "status": "research_only",
+ "definitions": {
+  "stress": "available equity breadth <50%, SPY trailing 3m return <0, >=5 valid names",
+  "recovery": "first later month after onset with breadth >=60%; non-overlapping episodes",
+  "partial_current_month_excluded": true,
+  "horizon": "six following month-end observations"
+ },
+ "n_episodes": 9,
+ "results": [
+  {
+   "filter": "none",
+   "n_episodes": 9,
+   "blocked": 0,
+   "allowed": 9,
+   "allowed_relapses": 3,
+   "allowed_relapse_rate": 0.3333333333333333,
+   "blocked_relapses": 0,
+   "blocked_relapse_rate": null,
+   "potentially_avoided_relapses": 0,
+   "blocked_positive_recoveries": 0,
+   "blocked_positive_rate": null,
+   "allowed_positive_rate": 0.8888888888888888,
+   "mean_fwd6_allowed": 0.06874269229677547,
+   "mean_fwd6_blocked": null
+  },
+  {
+   "filter": "insider_candidate",
+   "n_episodes": 9,
+   "blocked": 3,
+   "allowed": 6,
+   "allowed_relapses": 2,
+   "allowed_relapse_rate": 0.3333333333333333,
+   "blocked_relapses": 1,
+   "blocked_relapse_rate": 0.3333333333333333,
+   "potentially_avoided_relapses": 1,
+   "blocked_positive_recoveries": 2,
+   "blocked_positive_rate": 0.6666666666666666,
+   "allowed_positive_rate": 1.0,
+   "mean_fwd6_allowed": 0.07206742172897478,
+   "mean_fwd6_blocked": 0.06209323343237686
+  },
+  {
+   "filter": "news_candidate",
+   "n_episodes": 9,
+   "blocked": 0,
+   "allowed": 9,
+   "allowed_relapses": 3,
+   "allowed_relapse_rate": 0.3333333333333333,
+   "blocked_relapses": 0,
+   "blocked_relapse_rate": null,
+   "potentially_avoided_relapses": 0,
+   "blocked_positive_recoveries": 0,
+   "blocked_positive_rate": null,
+   "allowed_positive_rate": 0.8888888888888888,
+   "mean_fwd6_allowed": 0.06874269229677547,
+   "mean_fwd6_blocked": null
+  },
+  {
+   "filter": "any",
+   "n_episodes": 9,
+   "blocked": 3,
+   "allowed": 6,
+   "allowed_relapses": 2,
+   "allowed_relapse_rate": 0.3333333333333333,
+   "blocked_relapses": 1,
+   "blocked_relapse_rate": 0.3333333333333333,
+   "potentially_avoided_relapses": 1,
+   "blocked_positive_recoveries": 2,
+   "blocked_positive_rate": 0.6666666666666666,
+   "allowed_positive_rate": 1.0,
+   "mean_fwd6_allowed": 0.07206742172897478,
+   "mean_fwd6_blocked": 0.06209323343237686
+  },
+  {
+   "filter": "both",
+   "n_episodes": 9,
+   "blocked": 0,
+   "allowed": 9,
+   "allowed_relapses": 3,
+   "allowed_relapse_rate": 0.3333333333333333,
+   "blocked_relapses": 0,
+   "blocked_relapse_rate": null,
+   "potentially_avoided_relapses": 0,
+   "blocked_positive_recoveries": 0,
+   "blocked_positive_rate": null,
+   "allowed_positive_rate": 0.8888888888888888,
+   "mean_fwd6_allowed": 0.06874269229677547,
+   "mean_fwd6_blocked": null
+  }
+ ],
+ "regimes": {
+  "2008": [],
+  "2020": [
+   {
+    "stress_onset": "2020-02-29",
+    "recovery_month": "2020-06-30",
+    "breadth_at_recovery": 0.6,
+    "spy3_at_recovery": 0.20164889442205025,
+    "available_equity_names_at_recovery": 5,
+    "relapse_6m": false,
+    "fwd_spy_6m": 0.22259992612514856,
+    "future_months": 6,
+    "insider_candidate": true,
+    "news_candidate": false,
+    "insider_coverage": true,
+    "news_coverage": false,
+    "regime": "2020",
+    "calendar_regime": "2010-2020"
+   }
+  ],
+  "2022": [
+   {
+    "stress_onset": "2022-02-28",
+    "recovery_month": "2022-03-31",
+    "breadth_at_recovery": 0.6,
+    "spy3_at_recovery": -0.04617675436955826,
+    "available_equity_names_at_recovery": 5,
+    "relapse_6m": true,
+    "fwd_spy_6m": -0.2024516749635168,
+    "future_months": 6,
+    "insider_candidate": true,
+    "news_candidate": false,
+    "insider_coverage": true,
+    "news_coverage": false,
+    "regime": "2022",
+    "calendar_regime": "2021-2023"
+   },
+   {
+    "stress_onset": "2022-04-30",
+    "recovery_month": "2022-11-30",
+    "breadth_at_recovery": 0.6,
+    "spy3_at_recovery": 0.03590258895668397,
+    "available_equity_names_at_recovery": 5,
+    "relapse_6m": false,
+    "fwd_spy_6m": 0.033686785994722745,
+    "future_months": 6,
+    "insider_candidate": false,
+    "news_candidate": false,
+    "insider_coverage": true,
+    "news_coverage": false,
+    "regime": "2022",
+    "calendar_regime": "2021-2023"
+   }
+  ]
+ }
+}

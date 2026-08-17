@@ -1164,6 +1164,16 @@ operational taxonomy, company-relative event percentiles, denominators,
 coverage gates, and explicit missing provenance. Latest month passes neither
 normalized warning candidate rule. No signal or allocation action is approved;
 the next gate is a fixed-episode false-reentry test.
+
+**RC-4 Step 4 result (2026-08-16): insider/news timing confirmation failed.**
+The corrected expanding-panel test (`81_megatrend_false_reentry_test.py`) found
+9 non-overlapping recovery episodes. Baseline relapse was 33.3%; the normalized
+insider filter blocked 3 episodes with the same 33.3% relapse rate and blocked
+66.7% profitable recoveries. The normalized news filter blocked zero episodes.
+The 2008 observation is explicitly unavailable because the cache has fewer than
+five valid equity names; 2020/2022 have only five. No insider/news filter is
+promoted. Script 74 remains the sole deployed RC-4 component; normalized
+insider/news remain descriptive research artifacts.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
 
