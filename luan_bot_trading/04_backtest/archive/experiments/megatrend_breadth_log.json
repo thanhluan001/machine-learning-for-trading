@@ -1,0 +1,17 @@
+{
+ "2026-08-31": {
+  "frac": 0.741,
+  "n_above": 20,
+  "n_total": 27,
+  "zone": "NARROWING",
+  "below": [
+   "AGG",
+   "GLD",
+   "GXTG",
+   "ILF",
+   "REMX",
+   "TLT",
+   "XLC"
+  ]
+ }
+}
