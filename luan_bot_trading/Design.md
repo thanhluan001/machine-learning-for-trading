@@ -1136,6 +1136,23 @@ descriptive semantics (which-trend reporting for the warning role).
 **Phase 3 (redirected):** regime table + BROAD deployment universe (GICS
 sectors + theme ETFs, structurally less survivor-flattered) for the FLOOR —
 open question: does it beat SPY B&H with lower DD on the real universe?
+
+**Phase 3 RESULT (2026-08-16): FAILED as strategy — SALVAGED as warning
+indicator.** See `archive/findings/megatrend_phase3_findings.md` + script
+`73_megatrend_phase3_broad_regime.py`. On the 26-asset category universe
+(2006-2026): floor +245%/maxDD −33.4% vs SPY +784%/−50.8% — crash insurance
+(2008: −11% vs −46%) but 13/20 years trail SPY, worst −20pp (2022). 2022
+diagnosis: exit machinery works (basket empties at every break) but re-entry
+whipsaw into bear rallies; dual-confirm improves 2008 (−7%) and worsens 2022
+(−43%) — regime-structural, no in-family fix. ALSO: equal-weight-17-names is
+NOT megatrend exposure (Phase-2's concentration WAS the thesis expression —
+universe choice inverted the structural conclusion).
+
+**RC-4 FINAL STATUS: warning-indicator role adopted; strategy role closed.**
+Deployed component = monthly breadth report (fraction of 26-asset universe
+above 10m mean; current reading 20/26) on month-end cadence, zero capital.
+Three-phase funnel shape (exit pass → selection fail → deployment fail) is
+the expected honest arc.
 `archive/findings/megatrend_phase1_findings.md` + script `71_megatrend_phase1_dead_trends.py`.
 Headline: trivial MA200 state machine exits 13 dead megatrends at −28.6% mean
 giveback-from-peak (vs −62..−98% B&H drawdowns; MSTR +2157% vs +653%), keeps
