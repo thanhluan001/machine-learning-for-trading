@@ -85,6 +85,29 @@ The report includes full-market theme-company Form 4 and FMP operational-news
 context. These are descriptive diagnostics only. The normalized research
 versions were tested and did not pass the false-re-entry timing test.
 
+### 6. Advisory thematic ratios
+
+The report also prints two ratios for a separately sized, high-risk thematic
+sleeve:
+
+```text
+Absolute TTM capex ratio:
+    where capital expenditure is concentrated
+
+Algorithmic current reference:
+    fixed Cycle-1/D simulation: 50% price leadership + 50% capex,
+    10% floor, 70% cap, 10 percentage-point monthly movement limit
+
+Algorithmic trailing-24-month average:
+    recent simulated allocation context
+```
+
+The current reference is approximately 70% AI/hyperscale, 20% clean energy,
+and 10% crypto. The absolute capex ratio is currently approximately 95% AI,
+4% clean energy, and 1% crypto. These are not instructions to allocate that
+percentage of the core portfolio. The thematic sleeve size must be selected
+separately according to the operator's risk budget.
+
 ## Manual interpretation
 
 Use this sequence:
@@ -98,7 +121,9 @@ Use this sequence:
 ```
 
 The watcher does not tell the operator to buy or sell. It supplies a repeatable
-monthly state report for judgment.
+monthly state report for judgment. The ratio references describe a possible
+mix inside a separately sized high-risk sleeve; they do not change the manual
+core-book process.
 
 ## Operational boundaries
 

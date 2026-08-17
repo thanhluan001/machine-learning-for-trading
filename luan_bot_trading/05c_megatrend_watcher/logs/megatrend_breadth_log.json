@@ -47,6 +47,28 @@
     "crypto": 0.007492497153031103
    }
   },
+  "advisory_ratio": {
+   "asof": "2026-08-31",
+   "signal_month": "2026-08-31",
+   "config": {
+    "price_weight": 0.5,
+    "capex_weight": 0.5,
+    "floor": 0.1,
+    "cap": 0.7,
+    "monthly_step": 0.1
+   },
+   "current": {
+    "AI/hyperscale": 0.6499999999999999,
+    "clean_energy": 0.23385753923300925,
+    "crypto": 0.11614246076699077
+   },
+   "trailing_24m_average": {
+    "AI/hyperscale": 0.5587785720982673,
+    "clean_energy": 0.16064102242716913,
+    "crypto": 0.2805804054745636
+   },
+   "trailing_24m_months": 24
+  },
   "insider": {
    "AI/hyperscale": {
     "buy_b": 0.37357,
@@ -84,6 +106,115 @@
     "articles": 586,
     "neg_days": 8,
     "pos_days": 0,
+    "warning": true
+   }
+  }
+ },
+ "2026-07-31": {
+  "equity": {
+   "frac": 0.824,
+   "zone": "HEALTHY",
+   "active": [
+    "EEM",
+    "EFA",
+    "IJR",
+    "IWM",
+    "QQQ",
+    "SPY",
+    "XLB",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLRE",
+    "XLV"
+   ]
+  },
+  "theme": {
+   "frac": 0.333,
+   "active": [
+    "AI/hyperscale",
+    "biotech"
+   ]
+  },
+  "cross_asset": {
+   "frac": 0.25,
+   "active": [
+    "SHY"
+   ]
+  },
+  "capex": {
+   "values_b": {
+    "AI/hyperscale": 573.798,
+    "clean_energy": 25.957119,
+    "crypto": 4.48123
+   },
+   "shares": {
+    "AI/hyperscale": 0.9496250944677941,
+    "clean_energy": 0.04295855263086796,
+    "crypto": 0.00741635290133795
+   }
+  },
+  "advisory_ratio": {
+   "asof": "2026-07-31",
+   "signal_month": "2026-07-31",
+   "config": {
+    "price_weight": 0.5,
+    "capex_weight": 0.5,
+    "floor": 0.1,
+    "cap": 0.7,
+    "monthly_step": 0.1
+   },
+   "current": {
+    "AI/hyperscale": 0.6888888888888889,
+    "clean_energy": 0.2055555555555556,
+    "crypto": 0.10555555555555557
+   },
+   "trailing_24m_average": {
+    "AI/hyperscale": 0.5909722222222222,
+    "clean_energy": 0.13888888888888892,
+    "crypto": 0.2701388888888889
+   },
+   "trailing_24m_months": 24
+  },
+  "insider": {
+   "AI/hyperscale": {
+    "buy_b": 0.37357,
+    "sell_b": 834.009181399804,
+    "net_b": -833.635611399804,
+    "warning": "True"
+   },
+   "clean_energy": {
+    "buy_b": 0.35035956,
+    "sell_b": 13.6802304928,
+    "net_b": -13.329870932799999,
+    "warning": "True"
+   },
+   "crypto": {
+    "buy_b": 0.9987560000000001,
+    "sell_b": 40.746042081300004,
+    "net_b": -39.747286081300004,
+    "warning": "True"
+   }
+  },
+  "news": {
+   "AI/hyperscale": {
+    "articles": 10537,
+    "neg_days": 113,
+    "pos_days": 63,
+    "warning": true
+   },
+   "clean_energy": {
+    "articles": 782,
+    "neg_days": 6,
+    "pos_days": 4,
+    "warning": true
+   },
+   "crypto": {
+    "articles": 762,
+    "neg_days": 13,
+    "pos_days": 1,
     "warning": true
    }
   }
