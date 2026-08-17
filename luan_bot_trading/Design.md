@@ -1207,6 +1207,18 @@ sacrificed too much 2020 recovery. No cell cleared the strict all-block gate;
 no operational allocation rule changed. Findings:
 `archive/findings/megatrend_partial_exposure_cycle2_findings.md`.
 
+**RC-4 short-list gate (2026-08-17): descriptive stability passed; promotion
+still deferred.** Script `84_megatrend_partial_exposure_short_gate.py` tested
+only four fixed candidates (price/cap 50/step 10, price/cap 50/step 15,
+price+capex/cap 50/step 10, price+capex/cap 70/step 10) at 0/50/100bp costs.
+All four were positive in each fixed calendar block at 50bp and all survived
+through 100bp; 2022 losses remained severe at approximately -37% to -39%.
+The price+capex 70% cap had the strongest gross sample profile but is not
+selected post hoc. Bootstrap was run on absolute return only and is not
+superiority or forward-validation evidence. Next gate: benchmark excess-return
+and drawdown bootstrap, rolling chronology, proxy/missing-capex stress, and
+leave-one-theme-out testing. Manual operational watcher remains unchanged.
+
 **Phase 2b/2c (2026-08-16, post-closure refinements): gradual momentum pivot
 REJECTED + capex tilt REJECTED.** See
 `archive/findings/megatrend_phase2b2c_findings.md` + scripts `75`/`76`.
