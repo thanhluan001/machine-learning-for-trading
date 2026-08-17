@@ -178,6 +178,26 @@
    },
    "trailing_24m_months": 24
   },
+  "theme_candidates": [
+   {
+    "symbol": "ILF",
+    "rel12": 0.23444291125575623,
+    "rel12_change": 0.14110284093445635,
+    "months_history": 43
+   },
+   {
+    "symbol": "ZM",
+    "rel12": 0.0857322978509063,
+    "rel12_change": 0.17999949331210952,
+    "months_history": 88
+   },
+   {
+    "symbol": "IYT",
+    "rel12": 0.05557281318732232,
+    "rel12_change": 0.00909953939147412,
+    "months_history": 43
+   }
+  ],
   "insider": {
    "AI/hyperscale": {
     "buy_b": 0.37357,

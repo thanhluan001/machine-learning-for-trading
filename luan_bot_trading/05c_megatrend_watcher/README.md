@@ -125,6 +125,24 @@ monthly state report for judgment. The ratio references describe a possible
 mix inside a separately sized high-risk sleeve; they do not change the manual
 core-book process.
 
+### 7. Theme candidates (new-theme watchlist)
+
+Each month the report also lists cached non-panel series that:
+
+```text
+1. have at least 10 months of price history,
+2. are above their own 10-month mean,
+3. have positive and rising 12-month relative strength vs SPY.
+```
+
+This is a review list only. Nothing is auto-added to the theme panels, the
+breadth calculations, or the advisory ratios. Promoting a candidate to a
+tracked theme is a deliberate manual decision (category check, proxy mapping,
+and optionally a member-level capex panel), made at most quarterly.
+
+Current examples: ILF (Latin America), ZM, IYT (transports) — flagged with
+their relative-strength values and history length.
+
 ## Operational boundaries
 
 ```text

@@ -17,6 +17,9 @@ PANELS
 6. NEWS context: timestamped FMP operational keyword balance (diagnostic only).
 7. ADVISORY allocation references: absolute capex ratio and the fixed Cycle-1
    price+capex bounded-rotation reference ratio.
+8. THEME CANDIDATES: cached non-panel series that recently entered their own
+   uptrend with rising relative strength. Descriptive watchlist for manual
+   review only; nothing is auto-added to the theme panels.
 
 The panel split prevents normal theme rotation from being confused with broad
 equity stress. Price breadth remains the timing signal. Capex/insider/news are
@@ -87,6 +90,22 @@ THEME_MEMBERS = {
     "clean_energy": ["FSLR", "ENPH", "SEDG", "NEE", "RUN", "PLUG"],
     "crypto": ["MSTR", "COIN", "RIOT", "MARA", "CLSK"],
 }
+
+# Candidate pool for the new-theme watchlist: series already cached in
+# db_megatrend.h5 but NOT part of any panel. Category-diverse by construction
+# (Phase-1 universe), so the watchlist cannot silently become a winners list.
+CANDIDATE_POOL = [
+    "ARKK", "COIN", "EEM", "GDX", "IBB", "ICLN", "KWEB", "LIT", "MSTR",
+    "NVDA", "PTON", "PYPL", "QQQ", "SHOP", "SMH", "SPAK", "SPY", "TAN",
+    "TSM", "URA", "VNQ", "XBI", "XLE", "XLU", "XYZ", "ZM",  # Phase-1 trend universe
+    "EPP", "GXTG", "ILF", "ITA", "ITB", "IYT", "KWEB", "LIT", "PAVE",
+    "PBW", "REMX", "WOOD", "XME", "VNQ", "AGG", "TLT", "GLD", "SHY",
+    "EFA", "IWM", "IJR", "XL*",
+]
+PANEL_SERIES = set(
+    EQUITY + CROSS_ASSET
+    + [s for v in THEME_PROXIES.values() for s in v]
+)
 NEGATIVE_TERMS = re.compile(
     r"(?:guidance\s+(?:cut|lower|reduc)|lower(?:ed|ing)?\s+guidance|"
     r"capex\s+(?:cut|reduc|slash|lower)|weak\s+(?:demand|orders?|backlog)|"
@@ -282,6 +301,47 @@ def algorithmic_reference(M: pd.DataFrame, asof: pd.Timestamp) -> dict:
             "trailing_24m_months": int(len(recent))}
 
 
+def theme_candidates(M: pd.DataFrame, asof: pd.Timestamp) -> list[dict]:
+    """Descriptive watchlist: cached non-panel series newly in their own uptrend.
+
+    Flags a candidate when ALL hold at the latest completed month:
+      1. >=10 months of price history (valid 10m mean),
+      2. price above its own 10-month mean,
+      3. 12-month relative return vs SPY is positive and improving vs prior month.
+    This is a review list only: nothing is auto-added to any panel or ratio.
+    """
+    with pd.HDFStore(DB_MT, mode="r") as s:
+        cached = {k.rsplit("/", 1)[-1] for k in s.keys()}
+    spy = M["SPY"].dropna() if "SPY" in M.columns else None
+    if spy is None:
+        return []
+    spy_rel_base = spy / spy.shift(12)
+    out = []
+    for sym in sorted(cached):
+        if sym in PANEL_SERIES or sym not in M.columns:
+            continue
+        p = M[sym].dropna()
+        if len(p) < 11:  # need >=10 months history + a prior month to compare
+            continue
+        ma = M[sym].rolling(10).mean()
+        last, prior = asof, M.index[M.index < asof][-1]
+        if pd.isna(ma.loc[last]) or pd.isna(M[sym].loc[last]):
+            continue
+        above = M[sym].loc[last] > ma.loc[last]
+        rel = (M[sym] / M["SPY"]).dropna()
+        rel12 = rel / rel.shift(12)
+        if pd.isna(rel12.loc[last]) or pd.isna(rel12.loc[prior]):
+            continue
+        rising = rel12.loc[last] > rel12.loc[prior] and rel12.loc[last] > 1.0
+        if above and rising:
+            out.append({"symbol": sym,
+                        "rel12": float(rel12.loc[last] - 1.0),
+                        "rel12_change": float(rel12.loc[last] - rel12.loc[prior]),
+                        "months_history": int(len(p))})
+    out.sort(key=lambda x: -x["rel12"])
+    return out
+
+
 def latest_insider(asof: pd.Timestamp) -> dict:
     result = {}
     if not DB_INSIDER.exists():
@@ -350,6 +410,7 @@ def main():
     theme_breadth, theme_active, theme_inactive = panel_breadth(themeM, list(themeM.columns))
     capex = latest_capex(asof)
     advisory_ratio = algorithmic_reference(M, asof)
+    candidates = theme_candidates(M, asof)
     insider = latest_insider(asof); news = latest_news(asof)
     eq_frac = float(equity.loc[asof]); cross_frac = float(cross.loc[asof]); theme_frac = float(theme_breadth.loc[asof])
     print(f"\n[2] AS OF {asof.date()}")
@@ -371,23 +432,30 @@ def main():
     print(f"  Algorithmic trailing-{advisory_ratio.get('trailing_24m_months', 0)}-month average:")
     for t, w in advisory_ratio.get("trailing_24m_average", {}).items(): print(f"    {t:>16}: {w*100:5.1f}%")
     print("  Interpretation: use as a high-risk sleeve reference, not a 90%-core allocation.")
-    print("\n[8] Insider trailing 90d material net flow ($M; negative = selling):")
+    print(f"\n[8] THEME CANDIDATES (review list only; not auto-added to any panel)")
+    print("  Criteria: >=10m history, above own 10m mean, 12m relative strength vs SPY positive and rising.")
+    if candidates:
+        for c in candidates[:10]: print(f"    {c['symbol']:>6}: rel12 {c['rel12']*100:+6.1f}%  d_rel12 {c['rel12_change']*100:+5.1f}%  history {c['months_history']}m")
+    else:
+        print("    (none)")
+    print("\n[9] Insider trailing 90d material net flow ($M; negative = selling):")
     for t, x in insider.items(): print(f"    {t:>16}: net={x['net_b']:+,.1f}  buy={x['buy_b']:,.1f} sell={x['sell_b']:,.1f} warning={x['warning']}")
     print("  News trailing 90d unique company-day diagnostic:")
     for t, x in news.items(): print(f"    {t:>16}: articles={x['articles']:4d} neg_days={x['neg_days']:3d} pos_days={x['pos_days']:3d} warning={x['warning']}")
-    print("\n[9] INTERPRETATION (not an automatic trading instruction)")
+    print("\n[10] INTERPRETATION (not an automatic trading instruction)")
     print("  Equity breadth is the timing panel. Theme breadth describes rotation.")
     print("  Cross-asset/capex/insider/news are context only; no automatic exit or buy.")
     print("  Historical calibration: equity q05=17%, q25=54%, median=77%, q75=89%.")
-    print("\n[10] TRAILING 13-MONTH EQUITY BREADTH")
+    print("\n[11] TRAILING 13-MONTH EQUITY BREADTH")
     for d, v in equity.dropna().tail(13).items(): print(f"  {d.date()} {v*100:3.0f}% {'#'*int(v*40)}")
     LOG.parent.mkdir(parents=True, exist_ok=True)
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     log[str(asof.date())] = {"equity": {"frac": round(eq_frac,3), "zone": zone(eq_frac), "active": sorted(eq_active)},
         "theme": {"frac": round(theme_frac,3), "active": sorted(theme_active)},
         "cross_asset": {"frac": round(cross_frac,3), "active": sorted(cross_active)},
-        "capex": capex, "advisory_ratio": advisory_ratio, "insider": insider, "news": news}
+        "capex": capex, "advisory_ratio": advisory_ratio, "theme_candidates": candidates,
+        "insider": insider, "news": news}
     LOG.write_text(json.dumps(log, indent=1, default=str))
-    print(f"\n[11] logged -> {LOG.relative_to(ROOT.parent)}")
+    print(f"\n[12] logged -> {LOG.relative_to(ROOT.parent)}")
 
 if __name__ == "__main__": main()
