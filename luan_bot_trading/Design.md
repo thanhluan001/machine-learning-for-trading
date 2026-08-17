@@ -1196,6 +1196,17 @@ floor/cap/step sensitivities, gradual absolute-exposure ladder, costs, bootstrap
 and regime stability. Operational Script 74 replacement remains manual and
 unchanged.
 
+**RC-4 Cycle 2 result (2026-08-17): robustness grid informative, promotion gate
+not cleared.** Script `83_megatrend_partial_exposure_cycle2_robustness.py`
+tested floors 5/10/15%, caps 50/70/90%, monthly steps 5/10/15%, price-only vs
+price+point-in-time-capex, and 0/25/50/100bp turnover costs across fixed
+2014-19, 2020-22, and 2023-26 blocks. The 50% cap was generally more stable
+than 70–90%; 10–15% steps were more responsive than 5%; price+capex remained
+better than price-only in the 2020–22 block. The fixed recession overlay still
+sacrificed too much 2020 recovery. No cell cleared the strict all-block gate;
+no operational allocation rule changed. Findings:
+`archive/findings/megatrend_partial_exposure_cycle2_findings.md`.
+
 **Phase 2b/2c (2026-08-16, post-closure refinements): gradual momentum pivot
 REJECTED + capex tilt REJECTED.** See
 `archive/findings/megatrend_phase2b2c_findings.md` + scripts `75`/`76`.
