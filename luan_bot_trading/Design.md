@@ -1148,9 +1148,11 @@ whipsaw into bear rallies; dual-confirm improves 2008 (−7%) and worsens 2022
 NOT megatrend exposure (Phase-2's concentration WAS the thesis expression —
 universe choice inverted the structural conclusion).
 
-**RC-4 FINAL STATUS: warning-indicator role adopted; strategy role closed.**
-Deployed component = monthly breadth report (fraction of 26-asset universe
-above 10m mean; current reading 20/26) on month-end cadence, zero capital.
+**RC-4 FINAL STATUS: panelized warning-indicator role adopted; strategy role closed.**
+Deployed component = monthly panelized dashboard: separate equity breadth,
+theme breadth, cross-asset context, relative-capex, full-market insider, and
+news context. Equity breadth remains the timing panel; all others are context
+only. Month-end cadence, zero capital.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
 

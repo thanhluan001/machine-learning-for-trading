@@ -1,17 +1,91 @@
 {
  "2026-08-31": {
-  "frac": 0.741,
-  "n_above": 20,
-  "n_total": 27,
-  "zone": "NARROWING",
-  "below": [
-   "AGG",
-   "GLD",
-   "GXTG",
-   "ILF",
-   "REMX",
-   "TLT",
-   "XLC"
-  ]
+  "equity": {
+   "frac": 0.882,
+   "zone": "HEALTHY",
+   "active": [
+    "EEM",
+    "EFA",
+    "IJR",
+    "IWM",
+    "QQQ",
+    "SPY",
+    "XLB",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLRE",
+    "XLV",
+    "XLY"
+   ]
+  },
+  "theme": {
+   "frac": 0.5,
+   "active": [
+    "AI/hyperscale",
+    "biotech",
+    "metals"
+   ]
+  },
+  "cross_asset": {
+   "frac": 0.25,
+   "active": [
+    "SHY"
+   ]
+  },
+  "capex": {
+   "values_b": {
+    "AI/hyperscale": 573.798,
+    "clean_energy": 25.936527,
+    "crypto": 4.527431
+   },
+   "shares": {
+    "AI/hyperscale": 0.9495848487619007,
+    "clean_energy": 0.042922654085068186,
+    "crypto": 0.007492497153031103
+   }
+  },
+  "insider": {
+   "AI/hyperscale": {
+    "buy_b": 0.37357,
+    "sell_b": 1128.00205862444,
+    "net_b": -1127.62848862444,
+    "warning": "True"
+   },
+   "clean_energy": {
+    "buy_b": 0.05391,
+    "sell_b": 5.8630574628,
+    "net_b": -5.8091474627999995,
+    "warning": "True"
+   },
+   "crypto": {
+    "buy_b": 0.9987560000000001,
+    "sell_b": 29.602110177700002,
+    "net_b": -28.6033541777,
+    "warning": "True"
+   }
+  },
+  "news": {
+   "AI/hyperscale": {
+    "articles": 9926,
+    "neg_days": 96,
+    "pos_days": 62,
+    "warning": true
+   },
+   "clean_energy": {
+    "articles": 745,
+    "neg_days": 6,
+    "pos_days": 4,
+    "warning": true
+   },
+   "crypto": {
+    "articles": 586,
+    "neg_days": 8,
+    "pos_days": 0,
+    "warning": true
+   }
+  }
  }
 }

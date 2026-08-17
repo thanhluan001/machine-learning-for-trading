@@ -108,5 +108,32 @@ RESEARCH:      audited operational-news signal
 NOT approved:  automatic exit, automatic re-entry, or allocation tilt
 ```
 
-Script 74 remains the only deployed megatrend component: monthly breadth
+Script 74 remains the only deployed megatrend component: monthly panel
 reporting with zero capital at risk.
+
+## Panelized dashboard implemented (2026-08-16)
+
+Script 74 now reports separate panels rather than one blended breadth number:
+
+```text
+Equity breadth:       15/17 = 88% HEALTHY
+Theme breadth:         3/6  = 50% NARROWING
+Cross-asset breadth:   1/4  = 25%
+```
+
+Current equity active: SPY, QQQ, IWM, IJR, EFA, EEM, XLB, XLE, XLF, XLI,
+XLK, XLP, XLRE, XLV, XLY. Laggards: XLC and XLU.
+
+Current theme active: AI/hyperscale, biotech, metals. Laggards: clean energy,
+crypto, uranium. Current cross-asset active: SHY only; AGG, GLD, TLT are below
+10-month means.
+
+Fundamental context is printed but not acted upon: AI has 95.0% of tracked TTM
+capex ($574B), clean energy 4.3% ($26B), crypto 0.7% ($5B). Full-market
+insider and news panels are included; their current negative flags remain
+informational because the insider measure is not baseline-normalized and the
+news classifier is keyword-based.
+
+The dashboard logs separate panels, rosters, capex, insider, and news context
+in `archive/experiments/megatrend_breadth_log.json`. It remains a month-end
+warning report, not an allocation engine.
