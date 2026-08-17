@@ -1,0 +1,233 @@
+{
+ "script": "82_megatrend_partial_exposure_cycle1.py",
+ "status": "research_only",
+ "contract": {
+  "theme_floor": 0.1,
+  "theme_cap": 0.7,
+  "monthly_theme_step": 0.1,
+  "rank_target": [
+   0.6,
+   0.3,
+   0.1
+  ],
+  "recession_exposure": 0.5,
+  "recession": "Sahm-style 3m unemployment average minus trailing 12m minimum >= 0.50",
+  "2022_absolute_exposure_reduction": "only if fixed macro trigger fires"
+ },
+ "data": {
+  "months": 151,
+  "first": "2014-01-31",
+  "last": "2026-07-31",
+  "theme_proxy_components": {
+   "AI/hyperscale": [
+    "SMH"
+   ],
+   "clean_energy": [
+    "ICLN",
+    "TAN"
+   ],
+   "crypto": [
+    "MSTR",
+    "COIN"
+   ]
+  },
+  "macro": {
+   "available": true,
+   "trigger_months": 12
+  }
+ },
+ "variants": {
+  "equal_theme": {
+   "total": 10.614281223834647,
+   "annualized": 0.21674448659933998,
+   "max_dd": -0.5104406395216243,
+   "by_year": {
+    "2014": 0.18960827911453237,
+    "2015": 0.04736097195503608,
+    "2016": 0.02271098641351532,
+    "2017": 0.10771998449336384,
+    "2018": -0.09311430988434666,
+    "2019": 0.4354055786405504,
+    "2020": 1.4174030434607414,
+    "2021": 0.22210241003866105,
+    "2022": -0.45187403909229884,
+    "2023": 0.9746433434034163,
+    "2024": 0.5517012058607376,
+    "2025": 0.22090009801878963,
+    "2026": 0.04344113305449682
+   },
+   "2022": -0.45187403909229884,
+   "2020": 1.4174030434607414,
+   "spy_total_same_window": 4.179257216372781,
+   "n_months": 150
+  },
+  "price_rotate": {
+   "total": 12.090746507754998,
+   "annualized": 0.2284490620323396,
+   "max_dd": -0.5044852330677727,
+   "by_year": {
+    "2014": 0.18960827911453237,
+    "2015": 0.08855581120736522,
+    "2016": 0.10151057086431448,
+    "2017": 0.15867285117156094,
+    "2018": -0.1336255647979696,
+    "2019": 0.37258358104759326,
+    "2020": 1.2355477152689671,
+    "2021": 0.09455314756766997,
+    "2022": -0.4196158558062285,
+    "2023": 0.7298691920661373,
+    "2024": 1.2546806240579103,
+    "2025": 0.028805238634907582,
+    "2026": 0.16882099683291818
+   },
+   "2022": -0.4196158558062285,
+   "2020": 1.2355477152689671,
+   "spy_total_same_window": 4.179257216372781,
+   "n_months": 150
+  },
+  "price_plus_capex": {
+   "total": 18.940528387227317,
+   "annualized": 0.27051247289661284,
+   "max_dd": -0.4337427849830323,
+   "by_year": {
+    "2014": 0.23838410700182755,
+    "2015": 0.04070587648422164,
+    "2016": 0.14897103420868008,
+    "2017": 0.22830633699102432,
+    "2018": -0.1208829851102512,
+    "2019": 0.43443030408266137,
+    "2020": 1.0288258197078677,
+    "2021": 0.25368019681711385,
+    "2022": -0.3693604104927154,
+    "2023": 0.8599785974888532,
+    "2024": 0.843232599880158,
+    "2025": 0.22318355960298786,
+    "2026": 0.2924652958833662
+   },
+   "2022": -0.3693604104927154,
+   "2020": 1.0288258197078677,
+   "spy_total_same_window": 4.179257216372781,
+   "n_months": 150
+  },
+  "price_plus_capex_recession": {
+   "total": 11.741147889487898,
+   "annualized": 0.22579172307646722,
+   "max_dd": -0.4337427849830323,
+   "by_year": {
+    "2014": 0.23838410700182755,
+    "2015": 0.04070587648422164,
+    "2016": 0.14897103420868008,
+    "2017": 0.22830633699102432,
+    "2018": -0.1208829851102512,
+    "2019": 0.43443030408266137,
+    "2020": 0.411561376254058,
+    "2021": 0.16568245288267947,
+    "2022": -0.3693604104927154,
+    "2023": 0.8599785974888532,
+    "2024": 0.8205538981832927,
+    "2025": 0.22318355960298786,
+    "2026": 0.2924652958833662
+   },
+   "2022": -0.3693604104927154,
+   "2020": 0.411561376254058,
+   "spy_total_same_window": 4.179257216372781,
+   "n_months": 150
+  }
+ },
+ "latest": [
+  {
+   "month": "2026-07-31",
+   "variant": "equal_theme",
+   "ret": -0.09795723622829654,
+   "absolute_exposure": 1.0,
+   "recession_trigger": false,
+   "sahm_gap": 0.0,
+   "weight_AI/hyperscale": 0.3333333333333333,
+   "return_AI/hyperscale": -0.17588315113814823,
+   "capex_share_AI/hyperscale": 0.9496250944677941,
+   "price_target_AI/hyperscale": 0.6000000000000001,
+   "weight_clean_energy": 0.3333333333333333,
+   "return_clean_energy": -0.15475161171748625,
+   "capex_share_clean_energy": 0.04295855263086796,
+   "price_target_clean_energy": 0.30000000000000004,
+   "weight_crypto": 0.3333333333333333,
+   "return_crypto": 0.03676305417074488,
+   "capex_share_crypto": 0.00741635290133795,
+   "price_target_crypto": 0.10000000000000002
+  },
+  {
+   "month": "2026-07-31",
+   "variant": "price_rotate",
+   "ret": -0.14827906878106034,
+   "absolute_exposure": 1.0,
+   "recession_trigger": false,
+   "sahm_gap": 0.0,
+   "weight_AI/hyperscale": 0.6,
+   "return_AI/hyperscale": -0.17588315113814823,
+   "capex_share_AI/hyperscale": 0.9496250944677941,
+   "price_target_AI/hyperscale": 0.6000000000000001,
+   "weight_clean_energy": 0.3,
+   "return_clean_energy": -0.15475161171748625,
+   "capex_share_clean_energy": 0.04295855263086796,
+   "price_target_clean_energy": 0.30000000000000004,
+   "weight_crypto": 0.09999999999999999,
+   "return_crypto": 0.03676305417074488,
+   "capex_share_crypto": 0.00741635290133795,
+   "price_target_crypto": 0.10000000000000002
+  },
+  {
+   "month": "2026-07-31",
+   "variant": "price_plus_capex",
+   "ret": -0.14909345747462902,
+   "absolute_exposure": 1.0,
+   "recession_trigger": false,
+   "sahm_gap": 0.0,
+   "weight_AI/hyperscale": 0.6888888888888889,
+   "return_AI/hyperscale": -0.17588315113814823,
+   "capex_share_AI/hyperscale": 0.9496250944677941,
+   "price_target_AI/hyperscale": 0.6000000000000001,
+   "weight_clean_energy": 0.2055555555555556,
+   "return_clean_energy": -0.15475161171748625,
+   "capex_share_clean_energy": 0.04295855263086796,
+   "price_target_clean_energy": 0.30000000000000004,
+   "weight_crypto": 0.10555555555555557,
+   "return_crypto": 0.03676305417074488,
+   "capex_share_crypto": 0.00741635290133795,
+   "price_target_crypto": 0.10000000000000002
+  },
+  {
+   "month": "2026-07-31",
+   "variant": "price_plus_capex_recession",
+   "ret": -0.14909345747462902,
+   "absolute_exposure": 1.0,
+   "recession_trigger": false,
+   "sahm_gap": 0.0,
+   "weight_AI/hyperscale": 0.6888888888888889,
+   "return_AI/hyperscale": -0.17588315113814823,
+   "capex_share_AI/hyperscale": 0.9496250944677941,
+   "price_target_AI/hyperscale": 0.6000000000000001,
+   "weight_clean_energy": 0.2055555555555556,
+   "return_clean_energy": -0.15475161171748625,
+   "capex_share_clean_energy": 0.04295855263086796,
+   "price_target_clean_energy": 0.30000000000000004,
+   "weight_crypto": 0.10555555555555557,
+   "return_crypto": 0.03676305417074488,
+   "capex_share_crypto": 0.00741635290133795,
+   "price_target_crypto": 0.10000000000000002
+  }
+ ],
+ "recession_months": [
+  "2020-04-30",
+  "2020-05-31",
+  "2020-06-30",
+  "2020-07-31",
+  "2020-08-31",
+  "2020-09-30",
+  "2020-10-31",
+  "2020-11-30",
+  "2020-12-31",
+  "2021-01-31",
+  "2021-02-28",
+  "2024-08-31"
+ ]
+}

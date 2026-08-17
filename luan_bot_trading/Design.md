@@ -1179,6 +1179,23 @@ artifacts.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
 
+**RC-4 Cycle 1 reopened (2026-08-17): partial theme exposure research.** The
+user's refined hypothesis is accepted as a new research question: 2022 should
+be treated as an undecided, non-recessionary theme-discovery regime rather than
+an automatic cash signal. Keep absolute exposure invested, rotate gradually
+toward sustained price support, and reserve absolute de-risking for a separate
+recession condition. Script `82_megatrend_partial_exposure_cycle1.py` tests
+fixed equal-theme, price-only rotation, bounded price+point-in-time-capex
+rotation, and a recession-overlay variant. Theme weights use a 10% floor, 70%
+cap, and 10pp monthly movement limit; capex is a bounded sponsorship prior, not
+an exit trigger. Preliminary gross proxy results are archived in
+`archive/findings/megatrend_partial_exposure_cycle1_findings.md`; they are not
+approved for operations. The first run also caught and corrected an invalid
+benchmark comparison before interpretation. Next gate: walk-forward, theme
+floor/cap/step sensitivities, gradual absolute-exposure ladder, costs, bootstrap
+and regime stability. Operational Script 74 replacement remains manual and
+unchanged.
+
 **Phase 2b/2c (2026-08-16, post-closure refinements): gradual momentum pivot
 REJECTED + capex tilt REJECTED.** See
 `archive/findings/megatrend_phase2b2c_findings.md` + scripts `75`/`76`.
