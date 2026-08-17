@@ -69,7 +69,8 @@ strategy.
 **RC-4 final status: warning-indicator role adopted; strategy role closed.**
 The three-phase arc (A pass → C fail → regime fail) is the expected shape of
 an honest funnel: exit machinery validated, selection layers rejected,
-deployment reality tested. Deployed component = monthly breadth report on the
+deployment reality tested. Deployed component = manual monthly panel report in
+`05c_megatrend_watcher/monthly_panel_report.py` on the
 26-asset universe (one page, month-end cadence, no capital).
 
 ## Lesson

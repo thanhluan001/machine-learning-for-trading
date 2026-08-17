@@ -141,3 +141,13 @@ enter; if all 4 slots are full, the oldest position from a PRIOR week held
 Historical scripts and findings are under `archive/` (see `archive/README.md`;
 the 2026-08 edge search lives in `archive/edge_search_2026/` with the
 authoritative summary in `archive/findings/edge_landscape_memo.md`).
+
+The RC-4 megatrend watcher is no longer a backtest script. Its operational
+manual monthly panel report lives in:
+
+```text
+05c_megatrend_watcher/monthly_panel_report.py
+05c_megatrend_watcher/README.md
+```
+
+Research scripts and findings remain here under `archive/` for provenance.

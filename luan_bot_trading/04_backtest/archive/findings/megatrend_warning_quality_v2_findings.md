@@ -108,12 +108,12 @@ RESEARCH:      audited operational-news signal
 NOT approved:  automatic exit, automatic re-entry, or allocation tilt
 ```
 
-Script 74 remains the only deployed megatrend component: monthly panel
-reporting with zero capital at risk.
+`05c_megatrend_watcher/monthly_panel_report.py` is the only deployed
+megatrend component: manual monthly panel reporting with zero capital at risk.
 
 ## Panelized dashboard implemented (2026-08-16)
 
-Script 74 now reports separate panels rather than one blended breadth number:
+The operational watcher now reports separate panels rather than one blended breadth number (`05c_megatrend_watcher/monthly_panel_report.py`):
 
 ```text
 Equity breadth:       15/17 = 88% HEALTHY
@@ -134,9 +134,10 @@ insider and news panels are included; their current negative flags remain
 informational because the insider measure is not baseline-normalized and the
 news classifier is keyword-based.
 
-The dashboard logs separate panels, rosters, capex, insider, and news context
-in `archive/experiments/megatrend_breadth_log.json`. It remains a month-end
-warning report, not an allocation engine.
+The operational dashboard logs separate panels, rosters, capex, insider, and
+news context in `05c_megatrend_watcher/logs/megatrend_breadth_log.json`. It is
+run manually at month-end and remains a warning report, not an allocation
+engine.
 
 ## Step 3 normalization milestone (2026-08-16)
 
@@ -206,7 +207,8 @@ validation and does not justify deployment.
 Next gate: independently join these normalized month-end observations to the
 fixed equity-stress and recovery episodes, measure false-reentry reduction and
 missed recoveries, and keep the result research-only unless it clears the
-pre-registered episode bar. Script 74 remains the sole deployed component.
+pre-registered episode bar. The manual `05c_megatrend_watcher/monthly_panel_report.py`
+remains the sole deployed component.
 
 ## Step 4 false-reentry test (2026-08-16)
 

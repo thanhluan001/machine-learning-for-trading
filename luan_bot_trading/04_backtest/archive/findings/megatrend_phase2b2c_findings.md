@@ -68,7 +68,7 @@ flagged in the framing: high capex = max competition building into the top).
 binary selection (P2), gradual momentum (2b), fundamental capex confirmation
 (2c) — all fail the same way: every signal that confirms a trend is maximal
 at its end. RC-4's surviving deployment remains exactly as Phase 3 left it:
-**the monthly breadth warning indicator** (`74_megatrend_breadth_report.py`),
+**the manual monthly panelized breadth warning indicator** (`05c_megatrend_watcher/monthly_panel_report.py`),
 zero capital.
 
 ## Salvage: capex as indicator CONTEXT (not tilt)

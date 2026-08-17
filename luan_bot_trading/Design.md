@@ -1149,10 +1149,11 @@ NOT megatrend exposure (Phase-2's concentration WAS the thesis expression —
 universe choice inverted the structural conclusion).
 
 **RC-4 FINAL STATUS: panelized warning-indicator role adopted; strategy role closed.**
-Deployed component = monthly panelized dashboard: separate equity breadth,
-theme breadth, cross-asset context, relative-capex, full-market insider, and
-news context. Equity breadth remains the timing panel; all others are context
-only. Month-end cadence, zero capital.
+Deployed component = `05c_megatrend_watcher/monthly_panel_report.py`, a manual
+monthly panelized dashboard: separate equity breadth, theme breadth,
+cross-asset context, relative-capex, full-market insider, and news context.
+Equity breadth remains the timing panel; all others are context only. Month-end
+cadence, zero capital, no automatic orders.
 
 **RC-4 Step 3 status (2026-08-16): normalization research started.** Script
 `80_megatrend_normalize_insider_news.py` produces point-in-time monthly
@@ -1172,8 +1173,9 @@ insider filter blocked 3 episodes with the same 33.3% relapse rate and blocked
 66.7% profitable recoveries. The normalized news filter blocked zero episodes.
 The 2008 observation is explicitly unavailable because the cache has fewer than
 five valid equity names; 2020/2022 have only five. No insider/news filter is
-promoted. Script 74 remains the sole deployed RC-4 component; normalized
-insider/news remain descriptive research artifacts.
+promoted. `05c_megatrend_watcher/monthly_panel_report.py` remains the sole
+deployed RC-4 component; normalized insider/news remain descriptive research
+artifacts.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
 

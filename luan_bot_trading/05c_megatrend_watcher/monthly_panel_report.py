@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""74_megatrend_breadth_report.py — RC-4 deployed monthly warning dashboard.
+"""monthly_panel_report.py — RC-4 operational monthly warning dashboard.
 
 ROLE
 ----
@@ -35,7 +35,7 @@ caches. Production db.h5, V6, PEAD plans, and positions are untouched.
 
 USAGE
 -----
-    conda run -n trading python 04_backtest/74_megatrend_breadth_report.py
+    conda run -n trading python 05c_megatrend_watcher/monthly_panel_report.py
 """
 from __future__ import annotations
 import json
@@ -65,7 +65,7 @@ DB_MT = ROOT / "01_data" / "db_megatrend.h5"
 DB_CAPEX = ROOT / "01_data" / "db_capex.h5"
 DB_INSIDER = ROOT / "01_data" / "db_insider_megatrend.h5"
 DB_NEWS = ROOT / "01_data" / "db_news.h5"
-LOG = HERE / "archive" / "experiments" / "megatrend_breadth_log.json"
+LOG = HERE / "logs" / "megatrend_breadth_log.json"
 
 EQUITY = ["SPY", "QQQ", "IWM", "IJR", "EFA", "EEM", "XLB", "XLF", "XLI",
           "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XLC", "XLE"]
@@ -244,7 +244,7 @@ def latest_news(asof: pd.Timestamp) -> dict:
 
 def main():
     print("=" * 82)
-    print("MEGATREND MONTHLY PANEL REPORT — RC-4 warning/context dashboard")
+    print("MEGATREND MONTHLY PANEL REPORT — RC-4 operational warning/context dashboard")
     print("=" * 82)
     print("[1] refreshing Tiingo prices ...")
     refresh_prices()
