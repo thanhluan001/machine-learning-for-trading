@@ -1,0 +1,350 @@
+{
+ "script": "80_megatrend_normalize_insider_news.py",
+ "status": "research_only",
+ "point_in_time": true,
+ "market_cap_normalization": "not_available_without_point_in_time_series",
+ "insider_audit": {
+  "keys": 18,
+  "rows_raw": 60993,
+  "rows_open_market": 32570,
+  "rows_dedup": 32480,
+  "excluded_non_open_market": 28423,
+  "invalid_dates": 0,
+  "symbols": {
+   "AMZN": {
+    "rows": 3462,
+    "first": "2015-11-17",
+    "last": "2026-08-05"
+   },
+   "AVGO": {
+    "rows": 1567,
+    "first": "2009-08-12",
+    "last": "2026-07-14"
+   },
+   "CLSK": {
+    "rows": 45,
+    "first": "2016-11-08",
+    "last": "2026-08-14"
+   },
+   "COIN": {
+    "rows": 3009,
+    "first": "2008-01-07",
+    "last": "2026-08-05"
+   },
+   "ENPH": {
+    "rows": 667,
+    "first": "2012-04-03",
+    "last": "2026-08-14"
+   },
+   "FSLR": {
+    "rows": 1915,
+    "first": "2008-08-18",
+    "last": "2026-08-12"
+   },
+   "GOOGL": {
+    "rows": 3012,
+    "first": "2014-05-28",
+    "last": "2026-07-30"
+   },
+   "MARA": {
+    "rows": 141,
+    "first": "2012-11-19",
+    "last": "2026-07-20"
+   },
+   "META": {
+    "rows": 3747,
+    "first": "2024-02-20",
+    "last": "2026-08-12"
+   },
+   "MSFT": {
+    "rows": 2535,
+    "first": "2007-02-28",
+    "last": "2026-08-06"
+   },
+   "MSTR": {
+    "rows": 3846,
+    "first": "2012-02-15",
+    "last": "2026-08-10"
+   },
+   "NEE": {
+    "rows": 854,
+    "first": "2004-10-25",
+    "last": "2026-03-16"
+   },
+   "NVDA": {
+    "rows": 2720,
+    "first": "2004-08-16",
+    "last": "2026-06-23"
+   },
+   "ORCL": {
+    "rows": 2253,
+    "first": "2004-10-22",
+    "last": "2026-06-26"
+   },
+   "PLUG": {
+    "rows": 345,
+    "first": "2003-07-28",
+    "last": "2026-06-10"
+   },
+   "RIOT": {
+    "rows": 190,
+    "first": "2007-03-26",
+    "last": "2026-08-07"
+   },
+   "RUN": {
+    "rows": 923,
+    "first": "2006-10-10",
+    "last": "2026-08-04"
+   },
+   "SEDG": {
+    "rows": 1249,
+    "first": "2015-03-31",
+    "last": "2026-05-11"
+   }
+  }
+ },
+ "news_audit": {
+  "keys": 18,
+  "articles_raw": 25957,
+  "articles_dedup": 25954,
+  "classified_events": 3875,
+  "missing_title": 0,
+  "missing_text": 0,
+  "symbols": {
+   "AMZN": {
+    "articles": 1748,
+    "first": "2026-05-14",
+    "last": "2026-08-17"
+   },
+   "AVGO": {
+    "articles": 1496,
+    "first": "2026-03-17",
+    "last": "2026-08-17"
+   },
+   "CLSK": {
+    "articles": 1004,
+    "first": "2018-08-10",
+    "last": "2026-08-12"
+   },
+   "COIN": {
+    "articles": 492,
+    "first": "2026-03-02",
+    "last": "2026-08-14"
+   },
+   "ENPH": {
+    "articles": 743,
+    "first": "2025-02-03",
+    "last": "2026-08-13"
+   },
+   "FSLR": {
+    "articles": 737,
+    "first": "2025-04-02",
+    "last": "2026-08-17"
+   },
+   "GOOGL": {
+    "articles": 3249,
+    "first": "2026-02-18",
+    "last": "2026-08-17"
+   },
+   "MARA": {
+    "articles": 1622,
+    "first": "2019-08-28",
+    "last": "2026-08-13"
+   },
+   "META": {
+    "articles": 2499,
+    "first": "2026-03-30",
+    "last": "2026-08-17"
+   },
+   "MSFT": {
+    "articles": 3493,
+    "first": "2026-03-11",
+    "last": "2026-08-17"
+   },
+   "MSTR": {
+    "articles": 497,
+    "first": "2026-02-06",
+    "last": "2026-08-14"
+   },
+   "NEE": {
+    "articles": 497,
+    "first": "2026-01-12",
+    "last": "2026-08-16"
+   },
+   "NVDA": {
+    "articles": 2745,
+    "first": "2026-05-24",
+    "last": "2026-08-17"
+   },
+   "ORCL": {
+    "articles": 1248,
+    "first": "2026-03-11",
+    "last": "2026-08-17"
+   },
+   "PLUG": {
+    "articles": 742,
+    "first": "2025-10-11",
+    "last": "2026-08-16"
+   },
+   "RIOT": {
+    "articles": 1146,
+    "first": "2020-11-09",
+    "last": "2026-08-16"
+   },
+   "RUN": {
+    "articles": 878,
+    "first": "2020-06-20",
+    "last": "2026-08-17"
+   },
+   "SEDG": {
+    "articles": 1118,
+    "first": "2015-04-23",
+    "last": "2026-08-11"
+   }
+  }
+ },
+ "taxonomy": [
+  "demand_orders",
+  "guidance_financial",
+  "capex_capacity",
+  "supply_pricing",
+  "labor_operations",
+  "balance_sheet_solvency"
+ ],
+ "rows": 420,
+ "candidate_counts": {
+  "insider": 100,
+  "news": 9
+ },
+ "latest": [
+  {
+   "month": "2026-08-31",
+   "theme": "AI/hyperscale",
+   "companies_available": 7,
+   "companies_with_sell": 7,
+   "companies_with_buy": 1,
+   "seller_count": 19,
+   "buyer_count": 1,
+   "sell_transaction_count": 7,
+   "sell_insider_count": 19,
+   "sell_dollars": 1128832636.4694397,
+   "buy_dollars": 373570.0,
+   "net_dollars": -1128459066.4694397,
+   "baseline_companies": 7,
+   "unusual_seller_companies": 1,
+   "median_company_sell_percentile": 0.6906474820143885,
+   "cluster_warning_candidate": false,
+   "insider_coverage_ok": true,
+   "insider_source_companies": 7,
+   "news_companies_available": 7,
+   "negative_days": 296,
+   "positive_days": 697,
+   "negative_company_days": 217,
+   "positive_company_days": 357,
+   "operational_days": 400,
+   "raw_articles": 9715,
+   "raw_company_days": 521,
+   "raw_text_articles": 9715,
+   "negative_categories": 41,
+   "positive_categories": 36,
+   "negative_companies": 7,
+   "positive_companies": 7,
+   "negative_company_day_rate": 0.4165067178502879,
+   "text_coverage_rate": 1.0,
+   "baseline_news_companies": 0,
+   "unusual_negative_companies": 0,
+   "median_negative_percentile": null,
+   "news_coverage_ok": false,
+   "news_warning_candidate": false,
+   "news_cache_symbols_present": 7,
+   "news_source_companies": 7,
+   "source_provenance_available": false
+  },
+  {
+   "month": "2026-08-31",
+   "theme": "clean_energy",
+   "companies_available": 6,
+   "companies_with_sell": 4,
+   "companies_with_buy": 1,
+   "seller_count": 12,
+   "buyer_count": 1,
+   "sell_transaction_count": 4,
+   "sell_insider_count": 12,
+   "sell_dollars": 5998093.3961,
+   "buy_dollars": 53910.0,
+   "net_dollars": -5944183.3961,
+   "baseline_companies": 6,
+   "unusual_seller_companies": 0,
+   "median_company_sell_percentile": 0.46402877697841727,
+   "cluster_warning_candidate": false,
+   "insider_coverage_ok": true,
+   "insider_source_companies": 6,
+   "news_companies_available": 6,
+   "negative_days": 62,
+   "positive_days": 46,
+   "negative_company_days": 52,
+   "positive_company_days": 36,
+   "operational_days": 76,
+   "raw_articles": 740,
+   "raw_company_days": 247,
+   "raw_text_articles": 740,
+   "negative_categories": 16,
+   "positive_categories": 18,
+   "negative_companies": 6,
+   "positive_companies": 6,
+   "negative_company_day_rate": 0.21052631578947367,
+   "text_coverage_rate": 1.0,
+   "baseline_news_companies": 4,
+   "unusual_negative_companies": 1,
+   "median_negative_percentile": 0.8741007194244604,
+   "news_coverage_ok": true,
+   "news_warning_candidate": false,
+   "news_cache_symbols_present": 6,
+   "news_source_companies": 6,
+   "source_provenance_available": false
+  },
+  {
+   "month": "2026-08-31",
+   "theme": "crypto",
+   "companies_available": 5,
+   "companies_with_sell": 4,
+   "companies_with_buy": 1,
+   "seller_count": 13,
+   "buyer_count": 2,
+   "sell_transaction_count": 5,
+   "sell_insider_count": 13,
+   "sell_dollars": 29928279.2817,
+   "buy_dollars": 1008754.1000000001,
+   "net_dollars": -28919525.1817,
+   "baseline_companies": 5,
+   "unusual_seller_companies": 1,
+   "median_company_sell_percentile": 0.7553956834532374,
+   "cluster_warning_candidate": false,
+   "insider_coverage_ok": true,
+   "insider_source_companies": 5,
+   "news_companies_available": 5,
+   "negative_days": 33,
+   "positive_days": 13,
+   "negative_company_days": 28,
+   "positive_company_days": 12,
+   "operational_days": 35,
+   "raw_articles": 578,
+   "raw_company_days": 209,
+   "raw_text_articles": 578,
+   "negative_categories": 15,
+   "positive_categories": 11,
+   "negative_companies": 5,
+   "positive_companies": 5,
+   "negative_company_day_rate": 0.1339712918660287,
+   "text_coverage_rate": 1.0,
+   "baseline_news_companies": 3,
+   "unusual_negative_companies": 0,
+   "median_negative_percentile": 0.8129496402877698,
+   "news_coverage_ok": true,
+   "news_warning_candidate": false,
+   "news_cache_symbols_present": 5,
+   "news_source_companies": 5,
+   "source_provenance_available": false
+  }
+ ]
+}

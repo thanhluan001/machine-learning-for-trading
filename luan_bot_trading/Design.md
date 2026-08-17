@@ -1153,6 +1153,17 @@ Deployed component = monthly panelized dashboard: separate equity breadth,
 theme breadth, cross-asset context, relative-capex, full-market insider, and
 news context. Equity breadth remains the timing panel; all others are context
 only. Month-end cadence, zero capital.
+
+**RC-4 Step 3 status (2026-08-16): normalization research started.** Script
+`80_megatrend_normalize_insider_news.py` produces point-in-time monthly
+features separately from Script 74. Insider uses exact open-market Form 4
+P/S rows, deduplication, seller/buyer breadth, and within-company historical
+percentiles; raw dollars are audit-only because no point-in-time market-cap
+series is available. News uses company-day/category deduplication, a fixed
+operational taxonomy, company-relative event percentiles, denominators,
+coverage gates, and explicit missing provenance. Latest month passes neither
+normalized warning candidate rule. No signal or allocation action is approved;
+the next gate is a fixed-episode false-reentry test.
 Three-phase funnel shape (exit pass → selection fail → deployment fail) is
 the expected honest arc.
 

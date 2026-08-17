@@ -137,3 +137,73 @@ news classifier is keyword-based.
 The dashboard logs separate panels, rosters, capex, insider, and news context
 in `archive/experiments/megatrend_breadth_log.json`. It remains a month-end
 warning report, not an allocation engine.
+
+## Step 3 normalization milestone (2026-08-16)
+
+Script `80_megatrend_normalize_insider_news.py` establishes a separate,
+point-in-time normalization layer. It does not change Script 74 and does not
+create an approved warning rule.
+
+### Insider audit and normalization
+
+```text
+raw Form 4 rows:              60,993
+exact P/S open-market rows:   32,570
+after transaction dedup:      32,480
+non-open-market rows excluded:28,423
+```
+
+The eligible set is restricted to exact `P-Purchase` and `S-Sale` Form 4
+codes. Awards, gifts, option/exempt/derivative and other transaction codes are
+not treated as buying or selling. The output reports independent seller and
+buyer counts, cross-company breadth, raw dollar flow for audit, and each
+company's trailing-90d sell-dollar percentile against its own strictly prior
+monthly history. Raw dollars are not used as a cross-company warning because
+there is no point-in-time market-cap series and the cache contains vendor/entity
+outliers.
+
+The candidate diagnostic requires at least two companies with unusually high
+within-company selling percentiles and at least two independent sellers. In
+the latest available month (August 2026), no theme passes this rule.
+
+### Operational-news audit and normalization
+
+```text
+raw articles:             25,957
+articles after dedup:     25,954
+classified operational events: 3,875
+missing text rows:             0
+```
+
+The fixed taxonomy is demand/orders, guidance/financial, capex/capacity,
+supply/pricing, labor/operations, and balance-sheet/solvency. Counts are
+company-day based, with raw article/company-day denominators, text coverage,
+negative/positive event rates, and within-company historical percentiles.
+Source provenance is explicitly unavailable in the cache and is not inferred.
+
+Latest-month result:
+
+```text
+AI/hyperscale: historical news coverage gate FAILS (cache starts 2026)
+clean_energy:  coverage adequate; normalized warning candidate FALSE
+crypto:        coverage adequate; normalized warning candidate FALSE
+```
+
+The candidate rule requires adequate historical coverage, at least two
+companies with unusually high negative company-day counts, and negative event
+breadth exceeding positive event breadth. Across the full diagnostic panel,
+there are 9 candidate month-theme observations, but this is **not** predictive
+validation and does not justify deployment.
+
+### Artifacts
+
+```text
+04_backtest/80_megatrend_normalize_insider_news.py
+04_backtest/archive/experiments/rc4_normalized_insider_news_monthly.csv
+04_backtest/archive/experiments/rc4_normalized_insider_news_summary.json
+```
+
+Next gate: independently join these normalized month-end observations to the
+fixed equity-stress and recovery episodes, measure false-reentry reduction and
+missed recoveries, and keep the result research-only unless it clears the
+pre-registered episode bar. Script 74 remains the sole deployed component.
