@@ -51,7 +51,8 @@ load_dotenv(ROOT / ".env")
 FMP_KEY = os.getenv("FMP_API_KEY")
 DB_CAPEX = ROOT / "01_data" / "db_capex.h5"
 DB_MT = ROOT / "01_data" / "db_megatrend.h5"
-DB_INSIDER = ROOT / "01_data" / "db_insider.h5"
+DB_INSIDER = ROOT / "01_data" / "db_insider.h5"  # S&P 400-only legacy cache
+DB_INSIDER_MT = ROOT / "01_data" / "db_insider_megatrend.h5"  # full theme panels
 DB_PROD = ROOT / "01_data" / "db.h5"
 DB_NEWS = ROOT / "01_data" / "db_news.h5"
 NEWS_URL = "https://financialmodelingprep.com/stable/news/stock"
@@ -151,31 +152,67 @@ def load_prices(months):
     return pd.DataFrame(result)
 
 
+def refresh_insider_theme():
+    """Fetch Form 4 data directly by theme ticker, not through S&P 400 IDs."""
+    with pd.HDFStore(DB_INSIDER_MT, mode="a") as store:
+        keys = set(store.keys())
+        count = 0
+        for cfg in THEMES.values():
+            for sym in cfg["members"]:
+                k = f"/insider/{sym}"
+                if k in keys:
+                    continue
+                rows = []
+                for page in range(5):
+                    try:
+                        r = requests.get(
+                            "https://financialmodelingprep.com/stable/insider-trading/search",
+                            params={"symbol": sym, "limit": 1000, "page": page, "apikey": FMP_KEY},
+                            timeout=30)
+                        data = r.json() if r.status_code == 200 else []
+                        if not isinstance(data, list) or not data:
+                            break
+                        rows.extend(data)
+                        if len(data) < 1000:
+                            break
+                    except Exception:
+                        break
+                    time.sleep(0.05)
+                if rows:
+                    d = pd.DataFrame(rows).drop_duplicates()
+                    d["filingDate"] = pd.to_datetime(d["filingDate"], errors="coerce").dt.tz_localize(None).dt.normalize()
+                    d["price"] = pd.to_numeric(d.get("price", 0), errors="coerce").fillna(0)
+                    d["securitiesTransacted"] = pd.to_numeric(d.get("securitiesTransacted", 0), errors="coerce").fillna(0)
+                    d["value"] = d["price"] * d["securitiesTransacted"]
+                    d.to_hdf(DB_INSIDER_MT, key=k, mode="a", format="table")
+                    count += 1
+                time.sleep(0.08)
+        print(f"  refreshed {count} full-market theme insider panels; cache nodes: {len(store.keys())}")
+
+
 def load_insider(months):
-    """Theme-level trailing 90d net material insider dollars; sparse coverage reported."""
-    meta = pd.read_hdf(DB_PROD, "/metadata/sp400_permatickers")
-    sym_to_pt = dict(zip(meta.canonical_ticker, meta.permaTicker))
+    """Theme-level trailing 90d net material insider dollars from full panels."""
     rows = []
-    with pd.HDFStore(DB_INSIDER, mode="r") as store:
+    with pd.HDFStore(DB_INSIDER_MT, mode="r") as store:
         keys = set(store.keys())
         for theme, cfg in THEMES.items():
             theme_events = []
             for sym in cfg["members"]:
-                pt = sym_to_pt.get(sym); k = f"/insider/{pt}" if pt else None
-                if not k or k not in keys: continue
+                k = f"/insider/{sym}"
+                if k not in keys:
+                    continue
                 d = store[k].copy()
-                d["filingDate"] = pd.to_datetime(d["filingDate"]).dt.tz_localize(None).dt.normalize()
-                d["value"] = pd.to_numeric(d.get("price", 0), errors="coerce").fillna(0) * pd.to_numeric(d.get("securitiesTransacted", 0), errors="coerce").fillna(0)
-                d = d[d.value >= 50000]
+                d["filingDate"] = pd.to_datetime(d["filingDate"], errors="coerce").dt.tz_localize(None).dt.normalize()
                 d["buy"] = d.transactionType.astype(str).str.startswith("P")
                 d["sell"] = d.transactionType.astype(str).str.startswith("S")
-                theme_events.append(d[["filingDate","value","buy","sell"]])
+                d = d[(d.value >= 50000) & (d.buy | d.sell)]
+                theme_events.append(d[["filingDate", "value", "buy", "sell"]])
             if theme_events:
-                ev = pd.concat(theme_events)
+                ev = pd.concat(theme_events, ignore_index=True)
                 vals = []
                 for asof in months:
                     x = ev[(ev.filingDate <= asof) & (ev.filingDate > asof - pd.Timedelta(days=90))]
-                    vals.append(float(x.loc[x.buy,"value"].sum() - x.loc[x.sell,"value"].sum()))
+                    vals.append(float(x.loc[x.buy, "value"].sum() - x.loc[x.sell, "value"].sum()))
                 rows.append(pd.Series(vals, index=months, name=theme))
             else:
                 rows.append(pd.Series(np.nan, index=months, name=theme))
@@ -218,8 +255,9 @@ def main():
     print("RC-4 WARNING-QUALITY STUDY — PRICE + RELATIVE CAPEX + INSIDER + NEWS")
     print("=" * 92)
     months = pd.date_range("2015-01-31", "2026-08-31", freq="ME")
-    print("[1] Refreshing FMP news panels ...")
+    print("[1] Refreshing full-market FMP news and insider panels ...")
     refresh_news()
+    refresh_insider_theme()
     shares = load_point_capex(months)
     prices = load_prices(months)
     insider = load_insider(months)
