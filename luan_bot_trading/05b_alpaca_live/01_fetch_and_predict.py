@@ -306,15 +306,39 @@ def fetch_tiingo_prices(ticker: str, start: str, end: str) -> pd.DataFrame:
     return out
 
 
-def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> str:
+def resolve_required_session() -> str | None:
+    """Probe Tiingo to find the last actual trading session for US equities.
+
+    Uses SPY as the calendar proxy (all panel names share the NYSE calendar).
+    Walks back from the nominal end date (today after close, yesterday during
+    market hours) skipping weekends/holidays, and returns the YYYY-MM-DD of
+    the most recent session that Tiingo can currently serve. Returns None if
+    even 10 calendar days back yields nothing (feed completely unavailable).
+
+    This is the SINGLE freshness target every per-ticker fetch must meet.
+    """
+    now_utc = datetime.utcnow()
+    et_hour = (now_utc.hour - 4) % 24
+    is_weekday = datetime.now().weekday() < 5
+    market_closed = (not is_weekday) or et_hour >= 16 or et_hour < 9
+    end = datetime.now() if market_closed else (datetime.now() - timedelta(days=1))
+    for back in range(10):
+        probe = (end - timedelta(days=back)).strftime("%Y-%m-%d")
+        df = fetch_tiingo_prices("SPY", probe, probe)
+        if df is not None and not df.empty and len(df) >= 1:
+            return probe
+    return None
+
+
+def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False, required: str | None = None) -> str:
     """Fetch incremental Tiingo prices for one permaTicker. Write back to DB.
 
-    Returns one of:
-      'current' — DB already has data through the target end date
-      'updated' — new data fetched and appended
-      'lagged'  — target bar NOT available from the feed yet (EOD lag);
-                  DB is stale through the previous session. NOT a skip.
-      'failed'  — fetch attempted and errored.
+    ``required`` is the YYYY-MM-DD session every ticker must have (from
+    resolve_required_session). Returns one of:
+      'current' — DB already has data >= required
+      'updated' — new data fetched and appended, now covers >= required
+      'lagged'  — feed cannot serve >= required yet (EOD lag); DB is stale
+      'failed'  — fetch errored
     """
     h5_path = f"/{SP400_GROUP}/{permaTicker}"
 
@@ -325,18 +349,13 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> str:
         else:
             latest = None
 
-    # End-date: fetch through TODAY's close when the market is already closed
-    # (after-hours / weekend) — today's bar is final and is the T-1 price we
-    # need. During live market hours today's bar is incomplete, so use yesterday.
-    now_utc = datetime.utcnow()
-    # ET = UTC-4 (summer DST). Fixed -4 is fine for the after-hours refresh use-case.
-    et_hour = (now_utc.hour - 4) % 24
-    is_weekday = datetime.now().weekday() < 5
-    market_closed = (not is_weekday) or et_hour >= 16 or et_hour < 9
-    end = datetime.now() if market_closed else (datetime.now() - timedelta(days=1))
-    end_str = end.strftime("%Y-%m-%d")
+    if required is None:
+        resolved = resolve_required_session()
+        if resolved is None:
+            return "failed"
+        required = resolved
 
-    if latest is not None and latest >= pd.Timestamp(end_str):
+    if latest is not None and latest >= pd.Timestamp(required):
         return "current"
 
     if latest is not None:
@@ -345,15 +364,11 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> str:
         start = (datetime.now() - timedelta(days=15 * 365)).strftime("%Y-%m-%d")
 
     if dry_run:
-        print(f"    [DRY] Would fetch {permaTicker} {start}..{end_str} "
-              f"({'closed' if market_closed else 'open'} market)")
+        print(f"    [DRY] Would fetch {permaTicker} {start}..{required}")
         return "updated"
 
-    new_data = fetch_tiingo_prices(permaTicker, start, end_str)
-    if new_data.empty:
-        # The feed was asked for data through end_str and returned none: the
-        # EOD bar has not been consolidated yet. This is a LAG, not a skip —
-        # surface it so features aren't silently anchored to a stale close.
+    new_data = fetch_tiingo_prices(permaTicker, start, required)
+    if new_data is None or new_data.empty or new_data["Date"].max() < pd.Timestamp(required):
         return "lagged"
 
     # Append to DB
@@ -384,44 +399,68 @@ def refresh_concerned_tickers(concerned_pts: list[str], dry_run: bool = False) -
 
     stats = {"refreshed": 0, "skipped": 0, "lagged": 0, "failed": 0}
     lagged_list: list[str] = []
+    failed_list: list[str] = []
     t0 = time.time()
+    required = resolve_required_session()
+    if required is None:
+        raise RuntimeError(
+            "Tiingo feed unreachable for session resolution — cannot verify "
+            "data freshness. Try again later.")
     for i, pt in enumerate(concerned_pts):
         try:
-            status = refresh_tiingo_for_ticker(pt)
+            status = refresh_tiingo_for_ticker(pt, required=required)
             if status == "updated":
                 stats["refreshed"] += 1
             elif status == "lagged":
                 stats["lagged"] += 1
                 lagged_list.append(pt)
+            elif status == "failed":
+                stats["failed"] += 1
+                failed_list.append(pt)
             else:  # 'current'
                 stats["skipped"] += 1
         except Exception as e:
             stats["failed"] += 1
+            failed_list.append(pt)
             print(f"    [ERROR] {pt}: {e}")
         if (i + 1) % 10 == 0 or (i + 1) == len(concerned_pts):
             elapsed = time.time() - t0
             print(f"    [{i+1}/{len(concerned_pts)}] refreshed={stats['refreshed']} "
                   f"skipped={stats['skipped']} lagged={stats['lagged']} "
                   f"failed={stats['failed']} ({elapsed:.1f}s)")
-    if stats["lagged"]:
-        print(f"    !! LAGGED FEED: {stats['lagged']} tickers do NOT have the target "
-              f"session bar yet (Tiingo EOD consolidation lag). Features for "
-              f"these names anchor to the PRIOR close: {lagged_list[:8]}"
-              + (f" +{len(lagged_list)-8} more" if len(lagged_list) > 8 else ""))
-        print(f"    !! Re-run Script 01 later tonight or before tomorrow's close if "
-              f"a lagged name is a pick.")
+    # HARD FAIL: any missing bar means features anchor to a stale close and
+    # the resulting plan is WRONG. Do not continue, do not guess, do not write
+    # a plan. Keep the previous plan.json untouched.
+    if stats["lagged"] or stats["failed"]:
+        lines = [
+            "\n" + "=" * 76,
+            "ERROR: Tiingo price data is NOT FRESH for this run.",
+            f"Required session: {required}",
+            f"  lagged  (feed has no bar yet): {len(lagged_list)} "
+            f"{sorted(lagged_list)[:10]}",
+            f"  failed  (fetch error):          {len(failed_list)} "
+            f"{sorted(failed_list)[:10]}",
+            "",
+            "The features computed with stale closes would be WRONG, so the",
+            "program is stopping BEFORE writing plan.json or placing any order.",
+            "The previous plan.json (if any) is left untouched.",
+            "",
+            "Please TRY AGAIN LATER when the Tiingo EOD feed has consolidated",
+            "the latest session's bar (typically ~1-3h after the close), then",
+            "re-run Script 01.",
+            "=" * 76,
+        ]
+        raise SystemExit("\n".join(lines))
     return stats
 
 
-def refresh_benchmark(ticker: str, dry_run: bool = False) -> bool:
+def refresh_benchmark(ticker: str, dry_run: bool = False, required: str | None = None) -> str:
     """Fetch incremental Tiingo prices for ONE benchmark ETF (IJH/IJJ/etc).
 
     Stores under /macros/{ticker} with the adjusted-column schema used by
-    04_index_data_gathering.py (Date, Open=adjOpen, ..., Close=adjClose,
-    Volume=adjVolume). Stale benchmarks corrupt every rel_ret / car_drift
-    feature, so this MUST run before feature computation.
-
-    Returns True if new data was fetched (or would be in dry-run).
+    04_index_data_gathering.py. Returns 'current' / 'updated' / 'lagged' /
+    'failed' like the stock refresher. Stale benchmarks corrupt every
+    rel_ret / car_drift feature, so lagged/failed MUST abort the run.
     """
     h5_path = f"/macros/{ticker}"
 
@@ -432,16 +471,14 @@ def refresh_benchmark(ticker: str, dry_run: bool = False) -> bool:
         else:
             latest = None
 
-    # End-date: same market-closed logic as refresh_tiingo_for_ticker.
-    now_utc = datetime.utcnow()
-    et_hour = (now_utc.hour - 4) % 24
-    is_weekday = datetime.now().weekday() < 5
-    market_closed = (not is_weekday) or et_hour >= 16 or et_hour < 9
-    end = datetime.now() if market_closed else (datetime.now() - timedelta(days=1))
-    end_str = end.strftime("%Y-%m-%d")
+    if required is None:
+        resolved = resolve_required_session()
+        if resolved is None:
+            return "failed"
+        required = resolved
 
-    if latest is not None and latest >= pd.Timestamp(end_str):
-        return False  # already up to date
+    if latest is not None and latest >= pd.Timestamp(required):
+        return "current"
 
     if latest is not None:
         start = (latest + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -449,14 +486,14 @@ def refresh_benchmark(ticker: str, dry_run: bool = False) -> bool:
         start = (datetime.now() - timedelta(days=15 * 365)).strftime("%Y-%m-%d")
 
     if dry_run:
-        print(f"    [DRY] Would fetch benchmark {ticker} {start}..{end_str}")
-        return True
+        print(f"    [DRY] Would fetch benchmark {ticker} {start}..{required}")
+        return "updated"
 
     # Reuse the stock fetcher (full 11-col schema), then map to the
     # adjusted-only /macros schema used by 04_index_data_gathering.
-    raw = fetch_tiingo_prices(ticker, start, end_str)
-    if raw.empty:
-        return False
+    raw = fetch_tiingo_prices(ticker, start, required)
+    if raw is None or raw.empty or raw["Date"].max() < pd.Timestamp(required):
+        return "lagged"
 
     bench = pd.DataFrame({
         "Date": raw["Date"],
@@ -477,7 +514,7 @@ def refresh_benchmark(ticker: str, dry_run: bool = False) -> bool:
             store.put(h5_path, combined, format="table", data_columns=["Date"])
         else:
             store.put(h5_path, bench, format="table", data_columns=["Date"])
-    return True
+    return "updated"
 
 
 def refresh_benchmarks(tickers: set[str], dry_run: bool = False) -> dict:
@@ -485,22 +522,51 @@ def refresh_benchmarks(tickers: set[str], dry_run: bool = False) -> dict:
 
     Benchmarks (IJH + sector ETFs) are few and fetch in seconds, but stale
     benchmarks silently corrupt every rel_ret / car_drift feature. Always
-    refresh before loading.
+    refresh before loading. Aborts the run if any benchmark is lagged/failed.
     """
     ordered = sorted(tickers | {"IJH"})
     if dry_run:
         print(f"  [DRY] Would refresh {len(ordered)} benchmarks: {ordered}")
-        return {"refreshed": 0, "skipped": len(ordered), "failed": 0}
-    stats = {"refreshed": 0, "skipped": 0, "failed": 0}
+        return {"refreshed": 0, "skipped": len(ordered), "lagged": 0, "failed": 0}
+    stats = {"refreshed": 0, "skipped": 0, "lagged": 0, "failed": 0}
+    lagged_list: list[str] = []
+    failed_list: list[str] = []
+    required = resolve_required_session()
+    if required is None:
+        raise RuntimeError(
+            "Tiingo feed unreachable for session resolution — cannot verify "
+            "benchmark freshness. Try again later.")
     for tk in ordered:
         try:
-            if refresh_benchmark(tk):
+            status = refresh_benchmark(tk, required=required)
+            if status == "updated":
                 stats["refreshed"] += 1
+            elif status == "lagged":
+                stats["lagged"] += 1
+                lagged_list.append(tk)
+            elif status == "failed":
+                stats["failed"] += 1
+                failed_list.append(tk)
             else:
                 stats["skipped"] += 1
         except Exception as e:
             stats["failed"] += 1
+            failed_list.append(tk)
             print(f"    [ERROR] benchmark {tk}: {e}")
+    if stats["lagged"] or stats["failed"]:
+        lines = [
+            "\n" + "=" * 76,
+            "ERROR: Tiingo BENCHMARK data is NOT FRESH for this run.",
+            f"Required session: {required}",
+            f"  lagged: {lagged_list}",
+            f"  failed: {failed_list}",
+            "",
+            "Stale benchmarks corrupt every rel_ret / car_drift feature.",
+            "The program is stopping BEFORE writing plan.json.",
+            "Please TRY AGAIN LATER when the Tiingo EOD feed is fresh.",
+            "=" * 76,
+        ]
+        raise SystemExit("\n".join(lines))
     return stats
 
 
@@ -1046,9 +1112,9 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
         print(f"  Done: refreshed={tiingo_stats['refreshed']} "
               f"skipped={tiingo_stats['skipped']} lagged={tiingo_stats['lagged']} "
               f"failed={tiingo_stats['failed']}")
-        if tiingo_stats['lagged']:
-            print("  !!! WARNING: some tickers are missing the target session bar — "
-                  "their features anchor to the PRIOR close. Re-run later.")
+        if tiingo_stats.get('lagged') or tiingo_stats.get('failed'):
+            print("  !!! ERROR: price data not fresh — run ABORTED, plan.json untouched.")
+            return
 
     if dry_run:
         print(f"\n  [DRY] Would compute features for {len(cal_sp400)} events and predict.")
@@ -1078,7 +1144,8 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
     else:
         bench_stats = refresh_benchmarks(sector_tickers_needed, dry_run)
         print(f"  Benchmarks refreshed: {bench_stats['refreshed']} "
-              f"skipped={bench_stats['skipped']} failed={bench_stats['failed']}")
+              f"skipped={bench_stats['skipped']} lagged={bench_stats['lagged']} "
+              f"failed={bench_stats['failed']}")
 
     # 4b. Refresh FRED macro series (vix, fed_funds, unemployment). These
     #     feed the vix / fed_funds / unemployment_roc21 features directly;
