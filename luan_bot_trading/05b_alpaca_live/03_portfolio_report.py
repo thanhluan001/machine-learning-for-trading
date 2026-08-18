@@ -52,7 +52,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from alpaca_client import AlpacaClient  # noqa: E402
 
-from alpaca.trading.requests import GetPortfolioHistoryRequest  # noqa: E402
+from alpaca.trading.requests import GetPortfolioHistoryRequest, GetCalendarRequest  # noqa: E402
 
 POSITIONS_FILE = HERE / "positions.json"
 
@@ -219,6 +219,30 @@ def print_header(title):
     print("=" * 76)
 
 
+def fetch_trading_days(client, start, end) -> set:
+    """Exchange trading dates (excludes weekends AND holidays) as a set."""
+    days = set()
+    cursor = start
+    # calendar API caps range length; walk in 1-year chunks
+    while cursor <= end:
+        chunk_end = min(end, cursor + pd.Timedelta(days=360))
+        cal = client.get_calendar(filters=GetCalendarRequest(
+            start=cursor.strftime("%Y-%m-%d"), end=chunk_end.strftime("%Y-%m-%d")))
+        days.update(pd.Timestamp(d.date).normalize() for d in cal)
+        cursor = chunk_end + pd.Timedelta(days=1)
+    return days
+
+
+def hold_trading_days(trading_days: set, entry, exit) -> int:
+    """Trading dates strictly after the entry day, up to and including exit.
+
+    Matches the T+5 contract: enter at Close[T], exit at Close[T+5] -> 5.
+    """
+    e = pd.Timestamp(entry).tz_localize(None).normalize()
+    x = pd.Timestamp(exit).tz_localize(None).normalize()
+    return sum(1 for d in trading_days if e < d <= x)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=0, help="show daily PnL for last N days")
@@ -232,6 +256,14 @@ def main():
     L = build_ledger(acts)
     trades = aggregate_trades(pd.DataFrame(L["trades"]))
     fees, net_deposits = L["fees"], L["deposits"] - L["withdrawals"]
+
+    # trading calendar for honest hold durations (calendar days overstate
+    # 5-trading-day holds by weekends/holidays)
+    all_times = [f["time"] for f in L["fills"]] or [datetime.now(timezone.utc)]
+    trading_days = fetch_trading_days(t.client, min(all_times), max(all_times))
+    if len(trades):
+        trades["hold_td"] = trades.apply(
+            lambda r: hold_trading_days(trading_days, r.entry_time, r.exit_time), axis=1)
 
     # fetch open positions first so section 1 can report open PnL correctly
     positions = t.client.get_all_positions()
@@ -258,11 +290,11 @@ def main():
     if len(trades):
         trades_show = trades.sort_values("exit_time")
         print(f"  {'symbol':<7}{'side':<7}{'qty':>6}{'entry':>9}{'exit':>9}"
-              f"{'PnL$':>10}{'PnL%':>8}{'hold':>7}  exit_date")
+              f"{'PnL$':>10}{'PnL%':>8}{'hold':>7}{'(cal)':>7}  exit_date")
         for _, r in trades_show.iterrows():
             print(f"  {r.symbol:<7}{r.kind:<7}{r.qty:>6g}{r.entry_price:>9.2f}"
                   f"{r.exit_price:>9.2f}{r.pnl:>10.2f}{r.pnl_pct:>7.2f}%"
-                  f"{r.hold_days:>6.1f}d  {r.exit_time:%Y-%m-%d}")
+                  f"{int(r.hold_td):>6}d{r.hold_days:>6.1f}d  {r.exit_time:%Y-%m-%d}")
         # aggregate stats
         wins = trades[trades.pnl > 0]
         losses = trades[trades.pnl <= 0]
