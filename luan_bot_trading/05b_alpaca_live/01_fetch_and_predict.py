@@ -306,9 +306,16 @@ def fetch_tiingo_prices(ticker: str, start: str, end: str) -> pd.DataFrame:
     return out
 
 
-def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> bool:
+def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> str:
     """Fetch incremental Tiingo prices for one permaTicker. Write back to DB.
-    Returns True if new data was fetched (or would be in dry-run)."""
+
+    Returns one of:
+      'current' — DB already has data through the target end date
+      'updated' — new data fetched and appended
+      'lagged'  — target bar NOT available from the feed yet (EOD lag);
+                  DB is stale through the previous session. NOT a skip.
+      'failed'  — fetch attempted and errored.
+    """
     h5_path = f"/{SP400_GROUP}/{permaTicker}"
 
     with pd.HDFStore(DB_FILE, mode="r") as store:
@@ -330,7 +337,7 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> bool:
     end_str = end.strftime("%Y-%m-%d")
 
     if latest is not None and latest >= pd.Timestamp(end_str):
-        return False  # already up to date
+        return "current"
 
     if latest is not None:
         start = (latest + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -340,11 +347,14 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> bool:
     if dry_run:
         print(f"    [DRY] Would fetch {permaTicker} {start}..{end_str} "
               f"({'closed' if market_closed else 'open'} market)")
-        return True
+        return "updated"
 
     new_data = fetch_tiingo_prices(permaTicker, start, end_str)
     if new_data.empty:
-        return False
+        # The feed was asked for data through end_str and returned none: the
+        # EOD bar has not been consolidated yet. This is a LAG, not a skip —
+        # surface it so features aren't silently anchored to a stale close.
+        return "lagged"
 
     # Append to DB
     with pd.HDFStore(DB_FILE, mode="a") as store:
@@ -358,23 +368,32 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False) -> bool:
         else:
             store.put(h5_path, new_data, format="table", data_columns=["Date"])
 
-    return True
+    return "updated"
 
 
 def refresh_concerned_tickers(concerned_pts: list[str], dry_run: bool = False) -> dict:
-    """Refresh Tiingo prices for all concerned tickers."""
+    """Refresh Tiingo prices for all concerned tickers.
+
+    'lagged' = the feed could not yet serve the target session's bar (Tiingo
+    EOD consolidation lags after the close). Counted separately from 'skipped'
+    (already current) so stale anchors can never masquerade as fresh ones.
+    """
     if dry_run:
         print(f"  [DRY] Would refresh {len(concerned_pts)} tickers")
-        return {"refreshed": 0, "skipped": len(concerned_pts), "failed": 0}
+        return {"refreshed": 0, "skipped": len(concerned_pts), "lagged": 0, "failed": 0}
 
-    stats = {"refreshed": 0, "skipped": 0, "failed": 0}
+    stats = {"refreshed": 0, "skipped": 0, "lagged": 0, "failed": 0}
+    lagged_list: list[str] = []
     t0 = time.time()
     for i, pt in enumerate(concerned_pts):
         try:
-            did = refresh_tiingo_for_ticker(pt)
-            if did:
+            status = refresh_tiingo_for_ticker(pt)
+            if status == "updated":
                 stats["refreshed"] += 1
-            else:
+            elif status == "lagged":
+                stats["lagged"] += 1
+                lagged_list.append(pt)
+            else:  # 'current'
                 stats["skipped"] += 1
         except Exception as e:
             stats["failed"] += 1
@@ -382,7 +401,15 @@ def refresh_concerned_tickers(concerned_pts: list[str], dry_run: bool = False) -
         if (i + 1) % 10 == 0 or (i + 1) == len(concerned_pts):
             elapsed = time.time() - t0
             print(f"    [{i+1}/{len(concerned_pts)}] refreshed={stats['refreshed']} "
-                  f"skipped={stats['skipped']} failed={stats['failed']} ({elapsed:.1f}s)")
+                  f"skipped={stats['skipped']} lagged={stats['lagged']} "
+                  f"failed={stats['failed']} ({elapsed:.1f}s)")
+    if stats["lagged"]:
+        print(f"    !! LAGGED FEED: {stats['lagged']} tickers do NOT have the target "
+              f"session bar yet (Tiingo EOD consolidation lag). Features for "
+              f"these names anchor to the PRIOR close: {lagged_list[:8]}"
+              + (f" +{len(lagged_list)-8} more" if len(lagged_list) > 8 else ""))
+        print(f"    !! Re-run Script 01 later tonight or before tomorrow's close if "
+              f"a lagged name is a pick.")
     return stats
 
 
@@ -1017,7 +1044,11 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
         print(f"\n[3] Refreshing Tiingo prices for {len(concerned_pts)} concerned tickers ...")
         tiingo_stats = refresh_concerned_tickers(concerned_pts, dry_run)
         print(f"  Done: refreshed={tiingo_stats['refreshed']} "
-              f"skipped={tiingo_stats['skipped']} failed={tiingo_stats['failed']}")
+              f"skipped={tiingo_stats['skipped']} lagged={tiingo_stats['lagged']} "
+              f"failed={tiingo_stats['failed']}")
+        if tiingo_stats['lagged']:
+            print("  !!! WARNING: some tickers are missing the target session bar — "
+                  "their features anchor to the PRIOR close. Re-run later.")
 
     if dry_run:
         print(f"\n  [DRY] Would compute features for {len(cal_sp400)} events and predict.")
