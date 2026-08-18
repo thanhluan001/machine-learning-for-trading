@@ -534,7 +534,7 @@ def _enter_pick(trader: AlpacaClient, positions: dict, pick: dict,
         return False
 
     order_id = trader.place_market_buy(ticker, qty, f"pead_entry_{ticker}_{today_str}")
-    positions["pending"].append({
+    pick_pending = {
         "canonical_ticker": ticker,
         "permaTicker": pick.get("permaTicker"),
         "entry_date": pick["entry_date"],
@@ -548,9 +548,45 @@ def _enter_pick(trader: AlpacaClient, positions: dict, pick: dict,
         "order_placed_at": datetime.now().isoformat(),
         "planned_qty": qty,
         "planned_entry_price": price,
-    })
+    }
+    # Same-run honesty pass (mirrors the sell path): poll up to ~10s so the
+    # printed status reflects the broker's actual state. A clean full fill
+    # goes straight to ACTIVE with the real entry price; partial fills are
+    # recorded with the unfilled remainder; rejected/expired zero-fill orders
+    # are recorded as failed and free the slot. Anything still working after
+    # the poll stays pending for next-run reconciliation (sync_pending).
+    fill = trader.poll_order_fill(order_id, timeout=10.0)
+    fq = float(fill.get("filled_qty") or 0.0)
     tag = f" [force-refreshed {victim['canonical_ticker']}]" if victim else ""
-    print(f"    → {ticker} BUY {qty} @ ~${price:.2f} → PENDING (order {order_id[:8]}...){tag}")
+    if fq > 0 and fill.get("filled_avg_price") is not None:
+        pick_pending["entry_price"] = float(fill["filled_avg_price"])
+        pick_pending["qty"] = fq
+        pick_pending["filled_qty"] = fq
+        pick_pending["unfilled_qty"] = max(0.0, qty - fq)
+        pick_pending["fill_status"] = "partial" if pick_pending["unfilled_qty"] > 0 else "filled"
+        pick_pending["order_status_final"] = fill.get("status")
+        pick_pending["stop_price"] = round(pick_pending["entry_price"] * (1 - STOP_LOSS_PCT), 2)
+        pick_pending["fill_time"] = datetime.now().isoformat()
+        positions["active"].append(pick_pending)
+        if pick_pending["unfilled_qty"] > 0:
+            print(f"    → {ticker} BUY PARTIAL {fq:g}/{qty:g} @ ${pick_pending['entry_price']:.2f} "
+                  f"(order {order_id[:8]}..., status={fill.get('status')}) → ACTIVE{tag}")
+        else:
+            print(f"    → {ticker} BUY FILLED {fq:g}/{qty:g} @ ${pick_pending['entry_price']:.2f} "
+                  f"→ ACTIVE (stop=${pick_pending['stop_price']:.2f}){tag}")
+    elif fill.get("is_canceled"):
+        pick_pending["filled_qty"] = 0.0
+        pick_pending["unfilled_qty"] = float(qty)
+        pick_pending["fill_status"] = "unfilled"
+        pick_pending["order_status_final"] = fill.get("status")
+        pick_pending["exit_reason"] = f"order_{fill['status']}"
+        pick_pending["exit_date_actual"] = date.today().isoformat()
+        positions["closed"].append(pick_pending)
+        print(f"    → {ticker} BUY {fill['status'].upper()} 0/{qty:g} filled → FAILED (slot freed){tag}")
+    else:
+        positions["pending"].append(pick_pending)
+        print(f"    → {ticker} BUY {qty:g} @ ~${price:.2f} pending after 10s "
+              f"(status={fill.get('status')}, filled={fq:g}) → reconcile next run{tag}")
     return True
 
 
