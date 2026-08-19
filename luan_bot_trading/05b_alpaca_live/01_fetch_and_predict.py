@@ -330,6 +330,36 @@ def resolve_required_session() -> str | None:
     return None
 
 
+_PT_TO_CANONICAL: dict[str, str] | None = None
+
+
+def _resolve_symbol(permaTicker: str) -> str:
+    """Map a permaTicker (HDF key) to the real Tiingo symbol.
+
+    Tiingo's daily/<ticker>/prices endpoint resolves by *symbol*. Most
+    permaTickers happen to work too, but some (e.g. SGI=US000000002577,
+    P=US000000003071) return EMPTY when sent as the permaTicker, silently
+    breaking their refresh. Always pass the canonical symbol.
+    """
+    global _PT_TO_CANONICAL
+    if _PT_TO_CANONICAL is None:
+        _PT_TO_CANONICAL = {}
+        try:
+            with pd.HDFStore(DB_FILE, mode="r") as store:
+                if PERMATICKERS_KEY in store.keys():
+                    meta = store[PERMATICKERS_KEY]
+                else:
+                    meta = pd.DataFrame()
+            for _, row in meta.iterrows():
+                pt = str(row.get("permaTicker"))
+                sym = row.get("canonical_ticker")
+                if pt and sym and str(sym).strip():
+                    _PT_TO_CANONICAL[pt] = str(sym)
+        except Exception:
+            _PT_TO_CANONICAL = {}
+    return _PT_TO_CANONICAL.get(permaTicker, permaTicker)
+
+
 def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False, required: str | None = None) -> str:
     """Fetch incremental Tiingo prices for one permaTicker. Write back to DB.
 
@@ -340,6 +370,7 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False, required:
       'lagged'  — feed cannot serve >= required yet (EOD lag); DB is stale
       'failed'  — fetch errored
     """
+    symbol = _resolve_symbol(permaTicker)
     h5_path = f"/{SP400_GROUP}/{permaTicker}"
 
     with pd.HDFStore(DB_FILE, mode="r") as store:
@@ -364,10 +395,10 @@ def refresh_tiingo_for_ticker(permaTicker: str, dry_run: bool = False, required:
         start = (datetime.now() - timedelta(days=15 * 365)).strftime("%Y-%m-%d")
 
     if dry_run:
-        print(f"    [DRY] Would fetch {permaTicker} {start}..{required}")
+        print(f"    [DRY] Would fetch {permaTicker}({symbol}) {start}..{required}")
         return "updated"
 
-    new_data = fetch_tiingo_prices(permaTicker, start, required)
+    new_data = fetch_tiingo_prices(symbol, start, required)
     if new_data is None or new_data.empty or new_data["Date"].max() < pd.Timestamp(required):
         return "lagged"
 
