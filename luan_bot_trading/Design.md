@@ -1009,6 +1009,16 @@ optimism) so they substitute rather than compound.
 
 ### RC-2: Post-event revision-confirmation hold extension (queued 2026-08-21; September dead-zone project)
 
+> **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
+> analyst-upgrade trigger fires on only 5-6% of SP400 events (any action:
+> 10-15%); 86% have NO grade action within 9 days post-earnings and 62% have
+> zero actions in the prior 90 days. Research-measurable (~1,700 confirmed
+> events) but operationally sparse (~3-4 extensions/yr on our pick volume).
+> FMP transcripts are paywalled on our tier (402) — transcript tone not
+> testable without a data decision. Architecture amended: price-based
+> reaction is the primary trigger; upgrades demoted to secondary condition;
+> transcript/8-K guidance NLP deferred.
+
 - **Hypothesis (interaction, not raw):** our T+5 exit is unconditional, but the
   front-loaded capture average hides conditioning. The re-rating scenario —
   big earnings surprise (high SUE) followed by post-event analyst revision
