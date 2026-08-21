@@ -1007,6 +1007,47 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
+### RC-2: Post-event revision-confirmation hold extension (queued 2026-08-21; September dead-zone project)
+
+- **Hypothesis (interaction, not raw):** our T+5 exit is unconditional, but the
+  front-loaded capture average hides conditioning. The re-rating scenario —
+  big earnings surprise (high SUE) followed by post-event analyst revision
+  confirmation (≥1 upgrade in days 0–5) — should fatten the day 5→20 tail
+  enough to justify holding confirmed winners past T+5. Raw revision momentum
+  alone is only +0.46%/21d (script 46), far below force-refresh economics;
+  only the surprise×revision interaction has a plausible shot.
+- **Mechanism:** guidance revisions arrive in the earnings release itself
+  (inside the surprise the gates score blind) and then ignite the analyst
+  cascade; the extender harvests the slow-diffusion tail of the same PEAD
+  event, not a separate edge. Survives the analysis-depth doctrine: requires
+  interpretation, mid-caps, multi-day diffusion.
+- **Architecture under test (shape 1 of 3):**
+  ```text
+  normal:    enter T close → exit T+5
+  extension: enter T close → IF confirmation by day 5 (≥1 upgrade days 0–5,
+             stop never hit) → hold to ~T+21; else exit T+5 as usual
+  ```
+  Alternatives if shape 1 fails: (2) exit T+5, re-enter on accelerating
+  revision cascade day 5–10 (pays spread twice, cleaner slot math);
+  (3) guidance-momentum as pre-event feature (weakest; duplicates
+  revision_momentum — V5 precedent says standalone analyst data dies).
+- **Honest baseline:** extension must beat FORCE-REFRESH at T+5 (mh=4, script
+  64 methodology), not buy-and-hold. Fresh picks average +6.66%/5d, so the
+  confirmed cohort's day 5→20 drift must beat a fresh pick's first 15 days.
+- **Data:** already cached — 14y grades with dates (807 nodes, script 46),
+  earnings/SUE from db.h5. No new FMP endpoints. Blocked cousin noted:
+  consensus-revision timestamps (FMP /analyst-estimates lacks observation
+  timestamps — point-in-time detection impossible; company-issued guidance
+  endpoint untested, optional extension).
+- **Method:** event study first (sort PEAD events 2015-2026 into
+  confirmed/unconfirmed cohorts, day 5→20 CAR vs IJH per cohort per year);
+  if fat + stable → full portfolio sim extension vs frozen force-refresh
+  baseline; walk-forward + bootstrap CI; same promotion bar as everything
+  else.
+- **Kill criteria:** confirmed-cohort day 5→20 CAR ≈ unconfirmed (revision
+  adds no conditioning info), or portfolio sim loses to force-refresh after
+  costs at 50bps.
+
 ### RC-3: Polymarket whale-lifecycle tracker (design notes, venue-gated)
 
 Design-stage only (2026-08-15, no data pulled). Killed at the Phase-0 legal
