@@ -1007,7 +1007,7 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
-### RC-2: Post-event revision-confirmation hold extension (queued 2026-08-21; September dead-zone project)
+### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
 > analyst-upgrade trigger fires on only 5-6% of SP400 events (any action:
@@ -1018,6 +1018,21 @@ optimism) so they substitute rather than compound.
 > testable without a data decision. Architecture amended: price-based
 > reaction is the primary trigger; upgrades demoted to secondary condition;
 > transcript/8-K guidance NLP deferred.
+
+> **KILL PROBE (2026-08-22, event study, 10,421 events / 310-ticker random
+> sample, 2015-2026):** the price-based primary trigger ALSO fails. Day5->20
+> abnormal return (vs IJH) by SUE tercile x entry->day5 reaction tercile:
+> the "most confirmed" cohort (SUE_high x react_high, n=1,581) shows mean
+> -0.39% / median -0.24% / 49% win; yearly means unstable and mostly
+> negative (2016 -1.2%, 2020 -2.1%, 2026 -1.4%); best cell anywhere is
+> SUE_mid x react_mid at +0.20% (noise; SE ~0.25%). The drift is EXHAUSTED
+> by day 5 in this universe — extending confirmed winners past T+5 earns
+> less than nothing. Survivorship bias in the sample (current members only)
+> flatters continuation, so the true numbers are worse. Verdict: confirms
+> the front-loaded-capture finding (script 52) and the force-refresh
+> architecture (script 63/64); both extension triggers dead; transcript-NLP
+> variant left untested (paywalled) with zero supporting evidence — not
+> worth the data spend. RC-2 CLOSED.
 
 - **Hypothesis (interaction, not raw):** our T+5 exit is unconditional, but the
   front-loaded capture average hides conditioning. The re-rating scenario —
