@@ -109,6 +109,10 @@ V6_MODEL_DIR = PROJECT_ROOT / "03_model" / "models" / "phase_g_v6_gate_decomposi
 PLAN_JSON = HERE / "plan.json"                 # V6: executed by Script 02
 V4_PLAN_JSON = HERE / "v4_plan.json"           # V4: comparison only
 V4_SHADOW_TRADES_JSON = HERE / "v4_shadow_trades.json"
+# Cap on the persistent known-candidates (safety) list. Each name costs a
+# Tiingo refresh + an FMP earnings re-check every run, so the list is kept
+# at the most recent MAX_SAFETY_TICKERS names (LRU) to bound runtime.
+MAX_SAFETY_TICKERS = 150
 
 # Deployable operating point
 THETA = 0.20
@@ -1092,20 +1096,30 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
     # misses some stocks like ROKU). We ALWAYS track what we hold / what we've
     # already flagged.
     safe_extra = set()
-    # Persistent known-candidates: every permaTicker ever predicted. This survives
+    # Persistent known-candidates: recently-predicted permaTickers. This survives
     # plan.json rewrites — once a stock is a candidate (e.g. ROKU), it stays tracked
     # even if a later run drops it. Fixes the round-trip loss where a stock falls
     # out of the prior plan and is never re-discovered.
+    # Capped at MAX_SAFETY_TICKERS (LRU, most recent last): every name costs a
+    # Tiingo refresh (step 3) + an FMP earnings re-check (step 4.5), so an
+    # unbounded ever-predicted set makes each run progressively slower.
+    # Held positions and current plan picks are unioned separately below and do
+    # NOT depend on this file for survival.
     KNOWN_FILE = HERE / "known_candidates.json"
-    known = set()
+    known: list[str] = []
     if KNOWN_FILE.exists():
         try:
             with open(KNOWN_FILE, "r", encoding="utf-8") as kf:
-                known = set(json.load(kf))
+                raw_known = [k for k in json.load(kf) if isinstance(k, str) and k]
+            # dedupe preserving order, keep the most recent tail
+            _seen = set()
+            known = [k for k in raw_known if not (k in _seen or _seen.add(k))]
+            known = known[-MAX_SAFETY_TICKERS:]
         except Exception:
-            known = set()
+            known = []
     if known:
-        safe_extra |= known
+        safe_extra |= set(known)
+        print(f"  known candidates: {len(known)} (cap {MAX_SAFETY_TICKERS})")
     # Prior plan picks (may include stocks the calendar dropped this run)
     prior_plan = HERE / "plan.json"
     if prior_plan.exists():
@@ -1418,15 +1432,20 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
     for i, p in enumerate(picks_v6):
         print(f"    V6 #{i+1} {p['canonical_ticker']:6s} | {p['report_date']} {p['time'].upper()} | min(Pgates)={p['p_v6_min']:.3f}")
 
-    # Persist known-candidates: union of every permaTicker we've ever predicted,
-    # so a stock dropped by the flaky FMP bulk-calendar (e.g. ROKU) stays tracked
-    # and is re-checked via the per-ticker endpoint on future runs. THIS is what
-    # makes the refresh safety-net actually durable across plan.json rewrites.
+    # Persist known-candidates (LRU, cap MAX_SAFETY_TICKERS): move this run's
+    # predicted permaTickers to the end (most recent), then trim the oldest,
+    # so the refresh safety-net stays durable across plan.json rewrites without
+    # the per-ticker refresh/check cost growing without bound.
     try:
-        known |= {r["permaTicker"] for r in results}
-        known = {k for k in known if isinstance(k, str) and k}
+        predicted = sorted({r["permaTicker"] for r in results
+                            if isinstance(r.get("permaTicker"), str) and r.get("permaTicker")})
+        older = [k for k in known if k not in set(predicted)]
+        new_known = (older + predicted)[-MAX_SAFETY_TICKERS:]
         with open(KNOWN_FILE, "w", encoding="utf-8") as kf:
-            json.dump(sorted(known), kf, indent=1)
+            json.dump(new_known, kf, indent=1)
+        if len(older) + len(predicted) > MAX_SAFETY_TICKERS:
+            print(f"  [SAFETY] known_candidates trimmed to last {len(new_known)} "
+                  f"(cap {MAX_SAFETY_TICKERS}); oldest {len(older) + len(predicted) - MAX_SAFETY_TICKERS} aged out")
     except Exception:
         pass
 
