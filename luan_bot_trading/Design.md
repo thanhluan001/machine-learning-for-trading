@@ -1272,6 +1272,25 @@ optimism) so they substitute rather than compound.
 > price-only entry rule tested (fixed, dip-bottom, confirmation) converges
 > to the same verdict. RC-8 CLOSED (final, with appendix).
 
+> **APPENDIX 2 — risk-management variant (user follow-up: −10% PEAD-style
+> stop + no-microcap filter; tested 2026-08-23): also closed.** 2×2 on the
+> 61 dipped deals (to-14D9 exit): no-stop/all +1.70% (win 70%) → stop/all
+> **−1.67%** (win 51%); liquid-only (ADV≥$10M, n=16) no-stop +0.17%
+> (win 88%, 2 neg years of 5) → stop+liquid −1.63%. Three findings:
+> (1) the stop is anti-moat here: 21 deals breached −10% mid-trade, 71%
+> RECOVERED (MEDP ended +6.1%, GNMK +10.4% — both chopped at −10%);
+> foregone recovery avg +6.6%; (2) stops don't cap risk anyway — fills
+> ranged −10.0% to −29.8% (deal-break gaps through the trigger);
+> (3) the liquidity filter works mechanically (AUTO $0.03M out, SAVE $88M
+> in) and yields exactly the professional universe: 16 deals/7y of +0.2%
+> to +6% convergence (DNKN +5.7, WH +4.3, LOXO +1.0, MIK, ABMD...) with
+> one SAVE −13.2% eating a whole regime year. Diagnosis: a −10% stop is a
+> THESIS-INVALIDATION device; PEAD's thesis lives in price (drift failed
+> = exit), merger convergence's thesis lives in documents, where an
+> interim −10% dip carries ~zero survival information. Price-only risk
+> management of a document-driven trade fails for the same reason
+> price-only entry timing did. RC-8 CLOSED (final, appendices 1-2).
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
