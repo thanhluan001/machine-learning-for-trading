@@ -1007,7 +1007,7 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
-### RC-5: Guidance pre-announcement mini-events via 8-K detection (design note; data probed 2026-08-22)
+### RC-5: Guidance pre-announcement mini-events via 8-K detection (CLOSED 2026-08-22 at the hand-label gate)
 
 > **Endpoint probes (our tier, 2026-08-22):**
 > - `/stable/sec-filings-search/symbol?symbol=X` — WORKS, filters properly
@@ -1059,6 +1059,33 @@ optimism) so they substitute rather than compound.
 - **Priority:** behind RC-1 (insider features, frozen-gate) and the August
   month-end megatrend panel. September dead-zone candidate if the cheap
   probe passes.
+
+> **HAND-LABEL GATE RESULT (2026-08-22; 656 pre-earnings-window 8-Ks fetched,
+> item headers extracted, 49 strictly-pre-earnings Item-2.02/7.01 docs read
+> incl. exhibit retrieval): CLOSED — event supply is fatally sparse.**
+> - Of 49 pre-earnings 2.02/7.01 filings, classification: 1 true
+>   pre-announcement (PII 2025-10-14: separation + preliminary Q3 results
+>   preview), 23 recurring monthly preliminary-metrics disclosures from ONE
+>   company (VOYA: "alternative investment income above/below expectations" +
+>   AUM — an insurer idiosyncrasy, directional but not guidance), 2 unreadable
+>   shells, and the rest routine corporate actions (board ×7, M&A/transaction
+>   ×9, debt refinancing ×3, litigation ×1, partnership ×1, segment-report
+>   change ×1, presentation posting ×1). Ex-VOYA base rate: ~1-3 genuine
+>   guidance pre-announcements per 656 filings / 60 tickers / 3.2y ≈ 0.5%.
+> - Design A (PEAD feature) dead: feature non-zero for ~2-5% of events
+>   universe-wide, 23/24 of which are one company — unlearnable by the gates,
+>   unvalidatable. Worse than senate-trade sparsity (parked at 4.5/mo).
+> - Design B (standalone event supply) dead: ~1-2 events/yr ex-VOYA.
+> - Why so rare (mechanism): Reg-FD + mid-cap practice puts guidance updates
+>   AT the quarterly release, not mid-quarter; the classic warning/raise
+>   pre-announcement is an S&P-500-era behavior that SP400 companies mostly
+>   don't do. The window [T-30, T-1] is largely the quiet period.
+> - Salvage: (a) 8-K fetch/item-extraction infrastructure works and is
+>   reusable; (b) FMP report_date vs actual 8-K dates have ±1d mismatches
+>   (OGE earnings filed T-1) — never join filings to events by date alone
+>   without a tolerance; (c) recurring-preliminary-metrics disclosures
+>   (insurers/financials) exist as a niche pattern — not a general edge.
+> RC-5 CLOSED at the gate, per doctrine: no pipeline was built.
 
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
