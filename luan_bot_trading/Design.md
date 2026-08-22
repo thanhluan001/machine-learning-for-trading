@@ -1291,6 +1291,43 @@ optimism) so they substitute rather than compound.
 > management of a document-driven trade fails for the same reason
 > price-only entry timing did. RC-8 CLOSED (final, appendices 1-2).
 
+### RC-9: Undecided-state detector for the megatrend watcher (QUEUED 2026-08-23; manual-advisory role)
+
+- **Problem (user-stated):** during undecided phases money is thrown across
+  many trends simultaneously (e.g. 2020-21: clean energy / SPACs / EV /
+  crypto / WFH; 2017 melt-up) and the winner is unknowable ex-ante. Partial
+  entry/exit (config D) is the right POLICY for that state — but it was
+  validated unconditionally and carried −43% DD partly from running in
+  states where it doesn't belong. Missing layer: a classifier for WHICH
+  policy applies now.
+- **Design (3 metrics, monthly, from cached /mt series; thresholds fixed,
+  no tuning):**
+  - P = Spearman rank autocorr of theme 3m relative returns (vs SPY), lag 1m
+    (leadership persistence)
+  - B = fraction of theme series above MA10 with positive 6m relative
+    strength (theme breadth)
+  - C = avg pairwise 60d correlation of theme daily returns (bloc vs
+    differentiation)
+  - State map: UNDECIDED (B↑ P↓ C↑ → fractional+rotation posture) /
+    DIFFERENTIATING (P rising through ~0.5, B narrowing → winner emerging;
+    the actionable transition) / CONCENTRATED (P↑ C↓ → hold leader) /
+    DISPERSAL (B↓ C↑ → de-risk advisory; recession evidence still decides
+    absolute risk per doctrine, not this classifier).
+- **What it is NOT:** winner selection (AI vs clean energy unknowable from
+  breadth); auto-allocation (advisory section [13] + log field in the
+  month-end panel); a timing overlay (n of transitions ≈ 5-6 in 12y;
+  fixed thresholds, pre-registered before any backfill).
+- **Validation gate (episode classification, NOT NAV):** using only
+  prior-month data, the map must call 2020-21 UNDECIDED, late-2021
+  DIFFERENTIATING, 2023+ CONCENTRATED, 2018 DISPERSAL. Pre-registered
+  thresholds: P=0.5, B=50%, C=60th pct of own history. Any post-hoc
+  threshold chosen after seeing the backfill = mining, reject.
+- **Honest priors:** classification is a lower bar than prediction, so
+  this is more likely to survive than the warning filters (all dead);
+  but the DIFFERENTIATING signal is inherently lagging — we pay for not
+  marrying losers by giving up the winner's first leg. The fractional
+  design already accepts this trade.
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
