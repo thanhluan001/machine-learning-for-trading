@@ -1009,15 +1009,21 @@ optimism) so they substitute rather than compound.
 
 ### RC-5: Guidance pre-announcement mini-events via 8-K detection (design note; data probed 2026-08-22)
 
-> **Endpoint probe (/stable/sec-filings-8k, our tier):** works. Fields:
-> symbol, cik, filingDate, acceptedDate (intraday timestamp — BMO/AMC entry
-> timing derivable), formType, link, finalLink (SEC document). Bulk
-> date-window paging works back to at least 2020. CAVEATS: (a) `symbol`
-> param is IGNORED (returns universe rows; filter locally by cik against
-> the 419-member map); (b) NO item classification and NO content — Item
-> 2.02/7.01 (results/GN) vs 1.01 (contracts) vs 5.02 (board) must be read
-> from the linked SEC document; (c) ~100+ 8-Ks/day universe-wide → SP400
-> subset ~5-15/day. FMP's dedicated guidance endpoints remain 403/legacy.
+> **Endpoint probes (our tier, 2026-08-22):**
+> - `/stable/sec-filings-search/symbol?symbol=X` — WORKS, filters properly
+>   (ANF: 79 rows 2026-YTD, single symbol, 2015+ verified). Returns ALL form
+>   types (8-K, 4, 10-Q, SC 13G, DEF 14A...) — filter formType locally.
+>   One-time backfill: ~13 pages/symbol × 419 ≈ 5.4k requests.
+> - `/stable/sec-filings-search/form-type?formType=8-K` — WORKS for the
+>   universe 8-K firehose (daily operational pull; filter locally by cik).
+> - `/stable/sec-filings-8k` (bulk date-window) — works but `symbol` param
+>   IGNORED; superseded by the two search endpoints above.
+> - Fields (all three): symbol, cik, filingDate, acceptedDate (INTRADAY —
+>   BMO/AMC entry timing derivable), formType, link, finalLink (SEC doc).
+> - STILL MISSING: item classification + content. Item 2.02/7.01 vs 1.01 vs
+>   5.02 must be read from the linked SEC document (lexicon classifier).
+> - Bonus: by-symbol returns Form 4s → same endpoint can refresh RC-1
+>   insider features. FMP guidance endpoints remain 403/legacy.
 
 - **Hypothesis:** off-cycle guidance updates (warnings, raises, conference
   reaffirmations) are unscheduled mini-events with genuine unresolved
