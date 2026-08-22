@@ -1167,6 +1167,36 @@ optimism) so they substitute rather than compound.
 > RC-6 CLOSED. Infrastructure retained: filing index + EDGAR fetch +
 > classification stack (reusable, ~2.5h wall-clock for full SP500 3.6y).
 
+### RC-7: Merger-arb sleeve for slow weeks (PROBED & CLOSED 2026-08-23: naive sleeve is mean-negative; the lane requires a different business model)
+
+- **Origin:** RC-6's M&A decomposition found target announcements +3.4%/10d
+  with 3/3 wins; user flagged the +100% win rate as encouraging and asked
+  about non-8-K sources. Sources probed: FMP M&A endpoints DEAD (403
+  legacy); EDGAR Form 425 (1,185 symbols in 2025), SC 14D9 (52-70 distinct
+  tender targets/yr), DEFM14A (deal terms) all WORK via our verified
+  sec-filings-search endpoints; Tiingo news API works (fast detection).
+- **Survivorship confession:** RC-6's n=3 was an artifact — db_sp500 holds
+  current members only; acquired targets delist and vanish. True deal flow
+  is ~50-70 tender deals/yr plus hundreds via 425.
+- **Naive-strategy measurement (SC 14D9 targets 2024-25, n=111, 38 priced
+  via Tiingo incl. delisted; entry = first close after first SC 14D9):**
+  c5 mean +3.15% / MEDIAN 0.00% / win 47% (a few fast convergences = the
+  arb desks' capture); c20 +0.78%/median −0.18%; c40 mean **−3.95%** /
+  median +0.74% / win 53%. The mean is destroyed by the break tail:
+  SQNS −74.5%, ALLGF −43.2%, LU −33.2%, MANU −29.0%, RHEP −27.8%.
+  Distribution = sell-insurance: most deals converge ~0-2%, breaks
+  destroy the mean. n=3 SP500 slice was the cleanest-regime cherry.
+- **Why we close:** profitable merger arb REQUIRES deal-terms screening
+  (financing/regulatory conditions, termination fees from DEFM14A),
+  broad concurrent diversification (break tail 1/N'd), typically acquirer
+  hedging (borrow — retail-unfriendly), and capacity competes with
+  dedicated desks in exactly the liquid deals worth doing. The remaining
+  unpriced 73 tickers skew foreign/microcap (SQNS, MANU ADR...) — the
+  part of the distribution that IS accessible to retail is the worst part.
+- **Salvage:** SC 14D9/425/DEFM14A feeds + Tiingo news all verified and
+  reusable; the break-tail measurement is a permanent reference for why
+  "sell legal-event insurance" ≠ slow-window drift.
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
