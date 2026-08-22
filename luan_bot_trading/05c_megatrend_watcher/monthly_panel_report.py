@@ -184,6 +184,46 @@ RC9_THEMES = {
 }
 RC9_P, RC9_B, RC9_CPCT = 0.50, 0.50, 60.0
 
+# Advisory posture per state. Grounded in the 2014-2026 run-length and
+# transition study: phases last 2-17m (median 4m) under 2m hysteresis;
+# DISPERSAL historically marks capitulation resolving into a paying regime
+# within <=3m (3 of 5 episodes marked tradable bottoms: 2018-10, 2022-09,
+# 2024-08); UNDECIDED is rare (2 episodes/12y) and resolves directly into
+# CONCENTRATED more often than into DISPERSAL. Manual decisions only.
+RC9_ADVICE = {
+    "UNDECIDED": [
+        "NO new buys. Let fractional positions ride; trim the weakest.",
+        "Leadership churns (P<0.5) with breadth up (B>=50%): picking a winner",
+        "now is gambling. Rare state (2 episodes/12y); historically resolves",
+        "directly into CONCENTRATED more often than into DISPERSAL.",
+    ],
+    "DIFFERENTIATING": [
+        "BUILD toward the emerging leader in fractions (config-D style steps).",
+        "Add on confirmation (2 consecutive raw months agreeing), not on the",
+        "first flip - this is the noisiest state (remainder bucket). Do not",
+        "marry the leader yet; one reversal re-opens the question.",
+    ],
+    "CONCENTRATED": [
+        "HOLD the leader; cap adds. P high with C low = the market pays ONE",
+        "theme; concentration risk is acceptable HERE, not elsewhere.",
+        "Trim only on a regime change (2m hysteresis), not on 1-month flickers.",
+    ],
+    "CONCENTRATED (bloc)": [
+        "HOLD, but respect the bloc: themes move together on liquidity (C",
+        "high), so the leader is partly risk-on beta - size it like beta, not",
+        "alpha. Watch DISPERSAL as the de-risk tell; a bloc that breaks,",
+        "breaks together. Do not trim on every monthly flicker.",
+    ],
+    "DISPERSAL": [
+        "ENTRY state, not exit: breadth collapsed while themes still trade as",
+        "one bloc = capitulation signature. All 5 historical episodes resolved",
+        "into a paying regime within <=3m (3 of 5 marked tradable bottoms:",
+        "2018-10, 2022-09, 2024-08). Deploy fractional allocation INTO the",
+        "resolution, staggered. Absolute de-risking still requires recession",
+        "evidence (doctrine), never this state alone.",
+    ],
+}
+
 
 def rc9_state(daily: pd.DataFrame) -> pd.Series:
     """Monthly {P,B,C_pct,state} using only data available at each month end."""
@@ -552,15 +592,43 @@ def main():
         daily_all = pd.DataFrame({sym: ser.astype(float) for sym, ser in pxr.items()})
         daily_all.index = pd.to_datetime(daily_all.index)
         st = rc9_state(daily_all)
+        # 2-month hysteresis: a raw state must repeat to register a regime
+        # change (display/interpretation rule; metrics & thresholds unchanged).
+        raw = list(st["state"])
+        hyp = [raw[0]]
+        cur = raw[0]
+        for i in range(1, len(raw)):
+            if raw[i] == cur:
+                hyp.append(cur)
+            elif i + 1 < len(raw) and raw[i + 1] == raw[i]:
+                cur = raw[i]
+                hyp.append(cur)
+            else:
+                hyp.append(cur)
+        st["regime"] = hyp
         last = st.iloc[-1]
+        regime_start = st.index[-1]
+        run_len = 1
+        for j in range(len(st) - 2, -1, -1):
+            if st.iloc[j]["regime"] == last["regime"]:
+                regime_start = st.index[j]
+                run_len += 1
+            else:
+                break
         print(f"  as of {st.index[-1]}:  P={last['P']:.2f}  B={last['B']:.0%}  C-pct={last['C_pct']:.0f}")
-        print(f"  STATE: {last['state']}")
-        print("  postures: UNDECIDED=fractional+rotation | DIFFERENTIATING=winner emerging |")
-        print("            CONCENTRATED=hold leader | DISPERSAL=de-risk advisory (context only)")
+        print(f"  STATE (raw):            {last['state']}")
+        print(f"  REGIME (2m hysteresis): {last['regime']} since {regime_start} ({run_len}m)")
+        print("  advisory posture (manual decision; not auto-allocation):")
+        for line in RC9_ADVICE.get(last["regime"], [""]):
+            print(f"    {line}")
+        print("  recent months (raw / regime when different):")
         for m, row in st.tail(6).iloc[:-1].iterrows():
-            print(f"    {m}: P={row['P']:.2f} B={row['B']:.0%} C={row['C_pct']:.0f} -> {row['state']}")
+            print(f"    {m}: P={row['P']:.2f} B={row['B']:.0%} C={row['C_pct']:.0f} -> {row['state']}"
+                  + (f"  [regime: {row['regime']}]" if row['state'] != row['regime'] else ""))
         rc9 = {"P": round(float(last['P']), 3), "B": round(float(last['B']), 3),
-               "C_pct": round(float(last['C_pct']), 1), "state": last['state']}
+               "C_pct": round(float(last['C_pct']), 1), "state": last['state'],
+               "regime": last["regime"], "regime_since": str(regime_start),
+               "regime_months": int(run_len)}
     except Exception as exc:
         print(f"  !! state detector failed: {exc}")
         rc9 = {"error": str(exc)[:80]}
