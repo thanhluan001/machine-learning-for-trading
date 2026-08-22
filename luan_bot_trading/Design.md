@@ -1197,7 +1197,7 @@ optimism) so they substitute rather than compound.
   reusable; the break-tail measurement is a permanent reference for why
   "sell legal-event insurance" ≠ slow-window drift.
 
-### RC-8: Post-announcement DIP-ENTRY merger convergence (OPEN 2026-08-23 — user-pattern, strongest candidate since PEAD)
+### RC-8: Post-announcement DIP-ENTRY merger convergence (CLOSED 2026-08-23 at the regime gate)
 
 - **Origin:** user observed (a priori, before any test — the best kind of
   hypothesis): after a deal announcement jump, targets often dip for 2-3
@@ -1235,6 +1235,22 @@ optimism) so they substitute rather than compound.
   4. Deal-terms conditioning (DEFM14A cash/stock, financing terms,
      residual spread) is the professional upgrade — later, only if the
      regime gate passes.
+
+> **REGIME-GATE RESULT (2026-08-23, same day — the 2019-2023 extension was
+> the decisive test and it FAILED):** SC 14D9 targets backfilled to 2019
+> (241 new symbols, 168 priced via Tiingo incl. delisted); combined
+> 2019-2025 clean sample n=124 with price-detected announcements. The
+> dipped-subset rule (+3.3%/t=2.2, +5.4%/t=3.7 in 2024-25) COLLAPSES out
+> of window: pooled 2019-2025 h10 mean −0.50% (t=−0.6), to-14D9 +1.70%
+> (t=+0.9); 2021 −3.69% mean / 55% win; 2022 (break winter, n=17)
+> −1.94%/47% win, −3.72% to 14D9 — the entire in-sample edge was the
+> friendly 2024-25 M&A regime, not the dip mechanic. The 'alpha entirely
+> in dipped subset' conditioning also weakens (no-dip control only
+> mildly worse pooled). Verdict: regime-dependent, no persistent edge;
+> RC-8 CLOSED per the pre-registered gate (2022-23 stress requirement
+> not met). Kill-honesty note: the 2024-25 result stood at t=3.7 with an
+> a-priori rule — exactly why out-of-window validation outranks in-sample
+> significance; the friendly regime, not the pattern, was the alpha.
 
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
