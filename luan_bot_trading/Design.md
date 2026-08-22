@@ -1141,11 +1141,28 @@ optimism) so they substitute rather than compound.
 > certificates/XBRL) — dropped.
 >
 > **What remains untested in this channel:** (a) M&A definitive agreements
-> (19.2% of standalone docs) — but that is deal-spread/arbitrage territory
-> (instant jump + legal-duration risk), not a slow-window drift class;
-> (b) Russell-2000 small caps (buyback announcements plausibly diffuse
-> slower) — requires building a new universe (prices, metadata, filings)
-> from scratch; prior weak given SP500 result. Neither queued.
+> (19.2% of standalone docs) — TESTED 2026-08-23, see below; (b) Russell-2000
+> small caps — user-assessed as equally buyback-poor (smaller capital bases),
+> not queued.
+>
+> **M&A decomposition (3,095 docs → 2,642 acquirer-side / 274 target-side /
+> 179 other):**
+> - ACQUIRER side (n=797 deduped): gap −0.17% (t=−2.5), T+1→5 −0.24%
+>   (t=−1.8), T+1→10 −0.52% (t=−2.8), negative in every year. The classic
+>   ACQUIRER'S CURSE — the only statistically stable finding in the entire
+>   8-K census — but it is a SHORT-side effect (needs borrow, short-risk
+>   profile; wrong lane for a long-only PEAD book; parked).
+> - TARGET side: 99% classification contamination (merger completions,
+>   subsidiary mergers, JV/spin agreements — no announcement jump).
+>   Validation via pre-jump screen (T−1→T close must show >+10% for a true
+>   fresh target): only 3 of 260 docs qualify (NFLX-26, TPR-24, PSKY-26;
+>   ~1-2 fresh SP500 take-private 8-K events/yr). Their post-entry drift
+>   T+1→10 +3.44% (win 3/3) = classic deal-spread convergence — the ONE
+>   positive slow-burn found in the whole 8-K channel, but n=3/3.6y and it
+>   is deal-break-risk arbitrage (selling legal-event insurance; −30..−50%
+>   tail on a broken deal), a different business, not a PEAD slot-filler.
+> Verdict: M&A channel cannot fill slow weeks for a long-only book; the
+> census is complete. RC-6 CLOSED (final).
 >
 > RC-6 CLOSED. Infrastructure retained: filing index + EDGAR fetch +
 > classification stack (reusable, ~2.5h wall-clock for full SP500 3.6y).
