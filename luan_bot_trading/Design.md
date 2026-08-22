@@ -1291,7 +1291,7 @@ optimism) so they substitute rather than compound.
 > management of a document-driven trade fails for the same reason
 > price-only entry timing did. RC-8 CLOSED (final, appendices 1-2).
 
-### RC-9: Undecided-state detector for the megatrend watcher (QUEUED 2026-08-23; manual-advisory role)
+### RC-9: Undecided-state detector for the megatrend watcher (PROMOTED 2026-08-23 to panel §[13]; advisory)
 
 - **Problem (user-stated):** during undecided phases money is thrown across
   many trends simultaneously (e.g. 2020-21: clean energy / SPACs / EV /
@@ -1327,6 +1327,18 @@ optimism) so they substitute rather than compound.
   but the DIFFERENTIATING signal is inherently lagging — we pay for not
   marrying losers by giving up the winner's first leg. The fractional
   design already accepts this trade.
+
+> **RESULT (2026-08-23, same day):** built (86_rc9_undecided_state_detector.py),
+> backfilled 2014-2026, validation 2 clean passes (2021-H2 DIFFERENTIATING
+> called in real time; 2018-Q4 DISPERSAL), 1 partial (2023-25 mostly
+> CONCENTRATED; 2024-08..10 DISPERSAL = yen-carry window), 1 PREMISE FAILURE
+> (2020-21 read CONCENTRATED-bloc, not UNDECIDED: P stayed 0.77-0.94 —
+> the pandemic cohort WAS decided; "many trends bid" was one liquidity
+> factor, which C correctly flagged). No thresholds changed (per
+> pre-registration). Promoted to month-end panel §[13] + rc9_state log
+> field. Current reading 2026-08: CONCENTRATED (bloc) after a genuine
+> UNDECIDED spell in Apr-May (P~0.45, B 50-60%, C 91st pct). Findings:
+> archive/findings/rc9_undecided_state_findings.md.
 
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 

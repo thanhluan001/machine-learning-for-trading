@@ -164,6 +164,103 @@ def monthly_matrix() -> pd.DataFrame:
     return M.loc[M.index <= cutoff]
 
 
+# ---------------- RC-9 undecided-state detector (advisory) ----------------
+# Pre-registered design + thresholds (Design.md §18 RC-9, 2026-08-23):
+#   P  = Spearman autocorr of theme 3m relative returns vs SPY, lag 1m
+#   B  = fraction of theme proxies above own MA10 with 6m relative momentum > 0
+#   C  = avg pairwise 60d correlation of theme daily returns,
+#        expanding percentile of own history (>=36m)
+# Thresholds: P>=0.50, B>=50%, C>=60th pct. States (deterministic):
+#   CONCENTRATED (P high) / CONCENTRATED (bloc) (P high, C high) /
+#   UNDECIDED (B>=50%, P low, C high) / DISPERSAL (B low, P low, C high) /
+#   DIFFERENTIATING (remainder).
+RC9_THEMES = {
+    "AI/hyperscale": ["SMH"],
+    "clean_energy": ["ICLN", "TAN"],
+    "crypto": ["MSTR", "COIN"],
+    "biotech": ["XBI", "IBB"],
+    "metals": ["GDX", "LIT"],
+    "uranium": ["URA"],
+}
+RC9_P, RC9_B, RC9_CPCT = 0.50, 0.50, 60.0
+
+
+def rc9_state(daily: pd.DataFrame) -> pd.Series:
+    """Monthly {P,B,C_pct,state} using only data available at each month end."""
+    d = daily.dropna(how="all", axis=1)
+    me = d.groupby(d.index.to_period("M")).last()
+    theme_cols = {}
+    for theme, proxies in RC9_THEMES.items():
+        cols = [c for c in proxies if c in me.columns]
+        if cols:
+            theme_cols[theme] = me[cols].mean(axis=1)
+    theme_me = pd.DataFrame(theme_cols)
+    rel1 = np.log(theme_me).diff(1).sub(np.log(me["SPY"]).diff(1), axis=0)
+    rel3 = rel1.rolling(3).sum()
+    P = {}
+    idx = list(rel3.index)
+    for i in range(1, len(idx)):
+        prev, cur = rel3.iloc[i - 1], rel3.iloc[i]
+        mask = cur.notna() & prev.notna()
+        if mask.sum() >= 4 and cur[mask].std() > 0 and prev[mask].std() > 0:
+            P[idx[i]] = float(cur[mask].rank().corr(prev[mask].rank(), method="spearman"))
+    P = pd.Series(P)
+    ma10_me = d.rolling(10).mean().groupby(d.index.to_period("M")).last()
+    rel1_px = np.log(me).diff(1).sub(np.log(me["SPY"]).diff(1), axis=0)
+    rel6 = rel1_px.rolling(6).sum()
+    B = {}
+    syms = sorted({s_ for v in RC9_THEMES.values() for s_ in v})
+    for m in me.index[6:]:
+        flags = []
+        for s_ in syms:
+            if s_ not in me.columns:
+                continue
+            px, ma, r6 = me.loc[m, s_], ma10_me.loc[m, s_], rel6.loc[m, s_]
+            if pd.isna(px) or pd.isna(ma) or pd.isna(r6):
+                continue
+            flags.append(bool(px > ma and r6 > 0))
+        if len(flags) >= 4:
+            B[m] = float(np.mean(flags))
+    B = pd.Series(B)
+    rets = np.log(d[syms]).diff()
+    C_hist = []
+    for m in me.index:
+        win = rets.loc[: m.to_timestamp(how="end")].tail(60)
+        if len(win) < 40:
+            continue
+        valid = [c for c in win.columns if win[c].notna().all()]
+        if len(valid) < 6:
+            continue
+        corr = win[valid].corr()
+        if corr.isna().any().any():
+            continue
+        n = corr.shape[0]
+        C_hist.append((m, float(corr.values[np.triu_indices(n, k=1)].mean())))
+    Cpct, hist = {}, []
+    for m, c in C_hist:
+        hist.append(c)
+        if len(hist) >= 36:
+            Cpct[m] = float((np.array(hist) <= c).mean() * 100)
+    Cpct = pd.Series(Cpct)
+    Mx = pd.concat({"P": P, "B": B, "C_pct": Cpct}, axis=1).dropna()
+    states = []
+    for m, row in Mx.iterrows():
+        p_hi, b_hi = row["P"] >= RC9_P, row["B"] >= RC9_B
+        c_hi = row["C_pct"] >= RC9_CPCT
+        if p_hi and c_hi:
+            states.append("CONCENTRATED (bloc)")
+        elif p_hi:
+            states.append("CONCENTRATED")
+        elif b_hi and c_hi:
+            states.append("UNDECIDED")
+        elif (not b_hi) and c_hi:
+            states.append("DISPERSAL")
+        else:
+            states.append("DIFFERENTIATING")
+    Mx["state"] = states
+    return Mx
+
+
 def panel_breadth(M: pd.DataFrame, names: list[str]) -> tuple[pd.Series, list[str], list[str]]:
     available = [c for c in names if c in M.columns]
     p = M[available]
@@ -448,13 +545,32 @@ def main():
     print("  Historical calibration: equity q05=17%, q25=54%, median=77%, q75=89%.")
     print("\n[11] TRAILING 13-MONTH EQUITY BREADTH")
     for d, v in equity.dropna().tail(13).items(): print(f"  {d.date()} {v*100:3.0f}% {'#'*int(v*40)}")
+    print("\n[13] RC-9 STATE DETECTOR (advisory; pre-registered thresholds P>=0.5 B>=50% C>=60th)")
+    try:
+        with pd.HDFStore(DB_MT, mode="r") as s:
+            pxr = {k.split("/")[-1]: s[k].set_index("date")["adjClose"] for k in s.keys()}
+        daily_all = pd.DataFrame({sym: ser.astype(float) for sym, ser in pxr.items()})
+        daily_all.index = pd.to_datetime(daily_all.index)
+        st = rc9_state(daily_all)
+        last = st.iloc[-1]
+        print(f"  as of {st.index[-1]}:  P={last['P']:.2f}  B={last['B']:.0%}  C-pct={last['C_pct']:.0f}")
+        print(f"  STATE: {last['state']}")
+        print("  postures: UNDECIDED=fractional+rotation | DIFFERENTIATING=winner emerging |")
+        print("            CONCENTRATED=hold leader | DISPERSAL=de-risk advisory (context only)")
+        for m, row in st.tail(6).iloc[:-1].iterrows():
+            print(f"    {m}: P={row['P']:.2f} B={row['B']:.0%} C={row['C_pct']:.0f} -> {row['state']}")
+        rc9 = {"P": round(float(last['P']), 3), "B": round(float(last['B']), 3),
+               "C_pct": round(float(last['C_pct']), 1), "state": last['state']}
+    except Exception as exc:
+        print(f"  !! state detector failed: {exc}")
+        rc9 = {"error": str(exc)[:80]}
     LOG.parent.mkdir(parents=True, exist_ok=True)
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     log[str(asof.date())] = {"equity": {"frac": round(eq_frac,3), "zone": zone(eq_frac), "active": sorted(eq_active)},
         "theme": {"frac": round(theme_frac,3), "active": sorted(theme_active)},
         "cross_asset": {"frac": round(cross_frac,3), "active": sorted(cross_active)},
         "capex": capex, "advisory_ratio": advisory_ratio, "theme_candidates": candidates,
-        "insider": insider, "news": news}
+        "insider": insider, "news": news, "rc9_state": rc9}
     LOG.write_text(json.dumps(log, indent=1, default=str))
     print(f"\n[12] logged -> {LOG.relative_to(ROOT.parent)}")
 
