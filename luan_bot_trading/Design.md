@@ -1252,6 +1252,26 @@ optimism) so they substitute rather than compound.
 > a-priori rule — exactly why out-of-window validation outranks in-sample
 > significance; the friendly regime, not the pattern, was the alpha.
 
+> **APPENDIX — adaptive-entry variant (user follow-up, tested 2026-08-23):
+> also closed.** Hypothesis: fixed T+2 misses the true bottom in contested
+> deals (SAVE: announcement Apr 5, bottom May 12, 14D9 May 19); wait for
+> drift CONFIRMATION instead (first close > max of prior 3 closes, only
+> after a dip below day0). Result on the same 2019-23 sample: triggered
+> 78% (median wait 10d, entry ≈ day0 close, −0.21% median); entry→14D9
+> pooled −0.28% (t=−0.2); by year 2023 −3.54%, 2022 −2.02%; head-to-head
+> vs fixed T+2 on the same 53 deals: median improvement −0.49% per deal,
+> better in only 21%. Mechanism of failure: in contested deals the first
+> bounce FAILS — SAVE's confirmation fired Apr 19 ~$23.1 on the initial
+> bounce, then the stock collapsed to $14.77 (−36% from trigger); deeper
+> confirmation thresholds = more parameters = pure mining. Diagnosis:
+> 'wait for the real bottom' requires distinguishing real bounces from
+> dead-cat bounces, which IS deal-terms underwriting (the professional's
+> edge), not a price-only pattern. SAVE full anatomy: fixed T+2 −28.0%,
+> confirmation −25.4%, hold-to-completion from T+2 +40% — the only winning
+> path required sitting through a −38% drawdown on one deal. Every
+> price-only entry rule tested (fixed, dip-bottom, confirmation) converges
+> to the same verdict. RC-8 CLOSED (final, with appendix).
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
