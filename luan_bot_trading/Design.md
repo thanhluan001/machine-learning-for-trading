@@ -1025,6 +1025,17 @@ optimism) so they substitute rather than compound.
 > - Bonus: by-symbol returns Form 4s → same endpoint can refresh RC-1
 >   insider features. FMP guidance endpoints remain 403/legacy.
 
+- **Zero-NLP flag probe (2026-08-22, 60 tickers / 694 events 2023-26 / 2,311
+  8-Ks):** does a mere ANY-8-K flag in [T-14, entry] carry directional info?
+  Result: flag fires on 61% of events (routine filings dominate — not a
+  selective guidance detector); flagged events show HIGHER SUE (+10.7% vs
+  +5.1% — well-run companies file more 8-Ks; quiet ≠ warning-free) and
+  slightly better r15 (+0.06% vs -1.02%); but among beaters the flag adds
+  only +0.27pp (+0.97 vs +0.70) — mostly SUE-composition artifact. Verdict:
+  the raw flag is a weak health proxy, NOT a guidance signal. The raise/
+  warning information lives only in Item 2.02/7.01 content → the hand-label
+  + lexicon step is unavoidable and remains the gate. (Known contamination:
+  evening-accepted 8-Ks on BMO entry day counted as known; minor.)
 - **Hypothesis:** off-cycle guidance updates (warnings, raises, conference
   reaffirmations) are unscheduled mini-events with genuine unresolved
   uncertainty, requiring interpretation (guide revision -> fundamental
