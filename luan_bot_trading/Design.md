@@ -1007,6 +1007,42 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
+### RC-5: Guidance pre-announcement mini-events via 8-K detection (design note; data probed 2026-08-22)
+
+> **Endpoint probe (/stable/sec-filings-8k, our tier):** works. Fields:
+> symbol, cik, filingDate, acceptedDate (intraday timestamp — BMO/AMC entry
+> timing derivable), formType, link, finalLink (SEC document). Bulk
+> date-window paging works back to at least 2020. CAVEATS: (a) `symbol`
+> param is IGNORED (returns universe rows; filter locally by cik against
+> the 419-member map); (b) NO item classification and NO content — Item
+> 2.02/7.01 (results/GN) vs 1.01 (contracts) vs 5.02 (board) must be read
+> from the linked SEC document; (c) ~100+ 8-Ks/day universe-wide → SP400
+> subset ~5-15/day. FMP's dedicated guidance endpoints remain 403/legacy.
+
+- **Hypothesis:** off-cycle guidance updates (warnings, raises, conference
+  reaffirmations) are unscheduled mini-events with genuine unresolved
+  uncertainty, requiring interpretation (guide revision -> fundamental
+  re-rating), in our thinly-covered universe. Same doctrinal class as PEAD:
+  slow diffusion, multi-day horizon, no timestamp race (8-K accepted-time
+  detection is minutes — irrelevant vs a 5-20d harvest).
+- **Required build (the real cost):** daily 8-K index pull → cik filter →
+  fetch SEC doc via finalLink → lexicon classifier for Item 2.02/7.01 +
+  raise/warning/reaffirm (validated against a hand-labeled sample; classic
+  keyword NLP, no paid data). Then event study: CAR vs IJH by classification
+  and recency-vs-next-scheduled-earnings, 2015-2026, same method bar as
+  every closed candidate.
+- **Cheap probe first (gate before building):** hand-label ~100 historical
+  SP400 Item-2.02/7.01 filings pulled via finalLink; eyeball drift by class.
+  If warnings/raises don't show visibly fat CAR tails on raw eyeball, the
+  pipeline never gets built.
+- **Relation to RC-2 kill:** RC-2 closed post-event extensions (info already
+  priced by day 5). RC-5 is a *new pre-event uncertainty supply* — the
+  pre-announcement is the event itself, entered at first close after
+  acceptedDate. Doctrinally distinct, not a zombie of RC-2.
+- **Priority:** behind RC-1 (insider features, frozen-gate) and the August
+  month-end megatrend panel. September dead-zone candidate if the cheap
+  probe passes.
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
