@@ -1197,6 +1197,45 @@ optimism) so they substitute rather than compound.
   reusable; the break-tail measurement is a permanent reference for why
   "sell legal-event insurance" ≠ slow-window drift.
 
+### RC-8: Post-announcement DIP-ENTRY merger convergence (OPEN 2026-08-23 — user-pattern, strongest candidate since PEAD)
+
+- **Origin:** user observed (a priori, before any test — the best kind of
+  hypothesis): after a deal announcement jump, targets often dip for 2-3
+  days, then drift up into the deal's formal process. Testing found RC-7's
+  mean-negative result was an ANCHORING artifact: the SC 14D9 acceptance
+  used as entry is typically 20-60 days AFTER announcement — i.e., we had
+  been measuring AFTER the convergence window closed.
+- **Method:** announcement day0 = largest single-day jump (>8%) in the 90d
+  before SC 14D9 (price-detected, no document ambiguity); Tiingo daily
+  (delisted included); SC 14D9 tender targets 2023-25; n=77 clean.
+- **Honest implementable rule (no look-ahead):** IF day+2 close is BELOW
+  day0 close (observable at entry) → buy at day+2 close.
+  - Hold +10d:  mean +3.28%  median +0.58%  win 71%  t=+2.2  n=34
+  - Hold to 14D9: mean +5.35%  median +1.42%  win 87%  t=+3.7  n=31
+  - Control (NO dip): +0.40% t=+0.3 / −0.02% t=0.0 — alpha is ENTIRELY in
+    the dipped subset; no-dip deals are already converged at day0.
+  - Hindsight 'dip bottom' entry (look-ahead, upper bound): +4.12%/84%/t=3.9.
+- **Mechanism (doctrinally clean):** the dip identifies deals where flow
+  (retail exit, index funds, tax sellers unloading into the pop) — not deal
+  risk — pushed price under the initial close, leaving residual spread the
+  market slowly re-captures as deal process confirms. Slow interpretation,
+  long-only, no borrow, no speed: retail-compatible. Fills idle PEAD slots
+  (~25 dipped deals/yr universe-wide, killable by PEAD per slot policy).
+- **Open risks (validation gates before ANY sleeve):**
+  1. Regime: 2024-25 friendly M&A window; 2022 financing winter unsampled.
+     GATE: extend targets to 2019-2023 via sec-filings-search (endpoint
+     supports historical windows); require dipped-subset positive in the
+     break-heavy year.
+  2. Break tail inside hold: 6 deals <−15% in full sample (APLT −90%,
+     BLUE −57%, NHHS −56%, RVNC −48%); mean survives in-sample; sizing
+     must assume −50% tails (half-slot or quarter-slot per deal).
+  3. Multiple-testing: ~6 variants were run before landing on the user's
+     rule; the a-priori origin mitigates but the 2019-23 extension is the
+     true out-of-sample test.
+  4. Deal-terms conditioning (DEFM14A cash/stock, financing terms,
+     residual spread) is the professional upgrade — later, only if the
+     regime gate passes.
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
