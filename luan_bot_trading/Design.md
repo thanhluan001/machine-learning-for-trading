@@ -1063,6 +1063,32 @@ optimism) so they substitute rather than compound.
 > **HAND-LABEL GATE RESULT (2026-08-22; 656 pre-earnings-window 8-Ks fetched,
 > item headers extracted, 49 strictly-pre-earnings Item-2.02/7.01 docs read
 > incl. exhibit retrieval): CLOSED — event supply is fatally sparse.**
+>
+> **FULL-DOC CENSUS (2026-08-23, user-requested before final close; corpus =
+> all 656 in-window docs, content-classified end-to-end):** FMP's finalLink
+> points at the 8-K SHELL for ~179 docs but straight at the EX-99 press
+> release for 477 — the earlier item-header read covered only the shells;
+> the exhibit side was content-classified by regex + eyeball verification.
+> Full-corpus breakdown (strictly-pre = 188 docs, ≥1 day before earnings):
+> earnings releases 210 (338 of 477 exhibits same-day = the event itself;
+> 6 "pre" ones are ±1d date mismatches — OGE/PII evening filings);
+> board/mgmt 95+57shell; M&A 52+shells; conferences/presentations 37+2;
+> dividends/buybacks 30; debt/offerings; other. GENUINE pre-earnings
+> guidance documents: 3 of 656 (0.5%) / 3 of 188 strictly-pre (1.6%) —
+> PII separation+prelim-results preview, GEF "reaffirms FY23 guidance" at
+> Baird conf, VSAT "reaffirms FY25 guidance" with exec reorg — and 2 of 3
+> are REAFFIRMATIONS (weakest class); raises/warnings: zero. Plus VOYA's
+> 23 recurring monthly prelim disclosures (insurer idiosyncrasy, one
+> company). Scaling: 3 events / 60 tickers / 3.2y = 1.6% of companies/yr
+> → SP400 ≈ 6-7 events/yr; ALL US filers (8-K volume measured 608/day on
+> 2026-08-13, ~4x SP400-membership count) ≈ 60-70 events/yr universe-wide
+> (~1.2/week), concentrated in larger caps (classic pre-announce behavior);
+> small caps even quieter. Verdict UNCHANGED for SP400 PEAD (feature fires
+> ~1.5% of events, dominated by reaffirm-noise); universe-wide it is a
+> low-frequency event supply (~1/wk) needing whole-market screening
+> infrastructure (608 docs/day × content classification) for a handful of
+> mostly-reaffirmation trades/yr — capacity fine, supply and signal quality
+> are not. RC-5 stays CLOSED; census archived as the permanent basis.
 > - Of 49 pre-earnings 2.02/7.01 filings, classification: 1 true
 >   pre-announcement (PII 2025-10-14: separation + preliminary Q3 results
 >   preview), 23 recurring monthly preliminary-metrics disclosures from ONE
