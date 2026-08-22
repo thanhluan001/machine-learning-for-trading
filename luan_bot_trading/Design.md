@@ -1113,6 +1113,43 @@ optimism) so they substitute rather than compound.
 >   (insurers/financials) exist as a niche pattern — not a general edge.
 > RC-5 CLOSED at the gate, per doctrine: no pipeline was built.
 
+### RC-6: 8-K event-edge census & buyback-announcement test (CLOSED 2026-08-23: no slow-window alpha in the 8-K channel)
+
+> **Full-universe test (user-directed; S&P 500, 503 names, 2023-01..2026-08):**
+> 23,567 8-Ks indexed via /stable/sec-filings-search (by-symbol); 16,087
+> standalone (non-earnings-day) docs fetched from EDGAR (15,169 OK, 6%
+> fetch-loss noted) and content-classified. Taxonomy of standalone 8-Ks
+> (~17/day universe-wide): board/mgmt 45.7%, M&A 19.2%, conferences 13.4%,
+> other 12.5%, div declarations 2.4%, off-cycle earnings-style releases
+> 1.4%, offerings 0.8%, div changes 0.6%, buyback auth/increase 0.1% (22
+> events in 3.6y — most buyback programs are announced by press release
+> only and never 8-K'd; the filed subset is the 'material' minority).
+>
+> **Buyback auth/increase CAR vs SPY (n=22, entry=first close after
+> acceptedTime):** gap +0.26% (untradeable instant); T+1→T+5 −0.57% (win
+> 41%); T+1→T+10 +0.64% (t=0.8). NO drift at our horizon — the Ikenberry
+> buyback premium is a 2-4 YEAR effect, fully priced at the gap for anyone
+> slower than the announcement print. Consistent with doctrine: instantly
+> public + instantly interpretable = no slow window.
+>
+> **Secondary classes tested:** dividend cuts (n=27): c15 +0.97% (t=1.4,
+> 2024-driven +2.4%, other years ~0) — the same expectations-reset/
+> mean-reversion echo found with analyst downgrades (script 46); does not
+> clear any bar. Dividend raises (n=46): t=0.8, nothing. Off-cycle
+> earnings-style releases (n=218): c15 +0.29% (t=1.3), nothing.
+> 'Non-reliance' regex class was boilerplate-contaminated (restated
+> certificates/XBRL) — dropped.
+>
+> **What remains untested in this channel:** (a) M&A definitive agreements
+> (19.2% of standalone docs) — but that is deal-spread/arbitrage territory
+> (instant jump + legal-duration risk), not a slow-window drift class;
+> (b) Russell-2000 small caps (buyback announcements plausibly diffuse
+> slower) — requires building a new universe (prices, metadata, filings)
+> from scratch; prior weak given SP500 result. Neither queued.
+>
+> RC-6 CLOSED. Infrastructure retained: filing index + EDGAR fetch +
+> classification stack (reusable, ~2.5h wall-clock for full SP500 3.6y).
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
