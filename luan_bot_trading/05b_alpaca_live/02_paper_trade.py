@@ -615,6 +615,23 @@ def place_new_entries(trader: AlpacaClient, plan: dict, positions: dict,
     held = {p['canonical_ticker'] for p in positions.get('active', [])} | \
            {p['canonical_ticker'] for p in positions.get('pending', [])}
 
+    # BROKER-TRUTH DOUBLE-BUY GUARD: never buy a ticker the broker already
+    # holds, regardless of local state. Protects against: (a) re-running the
+    # script after a crash between order fill and positions.json save;
+    # (b) a stale/lost local file; (c) manual buys of the same name. A
+    # partial broker fill is NOT topped up here - it reconciles via the
+    # pending-order sync flow on the next run instead.
+    try:
+        broker_held = {p["symbol"] for p in trader.get_all_positions() if p["qty"] > 0}
+    except Exception as exc:
+        broker_held = set()
+        print(f"  [GUARD] broker positions unavailable ({exc}); local state only")
+    stray = broker_held - held
+    if stray:
+        print(f"  [GUARD] broker holds but local does not: {sorted(stray)} "
+              f"-> excluded from buys (reconcile with reconcile_positions)")
+    held |= broker_held
+
     # Weekly slate: this ISO week's picks (not held), top-MAX_SLOTS by p_pead.
     tw = _iso_week(today)
     week_picks = [p for p in picks if _iso_week(p.get("entry_date")) == tw
