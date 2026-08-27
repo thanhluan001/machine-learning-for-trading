@@ -1340,6 +1340,33 @@ optimism) so they substitute rather than compound.
 > UNDECIDED spell in Apr-May (P~0.45, B 50-60%, C 91st pct). Findings:
 > archive/findings/rc9_undecided_state_findings.md.
 
+### RC-10: Deep-crash post-earnings mean reversion ("reverse PEAD") (CLOSED 2026-08-23 at the probe)
+
+- **Hypothesis (user):** the same event machinery in reverse — buy stocks that
+  CRASHED after earnings, harvest the bounce.
+- **Probe (10,422 events, 258-ticker sample, 2015-2026; honest entry = day+1
+  CLOSE after the reaction is known; CAR vs IJH):**
+  crash≥15% (n=441): rev5 +0.26% (t=0.6), rev10 −0.01%, rev20 +0.12% — flat;
+  −15..−10%: negative everywhere; all other buckets ≈ −0.1..−0.3%, t<1.5.
+  Yearly rev10 for crash≥10% oscillates around zero (no regime where it works).
+  Quality interaction INVERTED: crashed-despite-beating (sue>0, the classic
+  overreaction candidate) rev10 −0.46% (t=−1.3) — the quality screen makes it
+  WORSE; crashed-and-missed +0.17% (t=0.4, nothing).
+- **Reconciliation with Doc K's NEG-side bounce (script 15):** that bounce was
+  real but is an Open[T+1]-entry artifact — the intraday open→close recovery
+  on day 1 after a shallow gap (−2..−5%), completed by the first close. With
+  close-based entry (our lane) there is nothing multi-day. Deep buckets were
+  negative even at open entry (entry_pnl −3.71% for −5..−10%).
+- **Mechanism:** short-term reversal is the most-arbitraged anomaly in the
+  literature (microcap weekly, costs-eaten); SP400 midcaps are liquid enough
+  for reversal desks to have cleaned it. Post-miss drift is the documented
+  mirror of PEAD — continued selling (downgrade cascades, index rules), not
+  bounce. Our own book shows the asymmetry live: winners drift (HRB +9.7%,
+  ANF +29%), losers just bleed (DBX −2.4%, BILL −3.6%).
+- **Doctrine closure:** post-event information classes now fully mapped —
+  winners day5+ (RC-2: dead), losers day1+ (RC-10: dead). The only lane that
+  ever paid is pre-print entry. RC-10 CLOSED at the probe; no pipeline built.
+
 ### RC-2: Post-event hold extension (CLOSED 2026-08-22: both confirmation legs fail)
 
 > **Coverage probe (2026-08-22, 33,587 events × 807 grade nodes):** the
