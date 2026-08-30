@@ -104,3 +104,41 @@ and hand-designed rather than learned; neglect pricing is documented
 elsewhere in mid-caps (our PEAD edge itself is partly a neglect effect).
 Phase 0's attention-stratum table is the first direct test — if the
 user's theory has legs, it shows up there before any model is trained.
+
+---
+
+## PHASE 0 RESULTS (2026-08-31) — FAIL, CLOSED AT KILL GATE 0
+
+Script: `93_rc11_phase0_audit.py`. 21,088 events, frozen window
+Close[T-6] -> Close[T-1], CAR vs IJH.
+
+```text
+CAR by ADV20 decile (D1 = most neglected):
+D1  n=2,109  -0.002% (49% win)   <- best decile: DEAD FLAT, not positive
+D2  -0.118%      D3 -0.066%      D4 -0.074%      D5 -0.229%
+D6  -0.106%      D7 -0.141%      D8 -0.196%      D9 -0.071%
+D10 n=2,109  -0.348% (47% win)   <- most-attended: worst
+Low-ADV x yield quartiles: best cell -0.017% (n=1,582) — still <= 0
+September supply (low-ADV): 722 events — abundant; supply was never the binding constraint
+```
+
+**KILL GATE 0: no stratum >= +0.05% with n>=500 -> CLOSED.**
+
+## What the data says about the hypothesis
+
+The user's attention gradient is REAL and directionally correct: the
+most neglected decile is the best (−0.00%) and the most attended is the
+worst (−0.35%) — a 0.35pp monotone-ish spread across the attention axis.
+Capture-desk shorting pressure demonstrably fades in the neglected
+corner. But the neglected corner is not mispriced UPWARD — it is simply
+unpriced: the best stratum is exactly zero, and zero minus costs is
+negative. The neglect theory explains the absence of the ANTI-edge; it
+does not produce an edge.
+
+## CLOSURE
+
+**RC-11 CLOSED (2026-08-31, Phase 0).** Cause of death: attention
+gradient exists but saturates at zero CAR in the most neglected decile;
+no tradeable positive stratum anywhere in the attention x yield space.
+Closed before any model was trained — the pre-registered gate working
+as designed at minimum cost.

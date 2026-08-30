@@ -1014,7 +1014,7 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
-### RC-11: Ex-dividend run-up, ML-selected — neglect-pricing hypothesis (OPEN 2026-08-31)
+### RC-11: Ex-dividend run-up, ML-selected — neglect-pricing hypothesis (CLOSED 2026-08-31 at kill gate 0)
 
 > **User hypothesis:** SP400 ex-div events are priced by inattentive
 > holders; the low-ADV/low-coverage corner (never tested by script 70,
@@ -1027,6 +1027,13 @@ optimism) so they substitute rather than compound.
 > conjecture on RC-1's death (SP500 dilutes informed-buying signal).
 > Prior: skeptic (no information shock) vs user (neglect pricing) —
 > Phase 0's attention-stratum table is the first direct test.
+>
+> **CLOSED at Phase 0 (2026-08-31):** attention gradient is REAL
+> (D1 best -0.00%, D10 worst -0.35%) — user's direction confirmed —
+> but the most-neglected decile saturates at exactly zero CAR; no
+> positive stratum anywhere in attention x yield space (21,088 events).
+> Zero minus costs = negative. Findings:
+> archive/findings/rc11_exdiv_neglect_findings.md.
 
 ### RC-5: Guidance pre-announcement mini-events via 8-K detection (CLOSED 2026-08-22 at the hand-label gate)
 
