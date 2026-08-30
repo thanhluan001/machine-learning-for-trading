@@ -90,3 +90,38 @@ rejected with findings doc (the grades_historical_v5_rejection.md path).
 4 evenings, all-local compute, zero new data cost (cache covers
 99.6% of matrix events — verified 2026-08-30: 775/777 tickers,
 16,715/16,789 events). Live fetch needed only if promoted.
+
+---
+
+## PHASE 0 RESULTS (2026-08-30) — PASS
+
+Script: `89_rc1_phase0_audit.py`. Per-event counts cached at
+`%TEMP%/_rc1_phase0.json` (16,789 events).
+
+| Metric | Value |
+|---|---|
+| **Kill gate 0 (≥$10k pre-print buys in [T−90d,T))** | **13.2% (2,209 events) — PASS** |
+| Any pre-print buy (90d) | 14.1% |
+| Cluster (≥2 buyers, ≥$50k) | 4.5% |
+| Any buy in final 30d pre-print | **1.2%** (blackout is real) |
+| Sell activity pre-30d | 14.2% |
+| Days-since-last-buy populated (180d) | 24% (median 83d) |
+| Coverage by year | 8.2% (2021) .. 21.5% (2020), no structural break |
+
+**Blackout asymmetry (control):** per-day insider buying is **1.51× denser**
+in [T, T+30d) than [T−90d, T) — post-print windows dominate, confirming the
+legal-quiet-period structure and the Piotroski-Roulstone premise that a
+pre-print buy is the unusual, potentially informed event.
+
+**Data-quality find (pre-registered fix applied):** ~1.5% of FMP P-purchase
+rows carry glitched prices (values up to $432T; 99.99th pct $31T) owning
+~100% of raw dollar mass. Fix: per-filing value cap $50M (counts immune).
+Coverage after cleaning: unchanged (13.2% → 13.2%; garbage rows rarely sat
+alone in a pre-90d window).
+
+**Truncated histories:** 63 tickers at FMP's 5,000-row page cap (8.3% of
+events) → Phase 1 features NaN for those tickers, never zero.
+
+**Decision:** proceed to Phase 1 (4 frozen features). Note the honest prior:
+14% prevalence is thin-but-learnable; the cluster flag at 4.5% is the
+sparsest. XGBoost handles NaN natively — 76% NaN days_since_buy is fine.
