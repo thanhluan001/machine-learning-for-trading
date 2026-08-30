@@ -125,3 +125,35 @@ events) → Phase 1 features NaN for those tickers, never zero.
 **Decision:** proceed to Phase 1 (4 frozen features). Note the honest prior:
 14% prevalence is thin-but-learnable; the cluster flag at 4.5% is the
 sparsest. XGBoost handles NaN natively — 76% NaN days_since_buy is fine.
+
+---
+
+## PHASE 2 RESULTS (2026-08-30) — letter: PASS / spirit: INVERTED
+
+Script: `91_rc1_phase2_univariate.py`. Rank-IC per fold (4 folds =
+V6 DEFAULT_FOLDS), pooled |t|>=2 + same-sign >=3/4 to survive.
+
+| feature | survives on | pooled IC | t | sign vs hypothesis |
+|---|---|---:|---:|---|
+| insider_net_buy_90d | **pass_g3** (path) | −0.054 | −2.9 | **INVERTED**: more pre-print buying → WORSE drawdown path (4/4 folds) |
+| insider_cluster_90d | pass_g3 | −0.039 | −2.1 | also inverted-path |
+| insider_sell_pressure_30d | **pass_g2** (volume) | +0.062 | +3.3 | pre-print selling → MORE event volume (4/4) |
+| insider_days_since_last_buy | pass_g2 | +0.121 | +3.0 | sparse (n=599) |
+
+**The central hypothesis is NULL on the outcome we trade:** CAR5
+(pregap_return) IC for net_buy −0.005 (t=−0.25); pass_g1 (drift gate)
+null for every feature. Piotroski-Roulstone does NOT transfer to
+5-day SP400 drift through our event set.
+
+**What survives is gate-channel information, inverted:**
+- buy-heavy pre-print windows → deeper post-print drawdowns (g3−)
+- sell-heavy pre-print windows → higher event-volume ratios (g2+)
+
+Both are plausibly mechanical (attention/turnover effects), both are
+NOT the hypothesized mechanism, and with 16 tests run, 4 hits at
+|t|=2.0–3.3 is suggestive but multiplicity-exposed.
+
+**Decision:** per the pre-registered letter (feature survives on ANY
+target) all four proceed to Phase 3 — where the paired-bootstrap A/B
+is the actual arbiter. Honest prior downgraded from "drift booster"
+to "path/volume gate adjunct".
