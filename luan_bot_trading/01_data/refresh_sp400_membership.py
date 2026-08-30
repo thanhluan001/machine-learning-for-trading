@@ -225,6 +225,38 @@ def main(dry_run: bool = False) -> None:
 
     print("\n[1] Re-parsing Wikipedia S&P 400 constituents + changes ...")
     fresh = fetch_fresh_meta()
+
+    # --- Defensive closure of stale changes-table rows ---------------------
+    # Wikipedia's changes table sometimes never records a removal (ticker
+    # renamed/acquired/absorbed). Such rows have an OPEN interval, an empty
+    # name, and are NOT in the 400-constituents table. They inflate the
+    # "current" set (432 vs 400) and can never map to a permaTicker.
+    # NEVER delete (point-in-time ledger) — close the interval at refresh
+    # date instead: removal happened sometime before today; exact date
+    # unknown, recorded late. Same philosophy as the recycled-ticker close.
+    constituents_tickers = {
+        str(t) for t in _meta.fetch_constituents().index
+    }
+    today_str = pd.Timestamp.now().strftime("%Y-%m-%d")
+    _closed_rows = []
+    _out = []
+    for r in fresh.itertuples(index=False):
+        tk = str(r.ticker)
+        name_val = getattr(r, "name", "")
+        name_empty = (name_val is None) or (isinstance(name_val, float)) or (not str(name_val).strip())
+        ivs = parse_intervals(r.intervals)
+        if is_current(ivs) and tk not in constituents_tickers and name_empty:
+            if ivs:
+                ivs[-1]["removed"] = today_str
+            r = r._replace(intervals=serialize_intervals(ivs))
+            _closed_rows.append(tk)
+        _out.append(r)
+    if _closed_rows:
+        fresh = pd.DataFrame(_out)
+        print(f"  Defensively closed {len(_closed_rows)} stale nameless rows "
+              f"(open interval, not in constituents table): "
+              f"{', '.join(sorted(_closed_rows)[:20])}")
+
     fresh_by_ticker = {
         str(r.ticker): parse_intervals(r.intervals) for r in fresh.itertuples(index=False)
     }
