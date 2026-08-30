@@ -109,7 +109,7 @@ def main() -> None:
     gains = fifo_gains(rows)
     divs = [r for r in rows if r["action"] == "DIVIDEND"]
 
-    gains_csv = HERE.parents[1] / "NOTES" / f"capital_gains_{year}.csv"
+    gains_csv = HERE.parents[0] / "tax" / f"capital_gains_{year}.csv"
     with open(gains_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["symbol", "buy_date", "sell_date", "qty",
                                           "sale_proceeds_eur", "cost_basis_eur",
@@ -117,7 +117,7 @@ def main() -> None:
         w.writeheader()
         w.writerows(gains)
 
-    koinly = HERE.parents[1] / "NOTES" / f"koinly_export_{year}.csv"
+    koinly = HERE.parents[0] / "tax" / f"koinly_export_{year}.csv"
     with open(koinly, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["Date", "Type", "Symbol", "Amount", "Total (EUR)"])
@@ -147,7 +147,7 @@ def main() -> None:
         "- Rates used: official ECB daily reference (EXR/D.USD.EUR.SP00.A).",
         "- Paper trading now: verify rows are REAL fills before declaring.",
     ]
-    summ_path = HERE.parents[1] / "NOTES" / f"tax_summary_{year}.txt"
+    summ_path = HERE.parents[0] / "tax" / f"tax_summary_{year}.txt"
     summ_path.write_text("\n".join(summary), encoding="utf-8")
 
     print(f"\n  NET CAPITAL GAIN {year}: EUR {total:+,.2f} over {len(gains)} FIFO lines")

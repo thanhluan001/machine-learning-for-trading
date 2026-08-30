@@ -22,7 +22,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-TAX_LOG = Path(__file__).resolve().parents[2] / "NOTES" / "trade_log.csv"
+TAX_LOG = Path(__file__).resolve().parents[1] / "tax" / "trade_log.csv"
 RATE_CACHE = Path(os.environ.get("TEMP", "/tmp")) / "_ecb_usd_eur.json"
 ECB_URL = ("https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A"
            "?startPeriod={d}&endPeriod={d}&format=csvdata")
