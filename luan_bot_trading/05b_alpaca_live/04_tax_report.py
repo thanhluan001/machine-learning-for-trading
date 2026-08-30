@@ -52,7 +52,12 @@ def load_rows(year: int | None = None) -> list[dict]:
             w.writerows(rows)
         print("Backfilled missing ECB rates in trade_log.csv")
     if year is not None:
-        rows = [r for r in rows if r["date"][:4] == str(year)]
+        # Keep ALL prior-year rows: a SELL in `year` may match a BUY lot from
+        # December of the year before (5-9 day holds straddle year-end). Only
+        # gains with sell_date in `year` are reported (French rule: gain is
+        # taxable in the year of the cession/disposal).
+        cutoff = f"{year}-12-31"
+        rows = [r for r in rows if r["date"] <= cutoff]
     return rows
 
 
@@ -106,8 +111,9 @@ def main() -> None:
         return
     print(f"Tax report {year}: {len(rows)} ledger rows from {TAX_LOG}")
 
-    gains = fifo_gains(rows)
-    divs = [r for r in rows if r["action"] == "DIVIDEND"]
+    all_gains = fifo_gains(rows)
+    gains = [g for g in all_gains if g["sell_date"][:4] == str(year)]  # year of disposal
+    divs = [r for r in rows if r["action"] == "DIVIDEND" and r["date"][:4] == str(year)]
 
     gains_csv = HERE.parents[0] / "tax" / f"capital_gains_{year}.csv"
     with open(gains_csv, "w", newline="", encoding="utf-8") as f:
