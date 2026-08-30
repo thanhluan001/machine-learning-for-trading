@@ -64,6 +64,7 @@ except (AttributeError, RuntimeError):
 import pandas as pd
 
 from alpaca_client import AlpacaClient
+from tax_log import log_fill
 
 HERE = Path(__file__).resolve().parent
 PLAN_JSON = HERE / "plan.json"
@@ -171,6 +172,10 @@ def reconcile_positions(trader: AlpacaClient, positions: dict, dry_run: bool = F
             pos['exit_price'] = exit_price
             pos['return_pct'] = round(
                 (exit_price - pos.get('entry_price', 0)) / pos.get('entry_price', 1) * 100, 2)
+            try:
+                log_fill(actual_exit_date, sym, "SELL", pos.get('qty', 0), exit_price)
+            except Exception as e:
+                print(f"    [TAX] WARN: manual close not logged to tax ledger: {e}")
             positions['closed'].append(pos)
             print(f"    [RECON] {sym}: manual_close @ ${exit_price:.2f} "
                   f"({pos['return_pct']:+.1f}%) → CLOSED")
@@ -233,6 +238,12 @@ def sync_pending(trader: AlpacaClient, positions: dict, dry_run: bool = False):
             p["order_status_final"] = fill.get("status")
             p["stop_price"] = round(p["entry_price"] * (1 - STOP_LOSS_PCT), 2)
             p["fill_time"] = datetime.now().isoformat()
+            try:
+                # DAY order placed ~3:45pm on entry_date -> fill is same session
+                log_fill(str(p.get("entry_date") or date.today().isoformat())[:10],
+                         p["canonical_ticker"], "BUY", filled_qty, p["entry_price"])
+            except Exception as e:
+                print(f"        [TAX] WARN: entry not logged to tax ledger: {e}")
             positions["active"].append(p)
             if p["unfilled_qty"] > 0:
                 print(f"    → {p['canonical_ticker']} PARTIAL: {filled_qty:g}/{planned_qty:g} "
@@ -272,6 +283,11 @@ def _finalize_exit_fill(pos: dict, fill: dict, positions: dict) -> None:
     pos["return_pct"] = round((exit_price - pos.get("entry_price", 0)) / pos.get("entry_price", 1) * 100, 2)
     pos["exit_order_status_final"] = fill.get("status")
     pos["exit_fill_status"] = "filled"
+    try:
+        log_fill(pos["exit_date_actual"], pos["canonical_ticker"], "SELL",
+                 filled_qty, exit_price)
+    except Exception as e:
+        print(f"    [TAX] WARN: exit not logged to tax ledger: {e}")
     positions.setdefault("closed", []).append(pos)
 
 
@@ -567,6 +583,10 @@ def _enter_pick(trader: AlpacaClient, positions: dict, pick: dict,
         pick_pending["order_status_final"] = fill.get("status")
         pick_pending["stop_price"] = round(pick_pending["entry_price"] * (1 - STOP_LOSS_PCT), 2)
         pick_pending["fill_time"] = datetime.now().isoformat()
+        try:
+            log_fill(today.isoformat(), ticker, "BUY", fq, pick_pending["entry_price"])
+        except Exception as e:
+            print(f"        [TAX] WARN: entry not logged to tax ledger: {e}")
         positions["active"].append(pick_pending)
         if pick_pending["unfilled_qty"] > 0:
             print(f"    → {ticker} BUY PARTIAL {fq:g}/{qty:g} @ ${pick_pending['entry_price']:.2f} "
