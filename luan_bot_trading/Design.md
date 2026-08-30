@@ -1014,6 +1014,20 @@ optimism) so they substitute rather than compound.
 - **Trigger:** paper-evidence period closes and freeze lifts; requires its own
   approved research cycle (no silent feature additions to a frozen model).
 
+### RC-11: Ex-dividend run-up, ML-selected — neglect-pricing hypothesis (OPEN 2026-08-31)
+
+> **User hypothesis:** SP400 ex-div events are priced by inattentive
+> holders; the low-ADV/low-coverage corner (never tested by script 70,
+> which only probed ADV>=50M where it was worst) may hide a selectable
+> pre-ex run-up subset. 20,015 cached events > PEAD matrix size — the
+> RC-8b sample-size objection does NOT apply. Pre-registration:
+> 04_backtest/rc11_pre_registration.md (4 phases, kill gates 0/1,
+> promotion bar incl. September supply >= 2 events/week and
+> dead-zone-fill-only deployment). Also records the user's post-hoc
+> conjecture on RC-1's death (SP500 dilutes informed-buying signal).
+> Prior: skeptic (no information shock) vs user (neglect pricing) —
+> Phase 0's attention-stratum table is the first direct test.
+
 ### RC-5: Guidance pre-announcement mini-events via 8-K detection (CLOSED 2026-08-22 at the hand-label gate)
 
 > **Endpoint probes (our tier, 2026-08-22):**
