@@ -982,7 +982,14 @@ Composite-event testing of these candidates is pre-rejected: sparse ∩ sparse
 cannot be validated, and both legs share the same mechanism (informed-capital
 optimism) so they substitute rather than compound.
 
-### RC-1: Insider-accumulation pre-event features for PEAD
+### RC-1: Insider-accumulation pre-event features for PEAD (CLOSED 2026-08-31 at the Phase-3 promotion bar)
+
+> **Outcome: REJECTED.** Full pre-registration + results:
+> archive/findings/rc1_insider_pre_event_findings.md (scripts 89-92).
+> Phase 0 PASS (13.2% coverage); Phase 2 hypothesis INVERTED (buys ->
+> worse path quality, not more drift); Phase 3 REJECT on all three bars
+> (DEV CI includes 0, fold-2 negative, holdout NAV 1.84x->1.22x).
+> Insider data stays cached for any 60d-horizon revisit.
 
 - **Hypothesis (mechanism-backed):** Piotroski & Roulstone (2005) — insider
   trades predict future earnings surprises; informed capital accumulates

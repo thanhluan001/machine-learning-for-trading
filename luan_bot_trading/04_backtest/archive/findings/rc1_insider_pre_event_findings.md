@@ -157,3 +157,42 @@ NOT the hypothesized mechanism, and with 16 tests run, 4 hits at
 target) all four proceed to Phase 3 — where the paired-bootstrap A/B
 is the actual arbiter. Honest prior downgraded from "drift booster"
 to "path/volume gate adjunct".
+
+---
+
+## PHASE 3 RESULTS (2026-08-31) — REJECTED AT THE PROMOTION BAR
+
+Script: `92_rc1_phase3_ab.py` (same HPs both arms, theta=0.33, mh=4,
+stops, paired bootstrap 10k seed 7, holdout last).
+
+| window | common n | paired B−A | CI95 | A NAV | B NAV |
+|---|---:|---:|---|---:|---:|
+| fold 1 | 26 | +0.112% | [0.000, +0.337] | 1.294x | 1.467x |
+| fold 2 | 33 | −0.016% | [−0.049, 0.000] | 1.806x | 1.677x |
+| fold 3 | 33 | +0.069% | [−0.237, +0.444] | 1.032x | 0.997x |
+| **DEV 1-3** | 92 | +0.051% | [−0.065, +0.201] → includes 0 | 2.410x | 2.452x |
+| fold 4 holdout | 47 | **−0.230%** | [−0.558, +0.042] | **1.837x** | **1.217x** |
+
+Promotion bar: FAIL / FAIL / FAIL (DEV CI includes 0; fold 2 negative;
+holdout negative with material NAV degradation 1.84x→1.22x from
+selection differences).
+
+## CLOSURE
+
+**RC-1 CLOSED (2026-08-31): insider pre-event features do not improve the
+V6 gates at the pre-registered bar.** Causes of death:
+
+1. The Piotroski-Roulstone channel is NULL at 5-day SP400 drift (Phase 2:
+   CAR5 and g1 ICs ≈ 0 for every feature).
+2. The univariate survivors (g3-path negative for buys, g2-volume positive
+   for sells, |t| 2.0-3.3) did NOT survive multivariate contact with the
+   23-feature stack: paired diffs on common trades ±0.2%, CI includes 0
+   in every window — multiplicity confirmed.
+3. Where the arms differ in selection (A-only/B-only trades), Arm B is
+   no better and worse out-of-window (holdout NAV 1.837x → 1.217x).
+
+Pattern-matches grades_historical_v5 rejection: conditional-information
+candidates fail the same bar the same way. Insider data remains cached
+(db_insider.h5 + /features/rc1_insider_features side table) if ever
+revisited — e.g., at 60d horizons (script 69 found +4.2% cluster drift
+there, incompatible with slot turnover).
