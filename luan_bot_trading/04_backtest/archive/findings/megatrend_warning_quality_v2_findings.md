@@ -1,6 +1,6 @@
 # Megatrend Warning Quality v2 — Panel Split Useful; Confirmations Not Ready
 
-**Script:** `04_backtest/79_megatrend_warning_quality_v2.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/79_megatrend_warning_quality_v2.py`
 **Date:** 2026-08-16
 **Status:** Diagnostic only. No allocation or PEAD policy changed.
 
@@ -199,7 +199,7 @@ validation and does not justify deployment.
 ### Artifacts
 
 ```text
-04_backtest/80_megatrend_normalize_insider_news.py
+04_backtest/archive/megatrend_wave_2026/80_megatrend_normalize_insider_news.py
 04_backtest/archive/experiments/rc4_normalized_insider_news_monthly.csv
 04_backtest/archive/experiments/rc4_normalized_insider_news_summary.json
 ```
@@ -253,7 +253,7 @@ NOT tested:  causal predictive value; PEAD features (separate RC-1 cycle)
 Artifacts:
 
 ```text
-04_backtest/81_megatrend_false_reentry_test.py
+04_backtest/archive/megatrend_wave_2026/81_megatrend_false_reentry_test.py
 04_backtest/archive/experiments/rc4_false_reentry_episodes.csv
 04_backtest/archive/experiments/rc4_false_reentry_summary.json
 ```

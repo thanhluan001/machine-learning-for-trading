@@ -22,6 +22,12 @@ archive/
 ├── edge_search_2026/        # 6 scripts — 2026-08 slow-week edge search (closed):
 │                            #   sp500 studies, analyst upgrades, insiders,
 │                            #   dividend run-up, index additions
+├── megatrend_wave_2026/     # 14 scripts — megatrend/RC-4 research wave (closed:
+│                            #   advisory-only program; partial exposure failed
+│                            #   every stress gate)
+├── rc_programs_2026/        # 8 scripts — RC research-program wave Aug-Sep 2026
+│                            #   (RC-9 PROMOTED to panel §[13]; RC-1/RC-11 and
+│                            #   the T+4 exit test closed with evidence)
 ├── private_scripts/         # 7 scripts — private diagnostics and utilities
 ├── experiments/             # Output data (CSVs, JSONs, NPZs) from prior runs
 └── findings/                # Findings docs (Docs §0, B–K + 2026 edge search;

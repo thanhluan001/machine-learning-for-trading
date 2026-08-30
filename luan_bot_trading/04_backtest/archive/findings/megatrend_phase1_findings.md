@@ -1,6 +1,6 @@
 # Megatrend Watcher Phase 1 — Dead-Trends Exit Test (Kill Test A): PASSED
 
-**Script:** `04_backtest/71_megatrend_phase1_dead_trends.py` (data: `01_data/db_megatrend.h5`, 26 Tiingo series)
+**Script:** `04_backtest/archive/megatrend_wave_2026/71_megatrend_phase1_dead_trends.py` (data: `01_data/db_megatrend.h5`, 26 Tiingo series)
 **Date:** 2026-08-16
 **Design ref:** Design.md §18 RC-4. Role: overlay/warning indicator for the core ~90% book (real estate + index + blue chips), NOT the PEAD sleeve.
 

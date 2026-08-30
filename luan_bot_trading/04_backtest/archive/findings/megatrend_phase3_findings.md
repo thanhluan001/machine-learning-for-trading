@@ -1,6 +1,6 @@
 # Megatrend Watcher Phase 3 — Broad-Universe Regime Table: FAILED as strategy; SALVAGED as warning indicator
 
-**Script:** `04_backtest/73_megatrend_phase3_broad_regime.py` (diagnostics inline)
+**Script:** `04_backtest/archive/megatrend_wave_2026/73_megatrend_phase3_broad_regime.py` (diagnostics inline)
 **Date:** 2026-08-16 | **Design ref:** Design.md §18 RC-4 Phase 3.
 
 ## Test

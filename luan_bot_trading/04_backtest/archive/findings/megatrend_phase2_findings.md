@@ -1,6 +1,6 @@
 # Megatrend Watcher Phase 2 — Cluster Machinery vs Floor (Kill Test C): FAILED, floor retained
 
-**Script:** `04_backtest/72_megatrend_phase2_clusters.py` (+ diagnostics in this doc)
+**Script:** `04_backtest/archive/megatrend_wave_2026/72_megatrend_phase2_clusters.py` (+ diagnostics in this doc)
 **Date:** 2026-08-16
 **Design ref:** Design.md §18 RC-4 Phase 2.
 

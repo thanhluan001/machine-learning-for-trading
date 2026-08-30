@@ -1,6 +1,6 @@
 # RC-4 Final Benchmark/Stress Gate — Partial Theme Exposure
 
-**Script:** `04_backtest/85_megatrend_partial_exposure_final_stress_gate.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/85_megatrend_partial_exposure_final_stress_gate.py`
 **Date:** 2026-08-17
 **Status:** Research result; operational promotion rejected.
 

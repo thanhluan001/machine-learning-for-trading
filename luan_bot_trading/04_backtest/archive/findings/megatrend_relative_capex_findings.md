@@ -1,6 +1,6 @@
 # Relative Capex Warning — Promising Context, Not a Portfolio Tilt
 
-**Script:** `04_backtest/77_megatrend_relative_capex_warning.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/77_megatrend_relative_capex_warning.py`
 **Date:** 2026-08-16 | **Design ref:** RC-4 Phase 2c
 **Data:** FMP `/stable/cash-flow-statement`, point-in-time aligned by
 `acceptedDate`/`filingDate`; 18 bellwether companies; cached in `db_capex.h5`.

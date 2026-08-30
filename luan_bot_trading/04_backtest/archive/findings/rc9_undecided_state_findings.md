@@ -1,6 +1,6 @@
 # RC-9 Undecided-State Detector — Findings
 
-> **Source:** `04_backtest/86_rc9_undecided_state_detector.py` (backfill) +
+> **Source:** `04_backtest/archive/rc_programs_2026/86_rc9_undecided_state_detector.py` (backfill) +
 > `05c_megatrend_watcher/monthly_panel_report.py` §[13] (operational, advisory)
 > **Date:** 2026-08-23
 > **Data:** `01_data/db_megatrend.h5` (/mt series; themes start 2014-01, COIN 2021-04)

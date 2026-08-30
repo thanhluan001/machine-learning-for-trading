@@ -1,6 +1,6 @@
 # RC-4 Short-List Gate — Partial Theme Exposure
 
-**Script:** `04_backtest/84_megatrend_partial_exposure_short_gate.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/84_megatrend_partial_exposure_short_gate.py`
 **Date:** 2026-08-17
 **Status:** Short gate completed; no operational promotion.
 

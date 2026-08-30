@@ -1,6 +1,6 @@
 # RC-4 Partial Exposure Cycle 2 — Robustness Gate
 
-**Script:** `04_backtest/83_megatrend_partial_exposure_cycle2_robustness.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/83_megatrend_partial_exposure_cycle2_robustness.py`
 **Date:** 2026-08-17
 **Status:** Informative; promotion gate not cleared.
 

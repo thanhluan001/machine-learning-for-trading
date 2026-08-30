@@ -1,6 +1,6 @@
 # RC-4 Partial Exposure Cycle 1 — Preliminary Result
 
-**Script:** `04_backtest/82_megatrend_partial_exposure_cycle1.py`
+**Script:** `04_backtest/archive/megatrend_wave_2026/82_megatrend_partial_exposure_cycle1.py`
 **Date:** 2026-08-17
 **Status:** Research cycle in progress; no operational allocation rule approved.
 
