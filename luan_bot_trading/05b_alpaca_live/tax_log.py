@@ -23,7 +23,9 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 TAX_LOG = Path(__file__).resolve().parents[1] / "tax" / "trade_log.csv"
-RATE_CACHE = Path(os.environ.get("TEMP", "/tmp")) / "_ecb_usd_eur.json"
+# Rate cache lives WITH the ledger (durable, git-tracked) — not %TEMP%,
+# so an audit in N years doesn't depend on the ECB API still being online.
+RATE_CACHE = Path(__file__).resolve().parents[1] / "tax" / "ecb_rates.json"
 ECB_URL = ("https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A"
            "?startPeriod={d}&endPeriod={d}&format=csvdata")
 FIELDS = ["date", "symbol", "action", "qty", "price_usd", "fees_usd",
