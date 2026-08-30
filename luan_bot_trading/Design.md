@@ -1291,6 +1291,16 @@ optimism) so they substitute rather than compound.
 > management of a document-driven trade fails for the same reason
 > price-only entry timing did. RC-8 CLOSED (final, appendices 1-2).
 
+> **Reopening request (2026-08-30) — DECLINED, sample-size ground.**
+> Proposal: ML-filter the RC-8 universe (predict deal breaks / dip
+> recovery) to restore the pattern. Analysis: RC-8's filtered universe
+> is 16 events/7y (ADV>=10M) and RC-7's arb set 111 deals — vs 16k for
+> the PEAD gates. No walk-forward possible; the discriminating
+> variables (termination fees, financing conditions) live in merger
+> agreements, not tape features; one missed breaker (SQNS -74.5%)
+> erases ~30 completed deals. RC-8 stays CLOSED. September research
+> refocuses on RC-1 (see 04_backtest/rc1_pre_registration.md).
+
 ### RC-9: Undecided-state detector for the megatrend watcher (PROMOTED 2026-08-23 to panel §[13]; advisory)
 
 - **Problem (user-stated):** during undecided phases money is thrown across
