@@ -1,5 +1,37 @@
 # Feature Engineering Matrix Protocol: Cross-Sectional Listwise Setup
 
+## 0.0. THE DEPLOYED FEATURE SET — QUICK ANSWER (V4/V6, frozen)
+
+**The live models consume exactly 23 features. Nothing has changed since
+2026-07-31 (verified against `DEPLOY_FEATURES` 2026-08-31). The full
+definitions, NaN policy, and change history are in §0.A below — this
+section is only the findable index.**
+
+```text
+Block 1  Earnings history      sue_lag_1, sue_lag_2, car_drift_historical_q1,
+                              consecutive_surprises_pre
+Block 2  Microstructure       pre_event_idiosyncratic_vol, pre_event_volume_trend
+Block 3  Relative returns     rel_ret_3d / 5d / 10d / 20d / 30d,
+                              sector_adjusted_ret_20d
+Block 6  Analyst revisions    revision_momentum_30d / 60d / 90d,
+                              revision_ordinal_momentum_90d,
+                              revision_intensity_90d, grade_dispersion_90d,
+                              n_analysts_covering, last_action_days_before_earnings
+Macro   Regime backdrop      unemployment_roc21, fed_funds, vix
+```
+
+- Consumed by: V6 gates (`min(g1,g2,g3) >= 0.33`, paper-executable) and
+  V4 single classifier (shadow baseline, theta 0.20).
+- Authoritative definitions: **§0.A** (table + formulas + NaN policy).
+  Formula internals per block: §1. Model specs: `Design.md §17.B.7 / §17.C`.
+- **Non-deployed side experiments** (in db, rejected, never in the models):
+  `/features/rc1_insider_features` (RC-1 insider, rejected 2026-08-31,
+  see `04_backtest/archive/findings/rc1_insider_pre_event_findings.md`).
+- Code source of truth: `DEPLOY_FEATURES` in `04_backtest/51_hp_theta_sweep_23feat.py`
+  (mirrored in `05b_alpaca_live/01_fetch_and_predict.py`).
+
+---
+
 > **STATUS NOTE (2026-07-23).** This document describes the **21-feature set**
 > stored in `/features/train_matrix` PLUS the **v2 planned features** from the
 > FMP data expansion (see `feature_sourcing_audit.md` §4A). The feature
