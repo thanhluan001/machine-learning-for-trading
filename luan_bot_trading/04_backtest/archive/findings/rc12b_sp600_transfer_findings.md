@@ -171,3 +171,45 @@ full-window and 2022+ cuts.
 full universe (+0.14% vs +0.63% mean) — the neglect edge concentrates
 exactly where costs bite hardest. Phase 2's spread-adjusted evaluation
 is where this tension resolves.
+
+---
+
+## PHASE 2 RESULTS (2026-08-31) — GATE FAILS, RC-12b CLOSED
+
+Script: `99_rc12b_phase2_transfer.py`. Frozen V6 (SP400-trained), policy
+identical to live, ADV>=10M filter, 30bp spread haircut.
+
+| window | trades | win | raw mean | spread-adj | NAV | SP400 same-window |
+|---|---:|---:|---:|---:|---:|---:|
+| full 2019-26 | 568 | 51% | +0.27% | −0.03% | 1.12x | — |
+| clean 2022+ | 397 | 51% | +0.29% | −0.01% | 1.10x | — |
+| fold 1 2024H2 | 40 | 48% | +0.94% | +0.65% | 1.07x | +3.44% |
+| fold 2 2025H1 | 48 | 40% | **−1.15%** | **−1.45%** | 0.86x | +5.01% |
+| fold 3 2025H2 | 55 | 51% | +0.01% | −0.29% | 0.99x | +0.50% |
+| fold 4 HOLDOUT 2026H1 | 63 | 57% | +1.71% | +1.41% | 1.26x | +4.15% |
+| **DEV 1-3** | 143 | 46% | **−0.12%** | **−0.42%** | **0.90x** | +3.08% / 2.41x |
+
+**GATE (DEV positive AND holdout positive, spread-adjusted): DEV is
+NEGATIVE → FAIL.** Phase 3 conditional (base rate ≥ 1.5×) measured 1.10×
+in Phase 1 → not triggered.
+
+## CLOSURE — what the transfer test actually learned
+
+**RC-12b CLOSED (2026-08-31, Phase 2).**
+
+1. **The user's neglect thesis is CONFIRMED in the raw data** — twice:
+   SP600 raw drift +0.63% vs SP400 +0.36%; and (RC-11) the attention
+   gradient across ADV deciles. Neglect produces drift. That part of
+   the theory is measured fact now.
+2. **What fails is the SELECTION, not the universe**: the SP400-trained
+   gates harvest ~1/10 of home edge in transfer (DEV −0.42% adj vs
+   +3.08% home) with anti-correlated fold structure (SP600's worst fold
+   = SP400's best). The SP500 transfer worked because SP500 shares
+   SP400's information environment (dense coverage, revision flow);
+   SP600 is a different information world — the features mean different
+   things (revision momentum on thin coverage, SUE streaks on shallow
+   FMP history, 50% NaN early vintages).
+3. Native training remains the untested path — pre-registered as
+   conditional on a 1.5x base rate that measured 1.10x. Any revisit is
+   a new RC with its own bar (train SP600-native gates on 2022+ events,
+   full walk-forward; the event count ~10k supports it).
