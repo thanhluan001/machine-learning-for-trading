@@ -130,3 +130,44 @@ Design carry-forward (binding for Phase 1+):
 
 ### Verdict
 **Phase 0 PASS -> Phase 1 (feature matrix build) unblocked.**
+
+---
+
+## PHASE 1 RESULTS (2026-08-31) — MATRIX BUILT
+
+Script: `98_rc12b_phase1_matrix.py` (--gather + --build).
+
+| | SP600 | SP400 (reference) |
+|---|---:|---:|
+| events | **15,717** | 16,789 |
+| tickers | 562 | 777 |
+| window | 2018-09 → 2026-06 | 2015 → 2026 |
+| DEPLOY_FEATURES present | 23/23 ✓ | — |
+| FMP earnings/grades | 601/592 frames | EODHD-era lineage |
+| ADV20 ≥ $10M share | 63% | (filter binding) |
+
+**Raw drift base rates (pregap_return, unconditional):**
+
+| | SP600 | SP400 |
+|---|---:|---:|
+| mean | **+0.63%** | +0.36% |
+| P(>3%) | **37.3%** | 33.8% |
+| P(>0) | 51.6% | 51.9% |
+| ADV≥$10M subset | mean +0.14%, P(>3%) 36.4% | — |
+
+Directionally consistent with the neglect thesis and the small-cap PEAD
+literature (stronger raw drift in SPSM), with two binding caveats:
+survivorship (current members backward) and the 2019+ regime mix.
+
+**Feature-history caveat (binding for Phase 2):** FMP earnings frames
+are shallower than SP400's EODHD-era lineage -> `car_drift_historical_q1`
+and `consecutive_surprises_pre` are NaN on ~50% of events (first ~3
+years lack the 12Q SUE history / prior-event car). XGBoost routes NaN
+natively, but the fair transfer-comparison window is effectively
+**2022+** where features are fully populated. Phase 2 will report both
+full-window and 2022+ cuts.
+
+**Liquidity tension noted:** the ADV≥$10M subset drifts LESS than the
+full universe (+0.14% vs +0.63% mean) — the neglect edge concentrates
+exactly where costs bite hardest. Phase 2's spread-adjusted evaluation
+is where this tension resolves.
