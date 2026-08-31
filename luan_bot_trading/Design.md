@@ -1035,6 +1035,27 @@ optimism) so they substitute rather than compound.
 > Zero minus costs = negative. Findings:
 > archive/findings/rc11_exdiv_neglect_findings.md.
 
+### RC-12a: Pre-print gap-down prediction, short setup (OPEN 2026-08-31, PRIMARY)
+
+> Mirror of the long thesis at the same entry point: predict the MISS
+> before the print from pre-event features; short entry close -> d1 gap
+> capture. Post-print NEG was closed twice (Doc K 6.7x precision gap;
+> RC-10 losers day1+ dead) — this tests the PRE-print variant only.
+> Pre-registered adverse-fill stop model (SQNS mirror tail: one +25%
+> adverse gap per ~50 selections kills it) + 1% borrow. Phases 0-2 on
+> existing matrix, one evening. Prior: weak but cheap and honest.
+> Pre-reg: 04_backtest/rc12a_pre_registration.md
+
+### RC-12b: S&P 600 small-cap universe expansion (OPEN 2026-08-31, queued behind RC-12a)
+
+> User's attention thesis in full: SPSM = deepest neglect, same 23-feature
+> machinery, literature says small-cap PEAD is stronger, SP500 transfer
+> test (+663% 3y) says features generalize. Primary risk = execution
+> (1-3% spreads) — Phase 0 measures spread proxies BEFORE any training;
+> kill if round-trip proxy > 1.5% or coverage < 80%. Transfer test with
+> frozen V6 (zero retraining) is Phase 2. Personal-scale capacity is
+> fine for years. Pre-reg: 04_backtest/rc12b_pre_registration.md
+
 ### RC-5: Guidance pre-announcement mini-events via 8-K detection (CLOSED 2026-08-22 at the hand-label gate)
 
 > **Endpoint probes (our tier, 2026-08-22):**
