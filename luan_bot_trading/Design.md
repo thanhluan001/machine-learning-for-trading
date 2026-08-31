@@ -1046,7 +1046,7 @@ optimism) so they substitute rather than compound.
 > existing matrix, one evening. Prior: weak but cheap and honest.
 > Pre-reg: 04_backtest/rc12a_pre_registration.md
 
-### RC-12b: S&P 600 small-cap universe expansion (OPEN 2026-08-31, queued behind RC-12a)
+### RC-12b: S&P 600 small-cap universe expansion (REOPENED 2026-08-31 at the Phase-2 gate — closure voided by feature-scramble bug, ERRATUM in findings)
 
 > User's attention thesis in full: SPSM = deepest neglect, same 23-feature
 > machinery, literature says small-cap PEAD is stronger, SP500 transfer
@@ -1055,6 +1055,20 @@ optimism) so they substitute rather than compound.
 > kill if round-trip proxy > 1.5% or coverage < 80%. Transfer test with
 > frozen V6 (zero retraining) is Phase 2. Personal-scale capacity is
 > fine for years. Pre-reg: 04_backtest/rc12b_pre_registration.md
+>
+> **STATUS (2026-08-31, end of day):** Phase 0 PASS (cost re-anchored,
+> SP600 = SP400 x1.08-1.10 on every proxy). Phase 2 transfer first
+> FAILED (-0.42% DEV) — then the user's FMP-depth question exposed an
+> indexing bug in the Phase-1 builder (positional shifts on a holey
+> index scrambled sue_lag/streak/car_drift; 50% NaN signature).
+> Corrected rebuild FLIPS the verdict: DEV +2.84% spread-adj / NAV
+> 3.11x (home: +3.08% / 2.41x), holdout +3.18% / 63% win / 1.69x.
+> GATE PASS at home-level performance. Anti-selection diagnostic was
+> the bug's artifact (corrected holdout IC +0.141, monotone quintiles).
+> **Advanced to Phase 3: survivorship-clean pt-in-time rebuild (wiki
+> changes 2019+ removals, ~250 tickers) + re-validation before any
+> parallel-paper-shadow promotion.** ERRATUM + full corrected tables:
+> archive/findings/rc12b_sp600_transfer_findings.md.
 
 ### RC-5: Guidance pre-announcement mini-events via 8-K detection (CLOSED 2026-08-22 at the hand-label gate)
 
