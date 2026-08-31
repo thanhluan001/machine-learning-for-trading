@@ -174,7 +174,7 @@ is where this tension resolves.
 
 ---
 
-## PHASE 2 RESULTS (2026-08-31) — GATE FAILS, RC-12b CLOSED
+## PHASE 2 RESULTS (2026-08-31) — SUPERSEDED: contained the feature-scramble bug (see ERRATUM)
 
 Script: `99_rc12b_phase2_transfer.py`. Frozen V6 (SP400-trained), policy
 identical to live, ADV>=10M filter, 30bp spread haircut.
@@ -193,7 +193,7 @@ identical to live, ADV>=10M filter, 30bp spread haircut.
 NEGATIVE → FAIL.** Phase 3 conditional (base rate ≥ 1.5×) measured 1.10×
 in Phase 1 → not triggered.
 
-## CLOSURE — what the transfer test actually learned
+## CLOSURE — SUPERSEDED (see ERRATUM)
 
 **RC-12b CLOSED (2026-08-31, Phase 2).**
 
@@ -258,3 +258,57 @@ an unfavorable prior given fold2-concentration + holdout decay. Park
 SP600 (universe, matrix, machinery all cached in db_sp600.h5); revisit
 only if a future regime shows stable SP600 drift that SP400's world
 can't explain.
+
+
+---
+
+# ERRATUM & CORRECTION (2026-08-31, same day) — CLOSURE VOID, RC-12b REOPENED
+
+**Trigger:** user asked whether FMP earnings history is limited to ~5y.
+Depth audit: FMP goes back to **1993** (SP400 table rows from 1993;
+median ticker 2000-2004; 76-84% have 10+ years) — the Phase-1 claim
+"FMP frames shallower -> 50% NaN" was wrong. Retracing the NaN exposed
+an indexing bug in the Phase-1 builder: after the null-quarter filter,
+positional `pd.Series(...).shift(1)` assignments misaligned on the
+holey index — previous-quarter features (sue_lag_1/2, consec_pre,
+car_drift_q1) pointed at NON-ADJACENT quarters or NaN'd (repro: /tmp
+bugcheck; fix: reset_index after filter).
+
+**Corrected matrix** (rebuilt 2026-08-31): NaN now 0% car_drift /
+0% consec / 7-8% sue (SP400: 0/5/11%). Event count unchanged 15,717.
+
+## CORRECTED PHASE 2 (transfer, spread-adjusted, ADV>=10M, 30bp):
+
+| window | pre-fix (buggy) | CORRECTED | SP400 home |
+|---|---:|---:|---:|
+| fold 1 2024H2 | +0.65% | **+4.49%** (NAV 1.58x) | +3.44% |
+| fold 2 2025H1 | −1.45% | **+2.86%** (NAV 1.56x) | +5.01% |
+| fold 3 2025H2 | −0.29% | **+1.56%** (NAV 1.26x) | +0.50% |
+| **DEV 1-3** | −0.42% / 0.90x | **+2.84% / 3.11x** | +3.08% / 2.41x |
+| **HOLDOUT 2026H1** | +1.41% | **+3.18% (63% win) / 1.69x** | +4.15% / 1.84x |
+
+**GATE: PASS (DEV positive AND holdout positive, spread-adjusted).**
+The user's transfer thesis stands: the SP400-trained V6 harvests
+home-level edge on SP600 with clean features.
+
+**Anti-selection diagnostic CORRECTED:** pooled inversion gone (IC
++0.009 ns); fold2 still mildly negative (−0.09); holdout now strongly
+POSITIVE (IC +0.141 p<0.001, monotone quintiles Q1 −2.2% -> Q5 +3.5%,
+62% win). The "different information world" narrative is RETRACTED —
+the features mean the same thing; my build corrupted them.
+
+## What still binds (the honest path forward)
+
+1. **Survivorship**: the SP600 matrix remains current-members-backward.
+   SP400's matrix IS point-in-time — so the +2.84/+3.18 numbers are
+   flattered RELATIVE to home. Magnitude unknown; small-cap 7y removal
+   ~30-40% of names. **Promotion to a parallel paper shadow requires
+   the pt-in-time rebuild** (wiki changes 2019+ removals ≈ ~250
+   tickers: prices + earnings + matrix rebuild) — now RC-12b Phase 3.
+2. 30bp haircut is an assumption, not a measurement (Phase 0 proxies
+   re-anchored it as plausible, not proven).
+3. RC-13 (native training) remains unnecessary while the transfer
+   works at home level.
+
+**RC-12b REOPENED at the Phase-2 gate, advanced to Phase 3
+(survivorship-clean pt-in-time rebuild + re-validation).**

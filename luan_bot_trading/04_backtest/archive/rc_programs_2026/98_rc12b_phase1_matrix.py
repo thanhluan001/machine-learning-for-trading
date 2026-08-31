@@ -292,7 +292,11 @@ def build():
         slr = np.diff(np.log(np.where(close > 0, close, np.nan)))
         blr = np.diff(np.log(bench_al.to_numpy(float)))
         ev = ev.sort_values("report_date").reset_index(drop=True)
-        ev = ev[ev.actual.notna() & ev.estimate.notna()]
+        # reset AFTER the null filter: keeps the index contiguous so the
+        # positional shifts below (sue_lag, consec_pre, car_drift_q1) align
+        # to the PREVIOUS SURVIVING quarter instead of misaligning to
+        # non-adjacent rows (bug found 2026-08-31 via the FMP-depth audit).
+        ev = ev[ev.actual.notna() & ev.estimate.notna()].reset_index(drop=True)
         if ev.empty:
             continue
         diff = ev["actual"] - ev["estimate"]

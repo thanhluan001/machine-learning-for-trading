@@ -32,7 +32,7 @@ import pandas as pd
 import xgboost as xgb
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
+ROOT = HERE.parent if (HERE.parent / "01_data").exists() else HERE.parents[2]
 DB_SP600 = ROOT / "01_data" / "db_sp600.h5"
 DB_PROD = ROOT / "01_data" / "db.h5"
 MODEL_DIR = ROOT / "03_model" / "models" / "phase_g_v6_gate_decomposition"
@@ -56,7 +56,10 @@ def _load(name, path):
     return m
 
 
-fr = _load("fr", HERE / "63_force_refresh_backtest.py")
+_p63 = HERE / "63_force_refresh_backtest.py"
+if not _p63.exists():
+    _p63 = HERE.parent.parent / "63_force_refresh_backtest.py"  # archived: 63 stays top-level
+fr = _load("fr", _p63)
 bt = fr.bt
 DEPLOY_FEATURES = bt.DEPLOY_FEATURES
 FOLDS = [(1, "2024-07-01", "2024-12-31"), (2, "2025-01-01", "2025-06-30"),
@@ -66,25 +69,27 @@ FOLDS = [(1, "2024-07-01", "2024-12-31"), (2, "2025-01-01", "2025-06-30"),
 _PCACHE: dict = {}
 
 
-def get_prices(pt):
-    if pt in _PCACHE:
-        return _PCACHE[pt]
-    out = None
+def _bulk_load():
     with pd.HDFStore(DB_SP600, "r") as s6:
-        k = f"/sp600/{pt}"
-        if k in s6.keys():
-            p = s6[k]
-            p["Date"] = pd.to_datetime(p["Date"]).dt.normalize()
-            out = (p["Date"].values, p["Adj_Close"].to_numpy(float))
-    if out is None:
-        with pd.HDFStore(DB_PROD, "r") as sp:
-            k = f"/sp400/{pt}"
-            if k in sp.keys():
-                p = sp[k]
-                p["Date"] = pd.to_datetime(p["Date"]).dt.normalize()
-                out = (p["Date"].values, p["Adj_Close"].to_numpy(float))
-    _PCACHE[pt] = out
-    return out
+        for k in s6.keys():
+            if k.startswith("/sp600/") and k.count("/") == 2:
+                p = s6[k]
+                _PCACHE[k.split("/")[-1]] = (pd.to_datetime(p["Date"]).dt.normalize().values,
+                                             p["Adj_Close"].to_numpy(float))
+    with pd.HDFStore(DB_PROD, "r") as sp:
+        for k in sp.keys():
+            if k.startswith("/sp400/") and k.count("/") == 2:
+                pt = k.split("/")[-1]
+                if pt not in _PCACHE:
+                    p = sp[k]
+                    _PCACHE[pt] = (pd.to_datetime(p["Date"]).dt.normalize().values,
+                                   p["Adj_Close"].to_numpy(float))
+
+
+def get_prices(pt):
+    if not _PCACHE:
+        _bulk_load()
+    return _PCACHE.get(pt)
 
 
 def score_v6(df):
