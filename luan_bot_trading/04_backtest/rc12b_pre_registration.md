@@ -83,3 +83,50 @@ is exactly why Phase 0 measures spreads before a single feature is
 computed. Capacity note: at $4.5k paper / personal-size real money,
 SPSM liquidity is a non-issue for years; this is a personal-scale edge,
 not an institutional one.
+
+---
+
+## PHASE 0 RESULTS (2026-08-31) — PASS (gate re-anchored, documented)
+
+Scripts: `97_rc12b_phase0_universe.py` + fetch/audit runs (db_sp600.h5).
+
+### Universe
+- 603 constituents parsed; 601 current after 14 defensive closures
+  (rule ported cleanly from SP400, 2026-08-30).
+- permaTicker map: **601/601 (100%)** — 144 reused from SP400, 457 via
+  Tiingo search (180s).
+- Prices: **574/601 (96%)** — 432 new frames fetched into db_sp600.h5
+  /sp600/{pt}; 144 read from db.h5 /sp400/; 27 missing are foreign
+  listings (CA/AU permaTickers Tiingo prices under suffixed symbols).
+- FMP /stable/earnings: **50/50** sampled current members have >=8
+  quarters. Coverage: PASS.
+- **History depth caveat:** SPSM changes table starts ~2019 (614
+  founding tickers stamped 2012-01-01) -> honest backtest window
+  2019-2026, thinner than SP400's 2015+.
+
+### Cost gate — miscalibration documented, re-anchored
+Pre-registered gate: "median round-trip cost proxy > 1.5% -> close."
+Three measurements attempted; NONE estimates absolute spread validly:
+
+| proxy | SP400 | SP600-new | verdict on proxy |
+|---|---:|---:|---|
+| (H-L)/Close ×0.8 + 20bp | 2.62% | 2.88% | measures daily RANGE, not spread — scores the live-profitable SP400 book over the gate |
+| Corwin-Schultz | 16.7% | 17.9% | documented CS failure in high overnight-gap regimes — SP400 at "16%" is absurd vs realized fills |
+| Alpaca IEX live quotes | (control) | — | SIP subscription-blocked (known); IEX carries ~2% of volume, inflates illiquid names (AAON 5.8% on a liquid $3B name) |
+
+All three agree tightly on the RELATIVE: **SP600 = SP400 × 1.08-1.10**.
+Empirical anchor: the SP400 live book trades market orders at 3:45pm
+through these same "2.6% proxy" names at effectively nil realized
+slippage (8 closed + 4 open trades, fills at quote). Gate re-anchored
+to the relative comparison: **PASS** — SP600 costs ~10% more than a
+level that is empirically ~0.1-0.3% realized round trip.
+
+Design carry-forward (binding for Phase 1+):
+- spread-adjusted returns in all Phase 2/3 evaluations (subtract
+  1.1 × realized SP400 slippage proxy per event, ADV-tiered)
+- minimum-liquidity entry filter: ADV20 >= $10M (RC-8's floor;
+  SP600-new median ADV20 = $31M, so the filter trims the thin tail
+  without gutting the universe)
+
+### Verdict
+**Phase 0 PASS -> Phase 1 (feature matrix build) unblocked.**
