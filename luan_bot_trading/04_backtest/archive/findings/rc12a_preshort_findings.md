@@ -81,3 +81,55 @@ features DO predict beat-streaks (consecutive_surprises_pre=8-10 on the
 current book), so their mirror (miss-streaks) may carry real rank
 information. If Phase 2's tail table shows the mirror-SQNS problem, it
 closes honestly and cheaply.
+
+---
+
+## PHASE 0 RESULTS (2026-08-31) — KILL GATE 0 FIRES, RC-12a CLOSED
+
+Script: `94_rc12a_phase0_labels.py` (16,663 mirrored labels; two data bugs
+found and fixed en route: raw-Open vs Adj_Close adverse-fill comparison
+produced phantom -240% stops; benchmark leg initially omitted).
+
+```text
+raw short_1d   +0.273% (median 0.000%, win 48%)
+IJH leg T-1->T+2  +0.184%   <- the "edge" is market beta
+abnormal short_1d   +0.09% GROSS -> -0.11% net of 0.2% prorated borrow
+
+short_5d (adverse-fill stop @+10%, hit rate 16.1%):
+  log mean +0.34% | simple mean +1.05% | median -0.51% | win 47%
+  stopped-only -10.1% simple; non-stopped +3.18%
+  net of 1% borrow: -0.66% (log) / +0.05% (simple) -> negative-to-zero
+  abnormal-adjusted: negative
+
+Strata (5d EV net of borrow, log): EVERY stratum negative.
+  best: beat-streak Q2 -0.36% | worst: rel_ret_20d Q1 -0.92%
+  simple-return + Jensen adjustment puts the best cell at ~ +0.3% —
+  still below the pre-registered +0.5% bar.
+
+SQNS-mirror tail REALIZED on SP400 earnings shorts:
+  -115% to -120.5% log (= price x3.3 in <=5 days): US000000074550 (x3!),
+  US000000085026, US000000042026 (-70%)
+```
+
+**KILL GATE 0: unconditional abnormal EV negative AND no stratum >=
++0.5% (n>=200) -> CLOSED.**
+
+## CLOSURE
+
+**RC-12a CLOSED (2026-08-31, Phase 0, one evening as designed).** Causes:
+
+1. The apparent raw 1-day short edge is market beta (+0.18% of the
+   +0.27%); abnormal gap capture does not cover borrow.
+2. No pre-event stratum — SUE, streak, or tape — reaches +0.5% net.
+   The short side's variance is dominated by realized squeeze tails
+   (-115..-120% log events, repeated on the same tickers) which the
+   +10% stop cannot pre-empt (overnight fills).
+3. Consistent with Doc K (post-print NEG precision gap) and RC-10
+   (losers priced fast): the miss side of SP400 earnings carries no
+   harvestable drift on either side of the print.
+
+Script's auto-verdict printed PASS due to testing the RAW (not
+abnormal) 1d mean — reconciled above; the pre-registered condition is
+properly evaluated on the abnormal figure. Lesson recorded: auto-flags
+that skip the benchmark leg lie in exactly the direction of wishful
+shorts.
