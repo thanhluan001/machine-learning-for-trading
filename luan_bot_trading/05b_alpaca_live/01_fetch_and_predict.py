@@ -932,7 +932,15 @@ def compute_all_features(
     grades_df = grades_cache.get(permaTicker)
     # Revision and macro observations must use the same point-in-time cutoff
     # as prices. Prior earnings history remains keyed to the future event.
-    rev = s2.compute_revision_momentum(grades_df, feature_date)
+    try:
+        rev = s2.compute_revision_momentum(grades_df, feature_date)
+    except TypeError:
+        # HDF tables may hold string dates; coerce once and retry so a dtype
+        # quirk can never silently zero/NaN the whole revision block.
+        if grades_df is not None:
+            gd = grades_df.copy()
+            gd["date"] = pd.to_datetime(gd["date"], errors="coerce")
+            rev = s2.compute_revision_momentum(gd, feature_date)
 
     # === Block 1: sue_lag_1, sue_lag_2, car_drift_historical_q1 ===
     block1 = compute_block1_live(earnings_df, stock_ret, ijh_ret, stock_dates_np)
@@ -1292,6 +1300,78 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
     if cal_sp400.empty:
         print("\n  *** No actionable earnings entries remain. ***")
         return
+
+    # --- Step 4.6: incremental analyst-grades refresh (freshness fix) ---
+    # /analyst/grades/{pt} tables were populated by one-time gathers; without
+    # this refresh the revision features were frozen at the last 07/08 run
+    # (found 2026-08-31: GWRE table ended Jul-14, DOCU Jun-05 -> 'days since
+    # last action' silently truncated). Point-in-time stays intact: only rows
+    # with date > table max are appended, and compute_revision_momentum still
+    # filters actions to strictly before the feature cutoff.
+    def _refresh_grades(ct: str, permaTicker: str) -> int:
+        """Append new FMP grades rows to /analyst/grades/{pt}. Returns n_new."""
+        gk = f"/analyst/grades/{permaTicker}"
+        try:
+            r = requests.get(f"{FMP_BASE}/grades",
+                             params={"symbol": ct, "apikey": FMP_API_KEY}, timeout=30)
+            if r.status_code != 200 or not isinstance(r.json(), list):
+                return 0
+            raw = r.json()
+        except Exception:
+            return 0
+        rows = []
+        for x in raw:
+            d = x.get("date")
+            if not d:
+                continue
+            rows.append({
+                "date": str(d)[:10],
+                "grading_company": x.get("gradingCompany"),
+                "previous_grade": x.get("previousGrade"),
+                "new_grade": x.get("newGrade"),
+                "action": x.get("action"),
+            })
+        if not rows:
+            return 0
+        new = pd.DataFrame(rows)
+        new["date"] = pd.to_datetime(new["date"], errors="coerce").dt.normalize()
+        new = new.dropna(subset=["date"])
+        try:
+            with pd.HDFStore(DB_FILE, mode="a") as wstore:
+                if gk in wstore.keys():
+                    old = wstore[gk]
+                    old["date"] = pd.to_datetime(old["date"], errors="coerce").dt.normalize()
+                    mx = old["date"].max()
+                    add = new[pd.to_datetime(new["date"], errors="coerce").dt.normalize() > mx].copy()
+                    if add.empty:
+                        return 0
+                    merged = (pd.concat([old, new], ignore_index=True)
+                              .drop_duplicates(subset=["date", "grading_company", "new_grade"])
+                              .sort_values("date").reset_index(drop=True))
+                    wstore.remove(gk)
+                    wstore.put(gk, merged, format="table")
+                    return len(add)
+                else:
+                    new2 = new.sort_values("date").reset_index(drop=True)
+                    wstore.put(gk, new2, format="table")
+                    return len(new2)
+        except Exception as e:
+            print(f"    [grades] WARN {ct}: {type(e).__name__}: {e}")
+            return 0
+
+    _gseen, _gnew = set(), 0
+    for _, _row in cal_sp400.iterrows():
+        _ct = _row["symbol"]
+        if _ct in _gseen or _ct not in meta_lookup.index:
+            continue
+        _gseen.add(_ct)
+        _pt_row = meta_lookup.loc[_ct]
+        if isinstance(_pt_row, pd.DataFrame):
+            _pt_row = _pt_row.iloc[0]
+        _gnew += _refresh_grades(_ct, str(_pt_row["permaTicker"]))
+        time.sleep(0.1)
+    print(f"\n[4.6] Grades freshness: refreshed {_gseen} tickers, "
+          f"{_gnew} new analyst actions appended")
 
     # --- Step 5: Compute features + predict for each event ---
     print(f"\n[5] Computing features + predicting for {len(cal_sp400)} events ...")
