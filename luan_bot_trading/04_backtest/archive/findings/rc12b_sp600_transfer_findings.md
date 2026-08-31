@@ -213,3 +213,48 @@ in Phase 1 → not triggered.
    conditional on a 1.5x base rate that measured 1.10x. Any revisit is
    a new RC with its own bar (train SP600-native gates on 2022+ events,
    full walk-forward; the event count ~10k supports it).
+
+---
+
+## ADDENDUM: anti-selection diagnostic (2026-08-31, pre-RC decision)
+
+User asked to characterize the inversion across folds + holdout before
+any new RC. Script: `100_rc12b_antisel_test.py` (R1 score<0.33, R2 bottom
+quintile, event-level + 4-slot slate, 30bp haircut, bootstrap CIs).
+
+**IC stability — the inversion is fold2-concentrated:**
+
+| window | IC | p |
+|---|---:|---:|
+| fold1 2024H2 | −0.035 | 0.36 |
+| fold2 2025H1 | **−0.147** | 0.000 |
+| fold3 2025H2 | +0.044 | 0.24 |
+| holdout 2026H1 | +0.005 | 0.89 |
+| DEV pooled | −0.054 | 0.013 |
+
+**Quintile gradient replicates in-sample, NOT out:**
+DEV pooled is cleanly monotone (Q1 +1.85% -> Q5 −0.31%); the holdout
+quintiles are non-monotone (Q1 +0.78%, Q4 −2.15%, Q5 +0.48%).
+
+**R1 (score<0.33) event-level, net 30bp:**
+fold1 +0.49% | fold2 +1.38% (CI excl 0) | fold3 −0.41% | **holdout
+−1.05%** | DEV pooled +0.54% CI[−0.07,+1.15] includes 0.
+
+**R2 (bottom quintile) net 30bp:** +0.50 / +2.05 / +0.02 / +0.28 —
+positive in all four windows but holdout barely positive (win 44%).
+
+**Slate sim (4 slots):** +1.01 / −0.50 / +1.76 / +0.19 — all CIs include 0.
+
+**Verdict: the anti-selection is REAL as an explanation of the transfer
+failure (fold2's collapse), but it is NOT a tradeable edge** — unstable
+across folds, holdout negative on the headline rule, every CI includes
+zero, and all positive numbers carry survivorship inflation
+(current-members-backward matrix). The "just invert the gates" shortcut
+dies at the same bar everything else does.
+
+**Pre-RC decision:** RC-13 (native SP600 model) NOT opened. The only
+honest path to it — survivorship-clean pt-in-time rebuild first — has
+an unfavorable prior given fold2-concentration + holdout decay. Park
+SP600 (universe, matrix, machinery all cached in db_sp600.h5); revisit
+only if a future regime shows stable SP600 drift that SP400's world
+can't explain.
