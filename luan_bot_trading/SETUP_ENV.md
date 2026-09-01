@@ -22,6 +22,16 @@ pip install -r requirements_frozen.txt
 `requirements_frozen.txt` is `pip list --format=freeze` — 99 packages
 with exact versions.
 
+**conda/mamba vs pip note:** the original env was installed with mamba
+(conda 26.x uses libmamba as its solver), so `environment.yml` is the
+exact-reproduction path. The pip fallback is behaviorally equivalent
+for this stack — every load-bearing pin (pandas/numpy/xgboost/tables/
+alpaca-py) is version-deterministic with healthy win-64 wheels — but
+build provenance differs (conda-forge toolchain vs PyPI wheels, C-deps
+explicit vs wheel-bundled). One rule: never install the same package
+through both channels in one env (conda silently clobbers pip's copy);
+the fallback avoids overlap by design (conda = python only, pip = rest).
+
 ## Project-critical pins (what actually matters)
 
 | Package | Version | Why it matters |
