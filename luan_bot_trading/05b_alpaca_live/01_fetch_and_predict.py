@@ -107,6 +107,7 @@ FROZEN_CLASSIFIER = PROJECT_ROOT / "03_model" / "models" / "phase_g_v4_timing_co
 FROZEN_META = PROJECT_ROOT / "03_model" / "models" / "phase_g_v4_timing_correct" / "meta.json"
 V6_MODEL_DIR = PROJECT_ROOT / "03_model" / "models" / "phase_g_v6_gate_decomposition"
 PLAN_JSON = HERE / "plan.json"                 # V6: executed by Script 02
+POSITIONS_JSON = HERE / "positions.json"       # held book (4.7 back-fill scope)
 V4_PLAN_JSON = HERE / "v4_plan.json"           # V4: comparison only
 V4_SHADOW_TRADES_JSON = HERE / "v4_shadow_trades.json"
 # Cap on the persistent known-candidates (safety) list. Each name costs a
@@ -1372,6 +1373,96 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
         time.sleep(0.1)
     print(f"\n[4.6] Grades freshness: refreshed {_gseen} tickers, "
           f"{_gnew} new analyst actions appended")
+
+    # --- Step 4.7: earnings ACTUALS back-fill (freshness fix #2) ---
+    # The FMP calendar adds rows as future events (eps_actual NULL). After a
+    # print passes, nobody back-filled actuals -> sue_lag_1/2 and
+    # consecutive_surprises_pre go stale-by-one-quarter for recently
+    # reported tickers (found 2026-08-31: 706 null-actual rows since Jul-1,
+    # incl. PVH's Aug-25 print). Lazy scope: scored set + held positions.
+    def _backfill_earnings(ct: str, permaTicker: str) -> int:
+        """Upsert actuals for passed null-actual rows of one ticker."""
+        try:
+            ev_tab = pd.read_hdf(DB_FILE, "/earnings/fmp")
+        except Exception:
+            return 0
+        ev_tab["report_date"] = pd.to_datetime(ev_tab["report_date"])
+        sub = ev_tab[(ev_tab.permaTicker == permaTicker)
+                     & (ev_tab.report_date < pd.Timestamp.now())
+                     & (ev_tab.eps_actual.isna() | ev_tab.eps_estimated.isna())]
+        if sub.empty:
+            return 0
+        try:
+            r = requests.get(f"{FMP_BASE}/earnings",
+                             params={"symbol": ct, "apikey": FMP_API_KEY,
+                                     "includeReportTimes": "true"}, timeout=30)
+            if r.status_code != 200 or not isinstance(r.json(), list):
+                return 0
+            rows = r.json()
+        except Exception:
+            return 0
+        upd = {pd.Timestamp(x["date"]).normalize(): x for x in rows if x.get("date")}
+        n = 0
+        for i, row in sub.iterrows():
+            hit = upd.get(pd.Timestamp(row.report_date).normalize())
+            if not hit:
+                continue
+            act = hit.get("epsActual")
+            est = hit.get("epsEstimated")
+            if act is None or est is None:
+                continue
+            ev_tab.loc[i, "eps_actual"] = float(act)
+            ev_tab.loc[i, "eps_estimated"] = float(est)
+            for col, key in [("eps_difference", "epsDifference"),
+                             ("eps_surprise_pct", "epsSurprisePct"),
+                             ("revenue_actual", "revenueActual"),
+                             ("revenue_estimated", "revenueEstimated")]:
+                v = hit.get(key)
+                if v is not None:
+                    ev_tab.loc[i, col] = v
+            tm = (hit.get("time") or "").lower()
+            if tm in ("bmo", "amc"):
+                ev_tab.loc[i, "before_after_market"] = tm
+            n += 1
+        if n:
+            try:
+                with pd.HDFStore(DB_FILE, mode="a") as wstore:
+                    wstore.remove("/earnings/fmp")
+                    wstore.put("/earnings/fmp", ev_tab, format="table",
+                               data_columns=["permaTicker", "report_date"])
+            except Exception as e:
+                print(f"    [earnings] WARN {ct}: write failed: {e}")
+                return 0
+        return n
+
+    _pairs = []
+    for _, _row in cal_sp400.iterrows():
+        _ct = _row["symbol"]
+        if _ct in meta_lookup.index:
+            _pr = meta_lookup.loc[_ct]
+            if isinstance(_pr, pd.DataFrame):
+                _pr = _pr.iloc[0]
+            _pairs.append((_ct, str(_pr["permaTicker"])))
+    try:
+        _pos = json.load(open(POSITIONS_JSON, encoding="utf-8"))
+        for _pp in _pos.get("active", []) + _pos.get("pending", []):
+            _ct = _pp.get("canonical_ticker")
+            if _ct and _ct in meta_lookup.index and all(_ct != c for c, _ in _pairs):
+                _pr = meta_lookup.loc[_ct]
+                if isinstance(_pr, pd.DataFrame):
+                    _pr = _pr.iloc[0]
+                _pairs.append((_ct, str(_pr["permaTicker"])))
+    except Exception:
+        pass
+    _ebf_tickers, _ebf = set(), 0
+    for _ct, _ptt in _pairs:
+        if _ct in _ebf_tickers:
+            continue
+        _ebf_tickers.add(_ct)
+        _ebf += _backfill_earnings(_ct, _ptt)
+        time.sleep(0.1)
+    print(f"[4.7] Earnings back-fill: {len(_ebf_tickers)} tickers checked, "
+          f"{_ebf} passed quarters' actuals filled")
 
     # --- Step 5: Compute features + predict for each event ---
     print(f"\n[5] Computing features + predicting for {len(cal_sp400)} events ...")
