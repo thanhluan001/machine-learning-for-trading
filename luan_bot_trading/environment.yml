@@ -203,4 +203,3 @@ dependencies:
       - scipy==1.17.1
       - tqdm==4.68.3
       - yahooquery==2.4.1
-prefix: C:\Users\thanh\miniforge3\envs\trading
