@@ -18,6 +18,16 @@ PEAD trading bot live execution. Two scripts, strict separation of concerns:
 
 ## Script 01 — `01_fetch_and_predict.py` (V6 default; run whenever a fresh actionable list is needed)
 
+**Freshness contract (every feature input refreshed per run):**
+
+| Step | Input | Mechanism |
+|---|---|---|
+| [3] | Tiingo prices (91 safety tickers) | hard-fail gate — any lag aborts the run |
+| [4] | benchmarks + FRED macros | daily refresh |
+| [4.6] | analyst grades (8 revision features) | incremental FMP `/stable/grades` append for scored set (fix 2026-08-31; was frozen since the one-time 07/08 gather) |
+| [4.7] | earnings actuals (Block-1 features) | **lazy** back-fill of passed null-actual quarters — scored set + held book only; runs BEFORE feature computation, so any ticker being scored is fresh by construction. Whole-table sweep for research/matrix rebuilds: `01_data/09_earnings_backfill_sweep.py` |
+| monthly | SP400 membership | `01_data/refresh_sp400_membership.py` + defensive closure of stale rows |
+
 **Stateless**: no slot management, no position tracking. V6 produces the executable `plan.json`; V4 is recorded separately for comparison.
 
 ```bash
