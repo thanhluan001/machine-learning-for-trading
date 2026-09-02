@@ -154,16 +154,19 @@ def reconcile_positions(trader: AlpacaClient, positions: dict, dry_run: bool = F
 
         if alp is None or alp['qty'] == 0:
             # Manually closed while we were away
-            exit_price = None
+            exit_price, fill_date = (None, None)
             if not dry_run:
-                exit_price = trader.get_last_sell_fill(sym)
+                exit_price, fill_date = trader.get_last_sell_fill(sym)
             if exit_price is None:
                 # Fallback: current price (approximation)
                 exit_price = trader.get_current_price(sym)
             if exit_price is None:
                 exit_price = pos.get('entry_price', 0)
             pos['exit_reason'] = 'manual_close'
-            actual_exit_date = date.today().isoformat()
+            # The TRADE date is the Alpaca fill date, not the run date —
+            # the user may have closed it days before we reconciled
+            # (found 2026-09-02: NTNX closed Sep-1 logged as Sep-2).
+            actual_exit_date = fill_date or date.today().isoformat()
             # For CLOSED records, exit_date is the actual close date. Preserve
             # the original planned T+5 date separately for audit/history.
             pos['planned_exit_date'] = pos.get('exit_date')

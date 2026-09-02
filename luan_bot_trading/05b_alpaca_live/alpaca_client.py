@@ -283,7 +283,7 @@ class AlpacaClient:
             })
         return out
 
-    def get_last_sell_fill(self, symbol: str) -> float | None:
+    def get_last_sell_fill(self, symbol: str):  # -> (price, fill_date) or (None, None)
         """Get the filled average price of the most recent SELL order for a symbol.
 
         Used when reconciling a manually-closed position — we need the actual
@@ -305,7 +305,9 @@ class AlpacaClient:
                 raw = order.status
                 st = raw.value if hasattr(raw, 'value') else str(raw)
                 if st.lower() == 'filled' and order.filled_avg_price:
-                    return float(order.filled_avg_price)
-            return None
+                    ts = getattr(order, 'filled_at', None) or getattr(order, 'created_at', None)
+                    fd = str(ts)[:10] if ts else None
+                    return float(order.filled_avg_price), fd
+            return None, None
         except Exception:
-            return None
+            return None, None

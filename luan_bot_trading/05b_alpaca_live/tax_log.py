@@ -85,8 +85,19 @@ def ecb_usd_to_eur(day: str, retries: int = 2) -> float | None:
             except Exception:
                 if attempt < retries:
                     time.sleep(1.5 * (attempt + 1))
-        cache[d] = ""                        # mark missing (holiday/weekend)
-        _save_cache(cache)
+        # Mark missing (holiday/weekend) — but NEVER for recent dates: a
+        # marker blocks retries forever, and a transient API failure on a
+        # fresh fixing (found 2026-09-02: Sep-1/2 markers poisoned after one
+        # hiccup, forcing Aug-31 walk-back rates into live rows) must be
+        # retried on the next run. 7-day retry window.
+        import datetime as _dt
+        try:
+            _age = (_dt.date.today() - _dt.date.fromisoformat(d)).days
+        except ValueError:
+            _age = 99
+        if _age > 7:
+            cache[d] = ""
+            _save_cache(cache)
     return None
 
 
