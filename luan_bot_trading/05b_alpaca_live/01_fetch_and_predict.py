@@ -931,17 +931,23 @@ def compute_all_features(
 
     # === Revision momentum (8 features) ===
     grades_df = grades_cache.get(permaTicker)
-    # Revision and macro observations must use the same point-in-time cutoff
-    # as prices. Prior earnings history remains keyed to the future event.
+    # Grades cutoff = REPORT DATE (strictly < rdate), matching training
+    # semantics exactly (02_build_feature_matrix passes rdate). Found
+    # 2026-09-03: live used feature_date (last close), silently EXCLUDING
+    # T-1-dated analyst actions that the model always saw in training
+    # (BTIG maintains on the print's eve were invisible -> live features
+    # stricter than the learned distribution). No look-ahead risk: the
+    # fetch itself cannot return unpublished actions; the filter's only
+    # job is to mirror training.
     try:
-        rev = s2.compute_revision_momentum(grades_df, feature_date)
+        rev = s2.compute_revision_momentum(grades_df, report_date)
     except TypeError:
         # HDF tables may hold string dates; coerce once and retry so a dtype
         # quirk can never silently zero/NaN the whole revision block.
         if grades_df is not None:
             gd = grades_df.copy()
             gd["date"] = pd.to_datetime(gd["date"], errors="coerce")
-            rev = s2.compute_revision_momentum(gd, feature_date)
+            rev = s2.compute_revision_momentum(gd, report_date)
 
     # === Block 1: sue_lag_1, sue_lag_2, car_drift_historical_q1 ===
     block1 = compute_block1_live(earnings_df, stock_ret, ijh_ret, stock_dates_np)
