@@ -174,6 +174,17 @@ features (AMC = T-1 close, BMO = T-2 close per the V4 timing contract). FRED
 daily series (VIXCLS, DFF) lag ~1 day; UNRATE is monthly and lags ~6 weeks.
 This guarantees no future macro observation leaks into the feature vector.
 
+**Known accepted approximation (BMO 1-bar gap)**: the *training* matrix ends
+all price windows at the T-1 close for BOTH event families (`match_T` anchors
+at report_date regardless of BMO/AMC), while live's final plan for a BMO event
+is necessarily built the evening before entry and can only see through T-2.
+So BMO live features are missing the entry-day bar that training included.
+Accepted 2026-09-03 as structurally unavoidable in a daily-run architecture
+(no intraday re-scoring by design); impact bounded at one bar of ≥3-day
+windows. The live ledger is the ongoing monitor — if BMO picks ever
+systematically underperform, the in-control lever is BMO exclusion, not
+timing machinery.
+
 ### NaN policy (unchanged from §4)
 
 Never drop rows. XGBoost handles NaN natively. Cases that produce NaN:
