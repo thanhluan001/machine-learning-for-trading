@@ -1,7 +1,7 @@
 {
  "2026-08-31": {
   "equity": {
-   "frac": 0.882,
+   "frac": 0.824,
    "zone": "HEALTHY",
    "active": [
     "EEM",
@@ -17,8 +17,7 @@
     "XLK",
     "XLP",
     "XLRE",
-    "XLV",
-    "XLY"
+    "XLV"
    ]
   },
   "theme": {
@@ -58,17 +57,37 @@
     "monthly_step": 0.1
    },
    "current": {
-    "AI/hyperscale": 0.6499999999999999,
-    "clean_energy": 0.23385753923300925,
-    "crypto": 0.11614246076699077
+    "AI/hyperscale": 0.6888888888888889,
+    "clean_energy": 0.2055555555555556,
+    "crypto": 0.10555555555555557
    },
    "trailing_24m_average": {
-    "AI/hyperscale": 0.5587785720982673,
-    "clean_energy": 0.16064102242716913,
-    "crypto": 0.2805804054745636
+    "AI/hyperscale": 0.5972222222222222,
+    "clean_energy": 0.14305555555555557,
+    "crypto": 0.25972222222222224
    },
    "trailing_24m_months": 24
   },
+  "theme_candidates": [
+   {
+    "symbol": "TSM",
+    "rel12": 0.5124365805090805,
+    "rel12_change": 0.09715361483819729,
+    "months_history": 152
+   },
+   {
+    "symbol": "XME",
+    "rel12": 0.19774875527414304,
+    "rel12_change": 0.044775421200137,
+    "months_history": 44
+   },
+   {
+    "symbol": "NVDA",
+    "rel12": 0.05566219235280556,
+    "rel12_change": 0.1099027748588548,
+    "months_history": 152
+   }
+  ],
   "insider": {
    "AI/hyperscale": {
     "buy_b": 0.37357,
@@ -108,6 +127,15 @@
     "pos_days": 0,
     "warning": true
    }
+  },
+  "rc9_state": {
+   "P": 0.486,
+   "B": 0.1,
+   "C_pct": 70.2,
+   "state": "DISPERSAL",
+   "regime": "DISPERSAL",
+   "regime_since": "2026-08",
+   "regime_months": 2
   }
  },
  "2026-07-31": {
@@ -237,6 +265,15 @@
     "pos_days": 1,
     "warning": true
    }
+  },
+  "rc9_state": {
+   "P": 0.543,
+   "B": 0.2,
+   "C_pct": 74.7,
+   "state": "CONCENTRATED (bloc)",
+   "regime": "CONCENTRATED (bloc)",
+   "regime_since": "2026-07",
+   "regime_months": 2
   }
  }
 }
