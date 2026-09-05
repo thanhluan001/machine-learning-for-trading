@@ -347,3 +347,40 @@ mapped. Below either: report, do not silently proceed.
 
 **Not tested here** (out of scope): 30bp haircut remains an assumption;
 native SP600 training (RC-13) stays closed while transfer works.
+
+---
+
+## PHASE 3 RESULTS (2026-09-05, pt-in-time survivorship-clean rebuild)
+
+Universe: 1,082 registry tickers = 601 current + 320 newly fetched
+removed/graduated (96.7% mapped, 92.8% priced — both data gates passed)
++ 161 SP400 graduates (db.h5 reuse). FMP earnings 294/320 (91.9%).
+Matrix: **17,006 events, 906 tickers** (vs 15,717 / 601 current-members-
+backward). The membership gate excluded **10,272 events** — mostly
+current members' PRE-ADDITION history (the previously invisible other
+half of the bias). ADV>=10M coverage 51% (corpses are illiquid; the
+entry filter bites hard).
+
+### Transfer validation, frozen V6, spread-adjusted (30bp), stop 10%, 4 slots
+
+| window | Phase 2 (survivorship-biased) | Phase 3 (pt-in-time) | delta |
+|---|---:|---:|---:|
+| fold 1 2024H2 | +4.49% / 1.58x | **+2.19% / 1.26x** | -2.30pp |
+| fold 2 2025H1 | +2.86% / 1.56x | **+3.52% / 1.66x** | +0.66pp |
+| fold 3 2025H2 | +1.56% / 1.26x | **-0.24% / 0.99x** | -1.80pp |
+| DEV 1-3       | +2.84% / 3.11x | **+1.90% / 2.08x** (54% win) | -0.94pp |
+| HOLDOUT 2026H1| +3.18% / 1.69x | **+3.68% / 1.76x** (62% win) | +0.50pp |
+
+### GATE: **PASS** (pre-registered: DEV > 0 AND holdout > 0, spread-adj)
+
+Honest notes:
+- The survivorship haircut on DEV is real (-0.94pp) but does NOT
+  consume the edge; the holdout actually improved (+0.50pp) — the
+  correction added 2026 dead-name events that performed and removed
+  pre-addition events that dragged.
+- Fold 3 (2025H2) flipped mildly negative (-0.24%): the dead-name
+  events concentrate there. One of three DEV folds negative is within
+  the pre-registered tolerance (gate is on aggregates).
+- 30bp haircut remains an assumption (unchanged scope).
+- Per the pre-registration: PASS -> **eligible for the parallel
+  paper-shadow promotion decision** (user's call; not automatic).
