@@ -312,3 +312,38 @@ the features mean the same thing; my build corrupted them.
 
 **RC-12b REOPENED at the Phase-2 gate, advanced to Phase 3
 (survivorship-clean pt-in-time rebuild + re-validation).**
+
+---
+
+## PHASE 3 PRE-REGISTRATION (2026-09-05, before any fetch)
+
+**Hypothesis**: the corrected Phase-2 transfer (+2.84% DEV / +3.18% holdout,
+spread-adjusted) is NOT primarily a survivorship artifact. Under a
+point-in-time membership universe it remains positive.
+
+**Universe construction**: eligibility for an event at date t = exists
+interval in /metadata/sp600 with added <= t < removed (intervals already
+carry the 2026-08-30 defensive-closure rule). Sources: current members
+(data in hand) + 161 SP400-graduate tickers (reuse db.h5) + 331 new
+fetches (Tiingo EOD prices, FMP earnings, FMP grades where present).
+Removal years concentrate 2023-2026 (332/492) — exactly the fold/holdout
+zone, so the bias direction is expected DOWN.
+
+**Validation**: IDENTICAL to corrected Phase 2 — same folds (2024H2,
+2025H1, 2025H2), same holdout (2026H1), same frozen gate (min-gate
+>= 0.33), ADV >= $10M at event time, 30bp haircut, 4-slot equal-weight.
+
+**Decision gates (pre-registered)**:
+- PASS  = corrected DEV > 0 AND corrected holdout > 0 (spread-adj)
+          -> eligible for parallel paper-shadow promotion decision.
+- FAIL  = either <= 0 -> RC-12b CLOSED, cause of death: survivorship
+          bias in current-members-backward universe.
+- MARGINAL = DEV > 0 but holdout in (0, +1%] -> document, no promotion,
+          revisit after more holdout accrues.
+
+**Data-quality gates**: >=90% of the 331 map to permaTickers (dead/
+delisted failures reported by name); in-window price coverage >=90% of
+mapped. Below either: report, do not silently proceed.
+
+**Not tested here** (out of scope): 30bp haircut remains an assumption;
+native SP600 training (RC-13) stays closed while transfer works.
