@@ -1544,6 +1544,16 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
         print("\n  *** No events with computable features. ***")
         return
 
+    # Persist the FULL scored-candidate table (features included) for the
+    # V7 shadow companion (01c_v7_shadow.py). Pure addition: failure is
+    # non-fatal to the V6/V4 pipeline.
+    try:
+        with open(HERE / "candidates.json", "w", encoding="utf-8") as f:
+            json.dump({"generated_at": pd.Timestamp.now().isoformat(),
+                       "rows": results}, f, default=str)
+    except Exception as e:
+        print(f"  [warn] candidates.json dump failed (V7 shadow will reuse stale): {e}")
+
     # --- Step 6: Build separate V4 comparison and V6 executable plans ---
     print(f"\n[6] Building V4 comparison plan and V6 executable plan")
     accepted_v4 = [r for r in results if r["p_v4_pead"] >= THETA]
@@ -1630,6 +1640,21 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
     print(f"    Wrote V4 comparison {V4_PLAN_JSON}")
     print(f"    Recorded V4 hypothetical ledger {V4_SHADOW_TRADES_JSON}")
     print(f"    {len(picks_v6)} V6 picks available for execution by 02_paper_trade.py")
+
+    # --- Step 8: V7 combined-universe shadow (paper-shadow only; never
+    # places orders; failure here must NEVER affect the live pipeline). ---
+    try:
+        import subprocess, sys as _sys
+        r = subprocess.run(
+            [_sys.executable, str(HERE / "01c_v7_shadow.py")],
+            capture_output=True, text=True, timeout=1500)
+        tail = (r.stdout or "").strip().splitlines()
+        for ln in tail[-12:]:
+            print(f"    [V7] {ln}")
+        if r.returncode != 0:
+            print(f"    [V7] shadow run FAILED (non-fatal): {(r.stderr or '').strip()[-300:]}")
+    except Exception as e:
+        print(f"    [V7] shadow not run (non-fatal): {e}")
     print(bar)
 
 
