@@ -45,3 +45,12 @@ Honest notes:
   half-year. Remaining before any promotion: threshold sensitivity +
   bootstrap sweep (60/61-equivalent), model freeze, then paper-shadow
   FIRST (V7 runs alongside V6 in paper before touching the real book).
+
+## Freeze (2026-09-06)
+
+`phase_g_v7_combined` frozen: 3 gates, uniform V4_HP, 24 features
+(23 + is_sp400), deployment retrain on the full 33,604-row matrix.
+meta.json embeds the validation dossier. Status: shadow_candidate_not_live.
+Next: paper-shadow deployment in script 01 (universe extension +
+SP600 freshness), shadow ledger like V4's. No book changes until the
+shadow ledger earns them.
