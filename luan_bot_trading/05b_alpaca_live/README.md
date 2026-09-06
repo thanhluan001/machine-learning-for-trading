@@ -227,3 +227,17 @@ The current V6 executable `plan.json` contains:
 Script 02 does not enter BILL yet because its entry (Aug 19) is in a later ISO
 week, outside this week's top-4 slate. It will be reconsidered when its week
 arrives.
+
+### Reading V7 vs V6 scores side by side (2026-09-06, user observation)
+
+V7 systematically scores SP400 events HIGHER than V6 (typically +3-9pp
+on the min-gate; e.g. AVAV 0.331 vs 0.232): the is_sp400 flag pushes
+g1 up for SP400 events and pooled training puts V7's probabilities on a
+different scale. Two rules when reading nightly output:
+- NEVER compare raw gate numbers across models — rank within a model
+  against its OWN threshold only.
+- V7@0.33 is effectively more permissive than V6@0.33 (holdout 71 vs
+  40 trades). Documented tighter-selectivity dial if ever wanted:
+  0.35-0.38 (sweep-validated, fewer/fatter trades). Whether the extra
+  V7-only picks add or dilute is exactly what the shadow ledger
+  measures.
