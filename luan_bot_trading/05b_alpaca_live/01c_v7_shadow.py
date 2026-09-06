@@ -433,12 +433,18 @@ def main():
         print(f"[V7 shadow] SP600 features computed: {len(rows)}")
 
         # merge sides + score with V7
+        # 2026-09-06 bugfix: is_sp400 must be tagged on the ROW, not read
+        # from the features dict (script 01's features don't carry it;
+        # missing -> 0.0 silently labeled every SP400 event as SP600).
+        for r in sp400_rows:
+            r["is_sp400"] = 1
         all_rows = sp400_rows + rows
         picks = []
         import xgboost as xgb
         for r in all_rows:
             f = r.get("features", {})
             x = {k: (f.get(k) if f.get(k) is not None else 0.0) for k in feats}
+            x["is_sp400"] = float(r.get("is_sp400", 0))
             X = xgb.DMatrix(pd.DataFrame([x])[feats])
             probs = {g: float(models[g].predict(X)[0]) for g in models}
             r["p_v7_min"] = round(min(probs.values()), 4)

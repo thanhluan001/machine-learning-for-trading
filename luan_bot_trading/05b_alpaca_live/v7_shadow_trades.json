@@ -1,6 +1,52 @@
 {
-  "records": [],
+  "records": [
+    {
+      "event_key": "US000000000808|2026-09-09|amc",
+      "model": "phase_g_v7_combined",
+      "hypothetical": true,
+      "canonical_ticker": "AVAV",
+      "permaTicker": "US000000000808",
+      "report_date": "2026-09-09",
+      "time": "amc",
+      "entry_date": "2026-09-09",
+      "exit_date": "2026-09-16",
+      "p_v7_min": 0.3308,
+      "is_sp400": 1,
+      "sector": "IJJ",
+      "features": {
+        "sue_lag_1": 1.196049119062379,
+        "sue_lag_2": -0.12283842274349077,
+        "car_drift_historical_q1": null,
+        "pre_event_idiosyncratic_vol": 0.029296967128726575,
+        "pre_event_volume_trend": 0.04361076482984379,
+        "rel_ret_3d": -0.013293325986494277,
+        "rel_ret_5d": -0.023677011654295824,
+        "rel_ret_10d": -0.0901746063195607,
+        "rel_ret_20d": -0.23009150938470277,
+        "rel_ret_30d": -0.034101518654951445,
+        "sector_adjusted_ret_20d": -0.23987055134946872,
+        "revision_momentum_30d": 0.0,
+        "revision_momentum_60d": 1.0,
+        "revision_momentum_90d": 0.0,
+        "revision_ordinal_momentum_90d": 0.0,
+        "revision_intensity_90d": 2.0,
+        "grade_dispersion_90d": 2.0,
+        "n_analysts_covering": 11.0,
+        "last_action_days_before_earnings": 55.0,
+        "consecutive_surprises_pre": 1.0,
+        "unemployment_roc21": -0.023809523809523947,
+        "fed_funds": 3.63,
+        "vix": 14.32
+      },
+      "last_seen_at": "2026-09-06T21:23:51.822182",
+      "first_seen_at": "2026-09-06T21:23:51.822182",
+      "outcome_status": "pending",
+      "entry_price": null,
+      "exit_price": null,
+      "return_pct": null
+    }
+  ],
   "model": "phase_g_v7_combined",
   "status": "hypothetical_comparison_only",
-  "updated_at": "2026-09-06T20:36:31.853266"
+  "updated_at": "2026-09-06T21:23:51.822182"
 }
