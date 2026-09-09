@@ -55,3 +55,29 @@ holdout, 4-slot sim, stop 10%, force-refresh, ADV>=10M SP600, XLF-excl,
   on other dimensions all frozen as in phase_g_v7_combined).
 - The is_sp400 FEATURE stays in the models (training unchanged) — only
   its use at the eligibility step changes.
+
+---
+
+## RESULT (2026-09-09): A1 FAIL — amendment closed
+
+theta sweep (no-flag eligibility): DEV improves at every threshold
+(+3.4% to +5.8% vs baseline +4.39%); holdout clears the +3.5% floor at
+0.32 (+4.23%), 0.33 (+3.79%), 0.35 (+6.10%) — but the pre-registered
+selection rule (NAV-max, >=50 trades) chose theta=0.30, whose holdout
+was +3.11% < +3.5% floor. FAIL per the letter.
+
+Cause of death: NOT the concept — the concept beats baseline DEV at
+5 of 6 thresholds and beats the holdout floor at 3 of 6 — but the
+threshold-selection rule interacting with one 26-week holdout draw
+(n=79 at the selected theta; 0.4pp miss is inside noise). Shopping a
+passing theta post-hoc is exactly what pre-registration forbids.
+
+Status: V7 stays EXACTLY as validated (flag + 0.33 as frozen). The
+flag-decisive band remains tolerated dead weight, priced live by the
+shadow ledger. Re-opening requires NEW evidence — e.g., re-running
+Amendment A after the shadow ledger extends the out-of-sample record —
+never threshold selection on this same holdout.
+
+Tie-breaker observation: the marginal no-flag band [0.30,0.32) in
+holdout averaged -1.3% (n=8) — marginal trades are soft under EITHER
+ruler, consistent with every border-band measurement to date.
