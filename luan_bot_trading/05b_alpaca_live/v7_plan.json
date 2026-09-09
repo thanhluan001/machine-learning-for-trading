@@ -1,9 +1,11 @@
 {
   "model": "phase_g_v7_combined",
   "status": "paper_shadow_not_live",
-  "generated_at": "2026-09-09T23:41:56.644228",
+  "generated_at": "2026-09-10T00:57:36.963707",
   "threshold": 0.33,
-  "total_candidates": 9,
+  "policy_A": "frozen: flag + min-gate >= 0.33 (as validated)",
+  "policy_B": "amendment: eligibility no-flag >= 0.33, ranking by real score (runway only)",
+  "total_candidates": 10,
   "candidates": [
     {
       "canonical_ticker": "THO",
@@ -51,15 +53,6 @@
       "flag_decisive": false
     },
     {
-      "canonical_ticker": "AIR",
-      "report_date": "2026-09-22",
-      "time": "amc",
-      "is_sp400": 0,
-      "p_v7_min": 0.1695,
-      "p_v7_min_noflag": 0.1695,
-      "flag_decisive": false
-    },
-    {
       "canonical_ticker": "WOR",
       "report_date": "2026-09-22",
       "time": "amc",
@@ -78,6 +71,15 @@
       "flag_decisive": false
     },
     {
+      "canonical_ticker": "AIR",
+      "report_date": "2026-09-22",
+      "time": "amc",
+      "is_sp400": 0,
+      "p_v7_min": 0.1695,
+      "p_v7_min_noflag": 0.1695,
+      "flag_decisive": false
+    },
+    {
       "canonical_ticker": "FUL",
       "report_date": "2026-09-23",
       "time": "amc",
@@ -85,8 +87,18 @@
       "p_v7_min": 0.1299,
       "p_v7_min_noflag": 0.1299,
       "flag_decisive": false
+    },
+    {
+      "canonical_ticker": "SCHL",
+      "report_date": "2026-09-24",
+      "time": "amc",
+      "is_sp400": 0,
+      "p_v7_min": 0.1573,
+      "p_v7_min_noflag": 0.1573,
+      "flag_decisive": false
     }
   ],
+  "b_picks": [],
   "picks": [
     {
       "permaTicker": "US000000006383",
@@ -136,7 +148,8 @@
         "pass_g3": 0.3863
       },
       "p_v7_min_noflag": 0.3152,
-      "flag_decisive": true
+      "flag_decisive": true,
+      "policy": "A-only (flag-decisive)"
     },
     {
       "permaTicker": "US000000002774",
@@ -186,7 +199,8 @@
         "pass_g3": 0.4114
       },
       "p_v7_min_noflag": 0.2999,
-      "flag_decisive": true
+      "flag_decisive": true,
+      "policy": "A-only (flag-decisive)"
     }
   ]
 }

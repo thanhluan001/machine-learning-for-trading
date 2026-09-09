@@ -556,12 +556,27 @@ def main():
             if (r["p_v7_min"] >= V7_THRESHOLD and r.get("sector") not in XLF and adv_pass):
                 picks.append(r)
         picks.sort(key=lambda z: -z["p_v7_min"])
+        # Amendment B view: eligibility on the no-flag score for ALL events
+        # (for SP600 noflag == real, so their bar is unchanged); ranking by
+        # real score per the registered design.
+        b_picks = [r for r in all_rows if r["p_v7_min_noflag"] >= V7_THRESHOLD]
+        b_picks.sort(key=lambda z: -z["p_v7_min"])
+        for r in picks:
+            r["policy"] = "A-only (flag-decisive)" if r.get("flag_decisive") \
+                else "A+B (clears both bars)"
 
     generated_at = pd.Timestamp.now().isoformat()
     plan = {"model": "phase_g_v7_combined", "status": "paper_shadow_not_live",
             "generated_at": generated_at, "threshold": V7_THRESHOLD,
+            "policy_A": "frozen: flag + min-gate >= 0.33 (as validated)",
+            "policy_B": "amendment: eligibility no-flag >= 0.33, ranking by real score (runway only)",
             "total_candidates": len(sp400_rows) + (len(rows) if m is not None and not m.empty else 0),
             "candidates": cand_summary if (m is not None and not m.empty) else [],
+            "b_picks": [{"canonical_ticker": r["canonical_ticker"],
+                         "report_date": r["report_date"], "time": r["time"],
+                         "p_v7_min": r["p_v7_min"],
+                         "p_v7_min_noflag": r["p_v7_min_noflag"],
+                         "is_sp400": r.get("is_sp400", 1)} for r in b_picks],
             "picks": picks}
     with open(PLAN_OUT, "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2, ensure_ascii=False, default=str)
