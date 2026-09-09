@@ -54,3 +54,21 @@ the V7 shadow slate alongside the frozen ordering, outcomes accrue in
 the ledger, promotion decided on that record. If Amendment B adopts
 first, the ranker retrains/revalidates under B-eligibility before any
 use (training distribution would change).
+
+---
+
+## AMENDMENT (2026-09-10, registered before any training; user design review)
+
+1. ACTIVATION: ranker scores all eligible candidates weekly; decision
+   impact only under slot competition (first-order: eligible > 4 —
+   46% of eligible weeks, A-eligibility). G3's full sim prices the
+   exact interaction including mid-week slot freeing.
+2. FEATURE ARMS (fixes the 26/27 arithmetic error; reopens the
+   gate-prob inclusion as an explicit fork):
+   - ARM P (pure): 24 inputs = 23 raw + is_sp400.
+   - ARM G (gates-in): 27 inputs = ARM P + p_g1/p_g2/p_g3 (OOS-fold
+     scores; causal chain verified).
+   - PRE-STATED TIEBREAK: both arms run once, identical protocol and
+     gates. Both pass -> ARM P adopts (parsimony). One passes -> that
+     arm. Neither -> RC-14 closed. No post-hoc arm preference.
+   Training pairs: weeks with >=2 eligible (~64), relevance = ret_cost.
