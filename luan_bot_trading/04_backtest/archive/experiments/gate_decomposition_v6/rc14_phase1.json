@@ -1,0 +1,23 @@
+{
+  "arms": {
+    "P": {
+      "G1": false,
+      "G2": false,
+      "G3": false,
+      "sp_ho": -0.04711837214160797,
+      "t1_ho": 0.03856976350334904,
+      "sim_r_dev": 0.04461876420242289,
+      "sim_b_dev": 0.05131666346355569
+    },
+    "G": {
+      "G1": false,
+      "G2": false,
+      "G3": false,
+      "sp_ho": -0.10252915454387945,
+      "t1_ho": 0.026718689833539824,
+      "sim_r_dev": 0.046441342470264865,
+      "sim_b_dev": 0.05131666346355569
+    }
+  },
+  "verdict": "NEITHER -> RC-14 CLOSED, min-gate ranking retained"
+}

@@ -72,3 +72,27 @@ use (training distribution would change).
      gates. Both pass -> ARM P adopts (parsimony). One passes -> that
      arm. Neither -> RC-14 closed. No post-hoc arm preference.
    Training pairs: weeks with >=2 eligible (~64), relevance = ret_cost.
+
+---
+
+## PHASE 1 RESULT (2026-09-10): NEITHER PASSES — RC-14 CLOSED
+
+Arm P: holdout Spearman −0.047 (gate ≥ +0.10), top-1 +3.86% vs min-gate
++7.18%. G1/G2/G3 all FAIL.
+Arm G: holdout Spearman −0.103, top-1 +2.67%. All FAIL — gate-prob
+features AMPLIFIED the overfit, not the signal.
+Training reality: ranker for fold 2 had 90 events / 10 weeks; holdout's
+had 579 / 45. Within-week realized returns as relevance = extreme label
+noise on tiny groups.
+
+Cause of death: learned ranking infeasible at current data scale —
+label noise overwhelms the weak within-pool ordering signal; both arms
+anti-informative out-of-sample. The pre-registered "dies on variance =
+legitimate kill" clause fired exactly as written.
+
+Salvage finding: the incumbent min-gate ordering is STRONGER than
+Phase 0 suggested — on competition weeks: DEV Spearman +0.156, top-1
++8.55% vs pool mean +2.82% (Phase 0's +0.031 was a pooling artifact).
+The ad-hoc ranker keeps the job, now with evidence it deserves it.
+Reopening condition: materially more competition weeks (multi-year
+ledger) AND a demonstrated stable within-pool signal.

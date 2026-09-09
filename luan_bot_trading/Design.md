@@ -1763,3 +1763,12 @@ and horizon mismatch (5-day architecture vs 10–20d drift) park it.
 As a PEAD *feature* it also fails: ~1–2% row coverage → XGBoost learns noise.
 Revisit only if disclosure rules shorten (real-time filing legislation) or a
 10–20d horizon variant is ever approved.
+
+### RC-14 dedicated ranking model — CLOSED 2026-09-10 (Phase 1, both arms FAIL)
+Cause of death: LambdaMART rankers (arm P pure-24, arm G gates-in-27)
+anti-informative OOS (holdout Spearman −0.05/−0.10 vs gate ≥ +0.10) —
+within-week realized-return labels too noisy at 10-45 training weeks.
+Salvage: incumbent min-gate ordering validated on competition weeks
+(DEV Spearman +0.156, top-1 +8.55%). Pre-registered variance-kill
+clause fired. Reopen on multi-year ledger evidence only.
+Full record: rc14_ranking_pre_registration.md, rc14_phase1_ranker_registration.md.
