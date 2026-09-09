@@ -38,3 +38,23 @@ within-week eligible pairs) instead?
 
 No policy change in Phase 0. Diagnostic only. The B runway's dual
 scores and outcomes continue accumulating regardless.
+
+---
+
+## PHASE 0 RESULT (2026-09-09): PASS to Phase 1
+
+Capacity: 46% of eligible weeks have >4 candidates (mean 11.2/week, max
+81); B-eligibility 37%. KILL1 no (competition is real).
+Signal: mean weekly Spearman among eligible — min-gate +0.031, g1-only
+−0.028, mean-gates +0.075. All thin: eligibility separates good from
+bad (all-eligible mean +2.82%), but ordering within the pool is barely
+informed. Top-1 means: min-gate +5.41% vs g1 +4.24% / mean-gates
++4.11%; oracle top-1 +19.48% (selection-biased ceiling, but 3.6x headroom).
+KILL2 no (Spearman 0.031 < 0.05 — the pre-registered "current ranker
+captures the signal" condition FAILED).
+
+Honest caveats: oracle top-1 of up-to-81 candidates is heavily inflated
+by selection; n=64 competition weeks; min-gate's top-1 win over
+trivial alternatives is small-n.
+
+Phase 1 design to be registered before any training.
