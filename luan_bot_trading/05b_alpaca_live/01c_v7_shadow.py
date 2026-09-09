@@ -329,8 +329,41 @@ def record_shadow(picks, generated_at):
         payload = {"records": []}
     records = payload.get("records", [])
     by_key = {r.get("event_key"): r for r in records if r.get("event_key")}
+    # calendar-shift dedupe: FMP revises report_date by a day sometimes —
+    # a new pick matching permaTicker+time within +-4d UPDATES the record
+    # under the new key instead of duplicating it.
+    def _shifted_key(p):
+        try:
+            rd_new = pd.Timestamp(p.get("report_date"))
+        except Exception:
+            return None
+        for k, r in by_key.items():
+            if r.get("permaTicker") != p.get("permaTicker") or r.get("time") != p.get("time"):
+                continue
+            try:
+                if abs((pd.Timestamp(r.get("report_date")) - rd_new).days) <= 4:
+                    return k
+            except Exception:
+                continue
+        return None
     for p in picks:
         key = "|".join(str(p.get(k, "")) for k in ("permaTicker", "report_date", "time"))
+        sk = _shifted_key(p)
+        if sk and sk != key:
+            old = by_key.pop(sk)
+            old.update({"event_key": key, "report_date": p.get("report_date"),
+                        "entry_date": p.get("entry_date"), "exit_date": p.get("exit_date"),
+                        "p_v7_min": p.get("p_v7_min"),
+                        "p_v7_min_noflag": p.get("p_v7_min_noflag"),
+                        "flag_decisive": p.get("flag_decisive", False),
+                        "calendar_shifted_from": sk,
+                        # entry not yet real under the new date — refill
+                        "entry_price": None, "entry_fill_date": None,
+                        "exit_price": None, "exit_fill_date": None,
+                        "return_pct": None,
+                        "outcome_status": "pending" if old.get("outcome_status") != "complete" else "complete"})
+            by_key[key] = old
+            continue
         old = by_key.get(key, {})
         rec = {**old, "event_key": key, "model": "phase_g_v7_combined",
                "hypothetical": True, "canonical_ticker": p["canonical_ticker"],
@@ -352,6 +385,57 @@ def record_shadow(picks, generated_at):
     payload["updated_at"] = generated_at
     with open(LEDGER_OUT, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+
+
+def fill_outcomes():
+    """V4-tracker pattern for V7: fill entry/exit prices from the freshest
+    Tiingo closes in the local stores; complete records whose exit passed."""
+    if not LEDGER_OUT.exists():
+        return
+    payload = json.load(open(LEDGER_OUT, encoding="utf-8"))
+    recs = payload.get("records", [])
+
+    def close_on(pt, day):
+        """Last close <= day from /sp600/{pt} or db.h5 /sp400/{pt}."""
+        for store, key in ((DB_SP600, f"/sp600/{pt}"), (DB, f"/sp400/{pt}")):
+            try:
+                with pd.HDFStore(store, "r") as s:
+                    if key not in s.keys():
+                        continue
+                    d = s[key]
+                dt = pd.to_datetime(d["Date"]).dt.tz_localize(None).dt.normalize()
+                sub = d[dt <= pd.Timestamp(day)]
+                if len(sub):
+                    return float(sub["Adj_Close"].iloc[-1]), str(dt[sub.index[-1]].date())
+            except Exception:
+                continue
+        return None, None
+
+    changed = 0
+    for r in recs:
+        if r.get("outcome_status") in ("dropped_pre_entry", "complete"):
+            continue
+        pt = r.get("permaTicker")
+        if not pt:
+            continue
+        if r.get("entry_price") is None and r.get("entry_date"):
+            p, d = close_on(pt, r["entry_date"])
+            if p is not None and d == str(r["entry_date"]):   # only the actual entry-day close
+                r["entry_price"], r["entry_fill_date"] = p, d
+                changed += 1
+        if r.get("entry_price") is not None and r.get("exit_price") is None \
+                and r.get("exit_date"):
+            p, d = close_on(pt, r["exit_date"])
+            if p is not None and d >= str(r["exit_date"]):
+                r["exit_price"], r["exit_fill_date"] = p, d
+                r["return_pct"] = round(p / r["entry_price"] - 1.0, 6)
+                r["outcome_status"] = "complete"
+                changed += 1
+    if changed:
+        payload["records"] = recs
+        with open(LEDGER_OUT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+        print(f"[V7 shadow] outcome-filler updated {changed} fields")
 
 
 def main():
@@ -482,6 +566,7 @@ def main():
     with open(PLAN_OUT, "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2, ensure_ascii=False, default=str)
     record_shadow(picks, generated_at)
+    fill_outcomes()
     print(f"[V7 shadow] picks: {[(p['canonical_ticker'], p['p_v7_min'], 'SP4' if p.get('is_sp400',1)==1 else 'SP6') for p in picks[:8]]}")
     print(f"[V7 shadow] wrote {PLAN_OUT.name} + {LEDGER_OUT.name}")
 
