@@ -84,12 +84,14 @@
         "fed_funds": 3.63,
         "vix": 15.3
       },
-      "last_seen_at": "2026-09-09T00:41:57.597428",
+      "last_seen_at": "2026-09-09T10:34:53.796109",
       "first_seen_at": "2026-09-09T00:41:57.597428",
       "outcome_status": "pending",
       "entry_price": null,
       "exit_price": null,
-      "return_pct": null
+      "return_pct": null,
+      "p_v7_min_noflag": 0.3087,
+      "flag_decisive": true
     },
     {
       "event_key": "US000000000322|2026-09-10|bmo",
@@ -129,15 +131,17 @@
         "fed_funds": 3.63,
         "vix": 15.3
       },
-      "last_seen_at": "2026-09-09T00:41:57.597428",
+      "last_seen_at": "2026-09-09T10:34:53.796109",
       "first_seen_at": "2026-09-09T00:41:57.597428",
       "outcome_status": "pending",
       "entry_price": null,
       "exit_price": null,
-      "return_pct": null
+      "return_pct": null,
+      "p_v7_min_noflag": 0.3028,
+      "flag_decisive": true
     }
   ],
   "model": "phase_g_v7_combined",
   "status": "hypothetical_comparison_only",
-  "updated_at": "2026-09-09T00:41:57.597428"
+  "updated_at": "2026-09-09T10:34:53.796109"
 }

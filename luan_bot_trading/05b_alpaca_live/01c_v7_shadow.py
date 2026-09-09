@@ -337,6 +337,8 @@ def record_shadow(picks, generated_at):
                "permaTicker": p["permaTicker"], "report_date": p["report_date"],
                "time": p["time"], "entry_date": p["entry_date"], "exit_date": p["exit_date"],
                "p_v7_min": p["p_v7_min"], "is_sp400": p["is_sp400"], "sector": p["sector"],
+               "p_v7_min_noflag": p.get("p_v7_min_noflag"),
+               "flag_decisive": p.get("flag_decisive", False),
                "features": p["features"], "last_seen_at": generated_at}
         rec.setdefault("first_seen_at", generated_at)
         rec.setdefault("outcome_status", "pending")
@@ -440,6 +442,7 @@ def main():
             r["is_sp400"] = 1
         all_rows = sp400_rows + rows
         picks = []
+        cand_summary = []   # Amendment B runway: both scores for every candidate
         import xgboost as xgb
         for r in all_rows:
             f = r.get("features", {})
@@ -449,6 +452,21 @@ def main():
             probs = {g: float(models[g].predict(X)[0]) for g in models}
             r["p_v7_min"] = round(min(probs.values()), 4)
             r["gates"] = {k: round(v, 4) for k, v in probs.items()}
+            # counterfactual no-flag score (Amendment B: eligibility probe)
+            x0 = dict(x)
+            x0["is_sp400"] = 0.0
+            X0 = xgb.DMatrix(pd.DataFrame([x0])[feats])
+            probs0 = {g: float(models[g].predict(X0)[0]) for g in models}
+            r["p_v7_min_noflag"] = round(min(probs0.values()), 4)
+            r["flag_decisive"] = bool(r["is_sp400"] == 1
+                                       and r["p_v7_min_noflag"] < V7_THRESHOLD
+                                       and r["p_v7_min"] >= V7_THRESHOLD)
+            cand_summary.append({"canonical_ticker": r["canonical_ticker"],
+                                 "report_date": r["report_date"], "time": r["time"],
+                                 "is_sp400": r.get("is_sp400", 1),
+                                 "p_v7_min": r["p_v7_min"],
+                                 "p_v7_min_noflag": r["p_v7_min_noflag"],
+                                 "flag_decisive": r["flag_decisive"]})
             adv = f.get("adv20")
             adv_pass = True if r.get("is_sp400", 1) == 1 else (adv is not None and adv >= ADV_MIN)
             if (r["p_v7_min"] >= V7_THRESHOLD and r.get("sector") not in XLF and adv_pass):
@@ -459,6 +477,7 @@ def main():
     plan = {"model": "phase_g_v7_combined", "status": "paper_shadow_not_live",
             "generated_at": generated_at, "threshold": V7_THRESHOLD,
             "total_candidates": len(sp400_rows) + (len(rows) if m is not None and not m.empty else 0),
+            "candidates": cand_summary if (m is not None and not m.empty) else [],
             "picks": picks}
     with open(PLAN_OUT, "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2, ensure_ascii=False, default=str)
