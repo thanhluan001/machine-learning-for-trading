@@ -1772,3 +1772,14 @@ Salvage: incumbent min-gate ordering validated on competition weeks
 (DEV Spearman +0.156, top-1 +8.55%). Pre-registered variance-kill
 clause fired. Reopen on multi-year ledger evidence only.
 Full record: rc14_ranking_pre_registration.md, rc14_phase1_ranker_registration.md.
+
+### RC-15 theme-universe lifecycle — REGISTERED 2026-09-11 (pre-official-run)
+Capex-share mirror (who) + operator's CPPI drawdown schedule (how much:
+cash = |dd| x {0,1,1.5,2} at 15/25/40% bands, weekly reads, raw-ATH
+anchor with reset on new-theme registration at 2-5% capex share) +
+price-RS watchlist onboarding (universe change). Signal-free by design.
+2000-exam evidence: -81% -> -62.2% (18.8pp, passes >=15pp bar); modern
+probe premium ~4-6pp/yr. Official run = script 115 with gates G1-G4
+(protection >=5pp, premium <=5pp, shock give-back <=8pp, regression
+>=15pp). Registration: rc15_lifecycle_pre_registration.md; evidence:
+114_rc15_evidence_reconstruction.py + cached basket.
