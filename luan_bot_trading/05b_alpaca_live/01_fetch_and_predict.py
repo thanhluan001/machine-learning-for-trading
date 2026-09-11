@@ -1412,6 +1412,17 @@ def main(weeks: int = 2, dry_run: bool = False, limit: int | None = None,
         for i, row in sub.iterrows():
             hit = upd.get(pd.Timestamp(row.report_date).normalize())
             if not hit:
+                # FMP revises report dates after calendar seeding (M 09-02->
+                # 09-10, KBH 09-23->09-22). Match the same quarter within
+                # +/-4 days and ADOPT FMP's corrected date.
+                cands = [(abs((k - pd.Timestamp(row.report_date)).days), k, v)
+                         for k, v in upd.items()]
+                delta, k, hit = min(cands)
+                if delta <= 4:
+                    ev_tab.loc[i, "report_date"] = k
+                else:
+                    hit = None
+            if not hit:
                 continue
             act = hit.get("epsActual")
             est = hit.get("epsEstimated")
