@@ -69,11 +69,11 @@ STEPS = [
 
 def run_chain() -> list[dict]:
     log = []
-    for name, cmd, extra_env in STEPS:
+    for i, (name, cmd, extra_env) in enumerate(STEPS, 1):
         env = {**os.environ, **extra_env}
         t0 = time.time()
         print(f"\n{'=' * 88}\n{name}\n{'=' * 88}", flush=True)
-        with open(OUT_DIR / (name.split("]")[0].strip("[/") + ".log"), "w") as f:
+        with open(OUT_DIR / f"step{i}.log", "w") as f:
             proc = subprocess.run(cmd, env=env, stdout=f,
                                   stderr=subprocess.STDOUT, cwd=str(ROOT))
         dt = time.time() - t0
