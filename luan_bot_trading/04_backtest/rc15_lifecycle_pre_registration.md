@@ -207,3 +207,43 @@ re-fire       = dd back above 15% re-engages the schedule; cash holds
                 at max(schedule(dd), current) — deep-episode cash
                 persists through shallower re-dips until dripped out.
 ```
+
+---
+
+## SPEC AMENDMENT v1.2 (2026-09-13, pre-official-run): anchor = ROLL2Y
+
+**Supersedes the anchor clause in §2 and in the v1.1.1 semantics block.**
+
+```text
+ANCHOR = raw rolling 2-YEAR maximum of the portfolio NAV
+         (504-trading-day rolling max, min_periods 120).
+         No smoothing. No permanent memory.
+```
+
+Evidence (full v1.1.1 spec — CPPI ratios + ratchet + 2.5%/wk drip,
+head-to-head on both exams):
+
+```text
+                  2000 exam (-81% market)      modern era (-63% market)
+                protection   terminal         protection  terminal  cash
+PERMANENT ATH   23.5pp -57.5%  +882%          7.8pp -55.2%  +540%     21%
+ROLL2Y          23.5pp -57.5%  +882%  ===    8.1pp -54.9%  +634%     17%
+ROLL1Y          18.2pp -62.9%  +745%          6.0pp -57.0%  +687%     14%
+ROLL3M           3.0pp -78.1%  +442%          3.0pp -60.0%  +818%      7%
+```
+
+Rationale: the anchor's memory only needs to outlast the theme death.
+Both on record (2000-02: 31 months; 2021-22: 21 months) fit inside 2
+years; ROLL2Y ties permanent ATH on the 2000 exam and dominates it in
+the modern era (+94pp terminal, equal maxDD, lower avg cash).
+
+Named caveat (outside sample): a leader death LONGER than 2 years
+(Japan 1990-2003 class) heals the anchor mid-decline; the drip
+re-enters and re-fires bleed at <=2.5%/wk (ratchet-bounded slow bleed,
+not a wipeout). Permanent ATH is the only anchor that covers this
+class; accepting ROLL2Y is the explicit belief that theme deaths stay
+<= ~2 years. Calibration lever: if a live episode shows the anchor
+healing too early, "extend memory" opens as a pre-registered amendment.
+The v1.1.1 registration-reset clause is retired (no longer needed —
+the anchor self-heals); theme onboarding remains in the spec for
+universe membership only.
