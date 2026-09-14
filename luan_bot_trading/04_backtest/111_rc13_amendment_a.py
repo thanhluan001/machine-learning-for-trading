@@ -51,8 +51,8 @@ except Exception:
 def build_cands(oos, w0, w1, th):
     m = ((oos.score_noflag >= th)          # <-- AMENDMENT: eligibility bar
          & (~oos.sector.isin(XLF)) & oos.pregap_return.notna() & oos.adv_pass
-         & (pd.to_datetime(oos.report_date) >= pd.Timestamp(w0))
-         & (pd.to_datetime(oos.report_date) <= pd.Timestamp(w1)))
+         & ((oos["label_end"] if "label_end" in oos.columns else pd.to_datetime(oos.report_date)) >= pd.Timestamp(w0))
+         & ((oos["label_end"] if "label_end" in oos.columns else pd.to_datetime(oos.report_date)) <= pd.Timestamp(w1)))
     c = oos[m].copy()
     c["entry_date"] = pd.to_datetime(c.entry_date)
     rows = []

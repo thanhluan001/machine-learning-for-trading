@@ -64,7 +64,7 @@ def fit(X_train, y_train, X_eval, y_eval, hp=V4_HP):
 
 
 def folds_for(df):
-    rd = pd.to_datetime(df["report_date"])
+    rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df["report_date"])  # RC-16 F3
     for fi, (te, sve, tse) in enumerate(bt.DEFAULT_FOLDS, 1):
         tr = df[rd <= pd.Timestamp(te)]
         sv = df[(rd > pd.Timestamp(te)) & (rd <= pd.Timestamp(sve))]

@@ -48,8 +48,12 @@ v3 = _load("v3_v4", ROOT / "04_backtest" / "_pead_target_retrain.py")
 bt = _load("bt_v4", ROOT / "04_backtest" / "51_hp_theta_sweep_23feat.py")
 
 DB_FILE = tm.DB_FILE
-V4_MATRIX_KEY = "/features/train_matrix_v4_timing_correct"
-MODEL_DIR = HERE / "models" / "phase_g_v4_timing_correct"
+import os as _os
+# RC-16 R1: env overrides so the corrected rebuild (v6c) reads the rebuilt
+# base matrix, writes a separate matrix key, and never clobbers the frozen
+# V4 model dir. Defaults preserve the original frozen-lineage behavior.
+V4_MATRIX_KEY = _os.environ.get("RC16_V6C_OUT", "/features/train_matrix_v4_timing_correct")
+MODEL_DIR = Path(_os.environ.get("RC16_MODEL_DIR", str(HERE / "models" / "phase_g_v4_timing_correct")))
 
 DEPLOY_FEATURES = [
     "sue_lag_1", "sue_lag_2", "car_drift_historical_q1",
@@ -300,7 +304,12 @@ def main() -> None:
     print(f"  DB: {DB_FILE}")
 
     print("\n[1] Loading train matrix and computing labels ...")
-    df = tm.load_train_matrix()
+    base_key = _os.environ.get("RC16_BASE_OUT")
+    if base_key:
+        df = pd.read_hdf(DB_FILE, base_key)
+        print(f"  (RC-16 R1: loaded base matrix from {base_key})")
+    else:
+        df = tm.load_train_matrix()
     df = tm.apply_priming_cutoff(df, tm.PRIMING_RUNWAY_START)
     df = v3.compute_pead_gates_full(df)
     print(f"  rows={len(df):,} | BMO={int(df['is_bmo'].sum()):,} | AMC={int((~df['is_bmo'].astype(bool)).sum()):,}")

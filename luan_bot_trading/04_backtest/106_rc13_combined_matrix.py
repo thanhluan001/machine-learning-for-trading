@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -42,12 +44,14 @@ FEATURES = bt.DEPLOY_FEATURES
 
 def main() -> None:
     # ---------- SP400 side ----------
-    v4 = pd.read_hdf(DB, "/features/train_matrix_v4_timing_correct")
+    v4 = pd.read_hdf(DB, os.environ.get("RC16_V6C_OUT", "/features/train_matrix_v4_timing_correct"))
     v4 = v4[v4.pregap_return.notna()].copy()
     sp400 = pd.DataFrame({
         "permaTicker": v4.permaTicker,
         "canonical_ticker": v4.canonical_ticker,
         "report_date": pd.to_datetime(v4.report_date),
+        "label_end": (pd.to_datetime(v4.label_end) if "label_end" in v4.columns
+                      else pd.to_datetime(v4.report_date)),  # RC-16 F3
         "sector": v4.sector,
         "entry_date": pd.to_datetime(v4.pregap_entry_date),
         "exit_date": pd.to_datetime(v4.pregap_exit_date),
@@ -73,7 +77,7 @@ def main() -> None:
           f"pead {sp400.pead_pass.mean():.3f}")
 
     # ---------- SP600 side ----------
-    s6 = pd.read_hdf(DB_SP600, "/features/train_matrix_sp600_pt").copy()
+    s6 = pd.read_hdf(DB_SP600, os.environ.get("RC16_SP600_OUT", "/features/train_matrix_sp600_pt")).copy()
     s6["report_date"] = pd.to_datetime(s6.report_date)
     with pd.HDFStore(DB_SP600, "r") as st:
         ijr = st["/sp600/benchmark_IJR"].copy()
@@ -134,6 +138,8 @@ def main() -> None:
         "permaTicker": s6.permaTicker,
         "canonical_ticker": s6.ticker,
         "report_date": s6.report_date,
+        "label_end": (pd.to_datetime(s6.label_end) if "label_end" in s6.columns
+                      else pd.to_datetime(s6.report_date)),  # RC-16 F3
         "sector": s6.sector,
         "entry_date": pd.to_datetime(s6.entry_date),
         "exit_date": pd.to_datetime(s6.exit_date),
@@ -176,12 +182,13 @@ def main() -> None:
           f"| SP600 {int((both.is_sp400==0).sum()):,} | "
           f"{both.report_date.min().date()} .. {both.report_date.max().date()}")
 
+    out_key = os.environ.get("RC16_COMBINED_OUT", "/features/train_matrix_combined")
     with pd.HDFStore(DB, "a") as st:
-        if "/features/train_matrix_combined" in st.keys():
-            st.remove("/features/train_matrix_combined")
-        st.put("/features/train_matrix_combined", both, format="table",
+        if out_key in st.keys():
+            st.remove(out_key)
+        st.put(out_key, both, format="table",
                data_columns=["permaTicker", "report_date"])
-    print("wrote /features/train_matrix_combined")
+    print(f"wrote {out_key}")
 
 
 if __name__ == "__main__":

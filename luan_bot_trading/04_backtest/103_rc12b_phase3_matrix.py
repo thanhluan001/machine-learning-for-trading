@@ -20,6 +20,7 @@ Output: /features/train_matrix_sp600_pt in db_sp600.h5.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -264,13 +265,27 @@ def main() -> None:
         ev["sue_lag_1"] = sue.shift(1)
         ev["sue_lag_2"] = sue.shift(2)
         ev["consec_pre"] = pd.Series(consec).shift(1)
-        car60 = np.full(len(ev), np.nan)
+        # RC-16 F2: prior event's 45-session CAR, NaN unless the 45th session
+        # completed by the consuming event's cutoff (T-1 AMC / T-2 BMO).
+        CAR_DRIFT_WINDOW = 45
+        car45 = np.full(len(ev), np.nan)
         tpos = np.searchsorted(dates, ev["report_date"].to_numpy().astype("datetime64[D]").astype(dates.dtype), side="left")
         for k in range(len(ev)):
             t = int(tpos[k])
-            if t + 61 < len(close):
-                car60[k] = float(np.nansum(slr[t + 1:t + 61] - blr[t + 1:t + 61]))
-        ev["car_drift_q1"] = pd.Series(car60).shift(1)
+            if t + CAR_DRIFT_WINDOW + 1 < len(close):
+                car45[k] = float(np.nansum(slr[t + 1:t + CAR_DRIFT_WINDOW + 1] - blr[t + 1:t + CAR_DRIFT_WINDOW + 1]))
+        drift = pd.Series(car45).shift(1)
+        mature = np.zeros(len(ev), dtype=bool)
+        _bam = ev["time"].astype(str).str.lower().values
+        for k in range(1, len(ev)):
+            tk, tp_ = int(tpos[k]), int(tpos[k - 1])
+            if tk + 11 >= len(dates):
+                continue
+            back = 1 if _bam[k] == "amc" else 2
+            if (tk - back) - tp_ >= CAR_DRIFT_WINDOW:
+                mature[k] = True
+        drift[~mature] = np.nan
+        ev["car_drift_q1"] = drift
         for k, rd in enumerate(ev["report_date"]):
             if not (WIN_START - pd.Timedelta(days=120) <= rd <= WIN_END):
                 continue
@@ -281,6 +296,9 @@ def main() -> None:
             if t < 31 or t + 6 >= len(close):
                 continue
             f = {"ticker": sym, "permaTicker": pt, "report_date": rd, "sector": etf}
+            # RC-16 F3: label completion date (T+11 session) for
+            # maturity-aware fold splits.
+            f["label_end"] = pd.Timestamp(dates[t + 11]) if t + 11 < len(dates) else pd.NaT
             f["sue_lag_1"] = ev["sue_lag_1"].iloc[k]
             f["sue_lag_2"] = ev["sue_lag_2"].iloc[k]
             f["consecutive_surprises_pre"] = ev["consec_pre"].iloc[k]
@@ -331,18 +349,38 @@ def main() -> None:
         vix = series("/macros/fred_vix_close", "vix_close")
         ff = series("/macros/fred_fed_funds_rate", "fed_funds_rate")
         un = series("/macros/fred_unemployment_rate", "unemployment_rate")
-    rd = pd.to_datetime(d.report_date)
-    d["vix"] = vix.reindex(rd, method="ffill").values
-    d["fed_funds"] = ff.reindex(rd, method="ffill").values
-    un_s = un.sort_index()
-    d["unemployment_roc21"] = (un_s.reindex(rd, method="ffill").pct_change(21).values)
+        # RC-16 F1: join each observation at its FIRST-RELEASE date (ALFRED
+        # vintages), not its observation date. roc21 is computed on the macro
+        # calendar BEFORE joining (the old code pct_change'd across event rows).
+        rel = (sp["/macros/fred_release_dates"]
+               if "/macros/fred_release_dates" in sp.keys() else None)
 
+        def _avail_obs(s: pd.Series, series_id: str) -> pd.Series:
+            """s indexed by obs date -> reindexed by first-release date."""
+            if rel is None:
+                return s
+            r = rel[rel.series == series_id][["obs_date", "first_release"]].copy()
+            r["obs_date"] = pd.to_datetime(r["obs_date"]).dt.normalize()
+            m = s.to_frame("val").join(r.set_index("obs_date"), how="left")
+            m["_avail"] = m["first_release"].fillna(m.index)
+            return m.groupby("_avail")["val"].last().sort_index()
+
+        vix_a = _avail_obs(vix, "VIXCLS")
+        ff_a = _avail_obs(ff, "DFF")
+        un_a = _avail_obs(un, "UNRATE")
+        un_roc = un_a.pct_change(21).replace([np.inf, -np.inf], np.nan)
+    rd = pd.to_datetime(d.report_date)
+    d["vix"] = vix_a.reindex(rd, method="ffill").values
+    d["fed_funds"] = ff_a.reindex(rd, method="ffill").values
+    d["unemployment_roc21"] = un_roc.reindex(rd, method="ffill").values
+
+    out_key = os.environ.get("RC16_SP600_OUT", "/features/train_matrix_sp600_pt")
     with pd.HDFStore(DB_SP600, "a") as store:
-        if "/features/train_matrix_sp600_pt" in store.keys():
-            store.remove("/features/train_matrix_sp600_pt")
-        store.put("/features/train_matrix_sp600_pt", d, format="table",
+        if out_key in store.keys():
+            store.remove(out_key)
+        store.put(out_key, d, format="table",
                   data_columns=["permaTicker", "report_date"])
-    print(f"wrote /features/train_matrix_sp600_pt: {len(d):,} events, "
+    print(f"wrote {out_key}: {len(d):,} events, "
           f"{d.permaTicker.nunique()} tickers, "
           f"{d.report_date.min().date()} .. {d.report_date.max().date()}")
     print(f"adv20 >= $10M share: {(d.adv20 >= 1e7).mean():.0%}")

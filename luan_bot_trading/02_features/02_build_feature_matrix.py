@@ -97,6 +97,7 @@ if the target key already exists (per STOP_DOING_EXTRA_SHIT.md).
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -1248,8 +1249,11 @@ def main(dry_run: bool = False, limit: int | None = None) -> int:
     if dry_run:
         print("  (--dry-run: NOT writing to db.h5)")
     else:
-        write_train_matrix(matrix_df)
-        print(f"  Wrote {len(matrix_df):,} rows to {TRAIN_MATRIX_KEY}")
+        # RC-16 R1: out key overridable so corrected rebuilds (v6c) never
+        # clobber the frozen matrix lineage.
+        out_key = os.environ.get("RC16_BASE_OUT", TRAIN_MATRIX_KEY)
+        write_train_matrix(matrix_df, out_key)
+        print(f"  Wrote {len(matrix_df):,} rows to {out_key}")
 
     elapsed = time.time() - t0
     print_build_report(matrix_df, all_t_failures, elapsed)
