@@ -192,3 +192,18 @@ Promotion:   hypothetical tracking first (mirror+schedule NAV series in
    - Any threshold recalibration follows the calibration protocol
      (audit table after each episode; changes via pre-registered
      amendment, never mid-episode).
+
+### Alarm-state semantics (explicit, v1.1.1)
+
+```text
+anchor        = raw ATH of the portfolio NAV (NOT smoothed, NOT rolling
+                3-month); resets ONLY on new-theme registration.
+ALARM ACTIVE  = dd >= 15% (any band). While active, cash can only rise
+                (schedule) or hold (ratchet) — never release, even if dd
+                improves within the alarm zone.
+ALARM CLEARS  = dd < 15%. The drip (−2.5pp/week) becomes the only cash
+                release. A new ATH is NOT required to start re-entry.
+re-fire       = dd back above 15% re-engages the schedule; cash holds
+                at max(schedule(dd), current) — deep-episode cash
+                persists through shallower re-dips until dripped out.
+```
