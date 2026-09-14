@@ -168,7 +168,7 @@ def run_cv(df, features, hp, theta):
     """Run 4-fold nested CV, return exec_df and aggregate stats."""
     fold_data = {}
     for fi, (te, sve, tse) in enumerate(DEFAULT_FOLDS, 1):
-        rd = pd.to_datetime(df["report_date"])
+        rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df["report_date"])  # RC-16 F3: split on label completion
         train_df = df[rd <= pd.Timestamp(te)].copy()
         sweep_df = df[(rd > pd.Timestamp(te)) & (rd <= pd.Timestamp(sve))].copy()
         test_df = df[(rd > pd.Timestamp(sve)) & (rd <= pd.Timestamp(tse))].copy()

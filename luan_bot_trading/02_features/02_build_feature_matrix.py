@@ -961,12 +961,21 @@ def process_permaticker(
         # Phase H: analyst revision momentum (Sunday-safe, from FMP /stable/grades)
         rev_mom = compute_revision_momentum(grades_df, rdate)
 
+        # RC-16 F3: label completion date = the T+11 session's close (the
+        # last session any gate label uses). Fold splits must compare
+        # label_end so a fold's training labels all completed before its
+        # test window begins. NaT if the series ends first (label
+        # incomplete — those rows are unlabelled per F4, not negative).
+        label_end = (stock_dates_np[t_pos + 11]
+                     if t_pos + 11 < len(stock_dates_np) else pd.NaT)
+
         row_dict = {
             "permaTicker": permaTicker,
             "canonical_ticker": canonical,
             "cik": grow.get("cik", None),
             "report_date": rdate,
             "T": aligned.index[t_pos],
+            "label_end": label_end,
             "calendar_week_group": grow["calendar_week_group"],
             "added": pd.Timestamp(grow["added"]) if pd.notna(grow.get("added")) else pd.NaT,
             "car_10d": car10,

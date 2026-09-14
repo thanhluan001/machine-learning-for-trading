@@ -232,7 +232,7 @@ def main():
     print('=' * 112)
     print(f'FORCE-REFRESH vs CONVICTION-PRIORITY (threshold {THRESH}, {STOP:.0%} stop)')
     print('=' * 112)
-    df = pd.read_hdf(DB, MATRIX); rd = pd.to_datetime(df.report_date)
+    df = pd.read_hdf(DB, MATRIX); rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df.report_date)  # RC-16 F3
     folds = {}; labels = {1: '2024 H2', 2: '2025 H1', 3: '2025 H2', 4: '2026 H1 (holdout)'}
     with pd.HDFStore(DB, mode='r') as store:
         keys = set(store.keys())

@@ -67,7 +67,7 @@ def default(v):
 def main():
  print('='*100);print('V6 FINAL HOLDOUT: frozen policy, 2026 H1 untouched test');print('='*100)
  print('Policy:',POLICY['ensemble']); print('Gate HPs:',{g:POLICY['gate_models'][g] for g in GATES})
- df=pd.read_hdf(DB,MATRIX);rd=pd.to_datetime(df.report_date)
+ df=pd.read_hdf(DB,MATRIX);rd=(df["label_end"] if "label_end" in df.columns else pd.to_datetime(df.report_date))  # RC-16 F3
  train=df[rd<=pd.Timestamp('2025-06-30')].copy();sweep=df[(rd>pd.Timestamp('2025-06-30'))&(rd<=pd.Timestamp('2025-12-31'))].copy();test=df[(rd>pd.Timestamp('2025-12-31'))&(rd<=pd.Timestamp('2026-06-30'))].copy()
  print(f'rows train={len(train)} sweep={len(sweep)} final_test={len(test)}')
  all_train=pd.concat([train,sweep],ignore_index=True);v6=test.copy();

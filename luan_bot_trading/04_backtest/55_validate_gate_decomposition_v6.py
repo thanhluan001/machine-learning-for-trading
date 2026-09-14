@@ -48,7 +48,7 @@ def json_default(v):
 def reconstruct_v4(df):
     """Reproduce v4's four outer test predictions and weekly slot selection."""
     import xgboost as xgb
-    rd = pd.to_datetime(df.report_date); parts = []
+    rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df.report_date)  # RC-16 F3; parts = []
     for fi, (te, sve, tse) in enumerate(bt.DEFAULT_FOLDS, 1):
         tr = df[rd <= pd.Timestamp(te)]
         sv = df[(rd > pd.Timestamp(te)) & (rd <= pd.Timestamp(sve))]

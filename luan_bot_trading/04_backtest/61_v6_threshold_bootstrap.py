@@ -110,7 +110,7 @@ def main():
     print('=' * 100)
     print('V6 THRESHOLD BOOTSTRAP VALIDATION (diagnostic; no policy change)')
     print('=' * 100)
-    df = pd.read_hdf(DB, MATRIX); rd = pd.to_datetime(df.report_date)
+    df = pd.read_hdf(DB, MATRIX); rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df.report_date)  # RC-16 F3
     folds_pred = {}
     for i, (te, sw, tt) in enumerate(bt.DEFAULT_FOLDS, 1):
         fit_df = df[rd <= pd.Timestamp(sw)].copy()

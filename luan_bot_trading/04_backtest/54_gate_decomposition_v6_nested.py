@@ -69,7 +69,7 @@ def f1_for(y, p, threshold):
 
 def split(df, fi):
     te, sve, tse = bt.DEFAULT_FOLDS[fi - 1]
-    rd = pd.to_datetime(df["report_date"])
+    rd = df["label_end"] if "label_end" in df.columns else pd.to_datetime(df["report_date"])  # RC-16 F3: split on label completion
     return (
         df[rd <= pd.Timestamp(te)].copy(),
         df[(rd > pd.Timestamp(te)) & (rd <= pd.Timestamp(sve))].copy(),
