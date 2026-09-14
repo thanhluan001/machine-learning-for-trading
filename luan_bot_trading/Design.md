@@ -1783,3 +1783,14 @@ probe premium ~4-6pp/yr. Official run = script 115 with gates G1-G4
 (protection >=5pp, premium <=5pp, shock give-back <=8pp, regression
 >=15pp). Registration: rc15_lifecycle_pre_registration.md; evidence:
 114_rc15_evidence_reconstruction.py + cached basket.
+
+### RC-16 information-integrity revalidation — REGISTERED 2026-09-14
+Trigger: independent audit (PEAD_TRADING_AUDIT_EN.md). Four confirmed
+contract defects (macro publication timing, lagged-CAR maturity, fold
+label purge, missing-future labels). Fix contracts -> rebuild matrices
+-> retrain with FROZEN hyperparameters (isolates contract effect; no
+re-search, no threshold change) -> gauntlet G1-G4 incl. one-factor
+damage decomposition -> v6c/v7c to shadow if passing. Live V6 paper
+book unchanged throughout. H1 2026 and all prior windows are consumed
+diagnostics; forward ledgers are the only clean tests. Registration:
+rc16_information_integrity_pre_registration.md.
