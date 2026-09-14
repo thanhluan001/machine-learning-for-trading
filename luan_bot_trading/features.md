@@ -112,7 +112,7 @@ The deployed V4/V6 models consume exactly **23 features**, defined in
 |---:|---|---|---|
 | 1 | 1 — Earnings history | `sue_lag_1` | Prior-quarter SUE (`difference / σ_12Q`), shifted 1 per permaTicker |
 | 2 | 1 | `sue_lag_2` | SUE shifted 2 quarters per permaTicker |
-| 3 | 1 | `car_drift_historical_q1` | Prior event's 60-day IJH-adjusted CAR, `.shift(1)` per permaTicker (log units) |
+| 3 | 1 | `car_drift_historical_q1` | Prior event's 45-session IJH-adjusted CAR, `.shift(1)` per permaTicker, maturity-masked at the consuming event's cutoff (RC-16 F2; log units) |
 | 4 | 1 | `consecutive_surprises_pre` | Running beat count at the most recent REPORTED quarter (renamed from v3's `consecutive_surprises`) |
 | 5 | 2 — Microstructure | `pre_event_idiosyncratic_vol` | `std(log_ret_stock − log_ret_IJH, ddof=1)` over T-20..T-1 |
 | 6 | 2 | `pre_event_volume_trend` | OLS slope of `log(Adj_Volume)` over T-10..T-1 |
@@ -188,8 +188,12 @@ timing machinery.
 ### NaN policy (unchanged from §4)
 
 Never drop rows. XGBoost handles NaN natively. Cases that produce NaN:
-- `car_drift_historical_q1` when the prior event's 60-day CAR window hasn't
-  fully matured (fewer than 60 trading days since the prior report).
+- `car_drift_historical_q1` when the prior event's 45-session CAR window
+  hasn't matured by THIS event's feature cutoff (T−1 AMC / T−2 BMO) —
+  the maturity mask (RC-16 F2). Coverage: 96.9% of with-prior rows at
+  W=45 (the former W=60 kept only 72.2%: the quarterly cycle is ~63
+  sessions, so a 60-session window chronically ended 1–3 sessions past
+  the cutoff; confirmed look-ahead, audit 2026-09-14).
 - `sue_lag_1`/`sue_lag_2` for the 1st/2nd reported quarter of a permaTicker.
 - All Block 6 features are `0` (not NaN) when no analyst coverage exists —
   `revision_momentum_*` = 0, `n_analysts_covering` = 0,
@@ -340,9 +344,11 @@ Increment by 1 on a beat; reset to 0 otherwise.
   reporting cycles.
 * `car_drift_historical_q1` (Float): The **actual index-adjusted CAR generated
   during the stock's previous post-earnings window last quarter** — i.e. the
-  CAR (T+1 → T+60, abnormal relative to `IJH`) of the prior event of the same
-  **`permaTicker`**, shifted by 1. Tests whether a stock has a repeatable PEAD
-  signature: some companies consistently drift while others mean-revert.
+  CAR (T+1 → T+45, abnormal relative to `IJH`) of the prior event of the same
+  **`permaTicker`**, shifted by 1, and **only when the 45th session completed
+  by this event's cutoff** (RC-16 F2 maturity mask). Tests whether a stock
+  has a repeatable PEAD signature: some companies consistently drift while
+  others mean-revert.
   *Implementation note:* requires a two-pass build — compute every event's own
   post-event CAR first, then `shift(1)` per `permaTicker`.
   *Units note:* Stored in **log units** — same as `car_60d_pass1` (which it
@@ -816,7 +822,7 @@ Macros are NOT included.
 | 4 | 1 | `sue_acceleration` | `sue_score[t] - sue_score[t-1]` (per `permaTicker`) | **Must** |
 | 5 | 1 | `sue_lag_1` | `sue_score` from Q-1 (per `permaTicker`) | **Must** |
 | 6 | 1 | `sue_lag_2` | `sue_score` from Q-2 (per `permaTicker`) | **Must** |
-| 7 | 1 | `car_drift_historical_q1` | Prior event's post-earnings **60-day** CAR (T+1→T+60, IJH-adjusted), `.shift(1)` per `permaTicker` — two-pass build; stored in **log units** (inherited from `car_60d_pass1`), fed to ranker/classifier directly with NO arithmetic conversion | **Must** |
+| 7 | 1 | `car_drift_historical_q1` | Prior event's post-earnings **45-session** CAR (T+1→T+45, IJH-adjusted), `.shift(1)` per `permaTicker`, maturity-masked at the consuming cutoff (RC-16 F2) — two-pass build; stored in **log units**, fed to ranker/classifier directly with NO arithmetic conversion | **Must** |
 | 8 | 2 | `is_bmo` | `1 if "bmo" in before_after_market.lower()[:6] else 0` (FMP uses clean `"bmo"`/`"amc"` format; 48% of events BMO, 100% coverage) | **Must** (also Sunday-safe, see §1.A) |
 | 9 | 2 | `volume_vma20_ratio_pre_event` | `Volume[T] / mean(Volume[T-20 : T-1])` | **Must** |
 | 10 | 2 | `suv_day_1` | `Adj_Volume[T] / mean(Adj_Volume[T-20 : T-1])` | **Must** |

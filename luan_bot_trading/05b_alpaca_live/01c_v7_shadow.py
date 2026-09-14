@@ -263,11 +263,12 @@ def compute_sp600_features(sym, pt, etf, rdate, px, ev, gdf, bench_s, etf_px, ma
     f["sue_lag_1"] = float(sue.iloc[-1]) if pd.notna(sue.iloc[-1]) else np.nan
     f["sue_lag_2"] = float(sue.iloc[-2]) if len(sue) > 1 and pd.notna(sue.iloc[-2]) else np.nan
     f["consecutive_surprises_pre"] = consec
-    # car_drift_q1: 60d CAR after the last COMPLETED quarter
+    # car_drift_q1: RC-16 F2 — 45-session CAR after the last COMPLETED
+    # quarter; NaN unless the full window exists in completed bars.
     rd_last = pd.Timestamp(ev["report_date"].iloc[-1])
     tl = int(np.searchsorted(dates, np.datetime64(rd_last), side="left"))
-    if tl + 61 < len(close):
-        f["car_drift_historical_q1"] = float(np.nansum(slr[tl + 1:tl + 61] - blr[tl + 1:tl + 61]))
+    if tl + 46 < len(close):
+        f["car_drift_historical_q1"] = float(np.nansum(slr[tl + 1:tl + 46] - blr[tl + 1:tl + 46]))
     else:
         f["car_drift_historical_q1"] = np.nan
     idio = slr[t - 20:t] - blr[t - 20:t]

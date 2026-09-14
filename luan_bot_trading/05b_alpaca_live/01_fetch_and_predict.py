@@ -756,13 +756,16 @@ def compute_block1_live(earnings_df: pd.DataFrame, stock_ret: pd.Series,
     if len(sue) >= 2 and pd.notna(sue.iloc[-2]):
         result["sue_lag_2"] = float(sue.iloc[-2])
 
-    # car_drift_historical_q1: 60-day CAR after the PRIOR REPORTED quarter's report_date
+    # car_drift_historical_q1: RC-16 F2 — 45-session CAR after the PRIOR
+    # REPORTED quarter's report_date. compute_car_window is full-window-or-NaN,
+    # so if the 45th session hasn't completed by the last available bar the
+    # feature is NaN (maturity enforced by data availability, no future bars).
     prior_rdate = pd.Timestamp(reported["report_date"].iloc[-1])
     t_pos = s2.match_T(stock_dates, prior_rdate)
     if t_pos is not None:
-        car60 = s2.compute_car_window(stock_ret, ijh_ret, t_pos, +1, s2.CAR_60D_END_OFFSET)
-        if pd.notna(car60):
-            result["car_drift_historical_q1"] = float(car60)
+        car45 = s2.compute_car_window(stock_ret, ijh_ret, t_pos, +1, s2.CAR_DRIFT_WINDOW)
+        if pd.notna(car45):
+            result["car_drift_historical_q1"] = float(car45)
 
     return result
 

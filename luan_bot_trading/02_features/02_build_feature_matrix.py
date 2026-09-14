@@ -128,6 +128,12 @@ DEFAULT_SECTOR_INDEX = "IJH"
 # CAR windows (trading days, relative to T):
 CAR_10D_END_OFFSET = 11    # T+1 .. T+11  (10 trading-day holding; target)
 CAR_60D_END_OFFSET = 60    # T+1 .. T+60  (60-day post-event drift; pass 1)
+CAR_DRIFT_WINDOW = 45       # RC-16 F2: car_drift_historical_q1 window.
+                            # 45 sessions keeps 96.9% of with-prior rows
+                            # mature at cutoff (60 kept only 72.2% — the
+                            # quarterly cycle is ~63 sessions and the T-1/T-2
+                            # cutoff made W=60 chronically immature).
+                            # MUST be mature at the consuming event's cutoff.
 
 # Lookback windows (trading days, relative to T):
 VWAP_LOOKBACK = 20          # volume / suv rolling window
@@ -810,6 +816,9 @@ def compute_block1_features_per_perm_id(
                                               # car_60d_pass1 for ALL per-permaTicker
                                               # earnings rows, but defensive NaN
                                               # allowed).
+    car_drift_full: pd.Series,               # RC-16 F2: prior-event 45-session
+                                              # CAR, already shifted and
+                                              # maturity-masked by the caller.
 ) -> pd.DataFrame:
     """Compute all 7 Block-1 features for a permaTicker over its FULL earnings
     timeline.
@@ -833,7 +842,9 @@ def compute_block1_features_per_perm_id(
     sue_acc = sue.diff()
     sue_lag_1 = sue.shift(1)
     sue_lag_2 = sue.shift(2)
-    car_drift = car_60d_pass1_full.shift(1)
+    # RC-16 F2: caller passes the maturity-masked, already-shifted
+    # 45-session prior-event CAR (computed with the stock calendar in scope).
+    car_drift = car_drift_full
     out = pd.DataFrame({
         "sue_score": sue,
         "eps_surprise_pct": eps_surprise_pct,
@@ -906,17 +917,22 @@ def process_permaticker(
     # Gated events for this permaTicker, sorted by report_date.
     gated_for_pt_sorted = gated_for_pt.sort_values("report_date").reset_index(drop=True)
 
-    # Pass A: compute car_60d_pass1 for ALL earnings rows of this permaTicker
+    # Pass A: compute car_60d_pass1 (audit) and car_45d_pass1 (RC-16 F2
+    # feature window) for ALL earnings rows of this permaTicker
     # (gated or not -- for car_drift_historical_q1 shift accuracy).
     per_event_car_60d: dict[pd.Timestamp, float] = {}
+    per_event_car_45d: dict[pd.Timestamp, float] = {}
     for _, erow in perm_earnings_sorted.iterrows():
         rdate = pd.Timestamp(erow["report_date"])
         t_pos = match_T(stock_dates_np, rdate)
         if t_pos is None:
             per_event_car_60d[rdate] = np.nan
+            per_event_car_45d[rdate] = np.nan
             continue
         car60 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_60D_END_OFFSET)
+        car45 = compute_car_window(stock_ret_full, ijh_ret_full, t_pos, +1, CAR_DRIFT_WINDOW)
         per_event_car_60d[rdate] = car60
+        per_event_car_45d[rdate] = car45
         # (car_10d is computed per gated event below -- we don't double-compute)
 
     # Build a per-report_date lookup for before_after_market.
@@ -970,7 +986,31 @@ def process_permaticker(
          for rd in perm_earnings_sorted["report_date"]],
         index=perm_earnings_sorted.index,
     )
-    block1_full = compute_block1_features_per_perm_id(perm_earnings_sorted, car_60d_full)
+    # RC-16 F2: car_drift_historical_q1 = PRIOR event's 45-session CAR,
+    # NaN unless the 45th session completed by THIS event's cutoff
+    # (T-1 AMC / T-2 BMO). The maturity mask is computed here where the
+    # stock calendar is in scope.
+    car_45d_full = pd.Series(
+        [per_event_car_45d.get(pd.Timestamp(rd), np.nan)
+         for rd in perm_earnings_sorted["report_date"]],
+        index=perm_earnings_sorted.index,
+    )
+    car_drift_full = car_45d_full.shift(1)
+    rd_ts = pd.to_datetime(perm_earnings_sorted["report_date"])
+    bam = perm_earnings_sorted["before_after_market"].astype(str).str.lower().values
+    mature = np.zeros(len(perm_earnings_sorted), dtype=bool)
+    for k in range(1, len(perm_earnings_sorted)):
+        t_pos_k = match_T(stock_dates_np, rd_ts.iloc[k])
+        t_pos_prev = match_T(stock_dates_np, rd_ts.iloc[k - 1])
+        if t_pos_k is None or t_pos_prev is None:
+            continue
+        back = 1 if bam[k] == "amc" else 2
+        cut_pos = t_pos_k - back
+        if cut_pos - t_pos_prev >= CAR_DRIFT_WINDOW:
+            mature[k] = True
+    car_drift_full[~mature] = np.nan
+    block1_full = compute_block1_features_per_perm_id(
+        perm_earnings_sorted, car_60d_full, car_drift_full)
     block1_indexed_by_date = block1_full.set_index(
         pd.to_datetime(perm_earnings_sorted["report_date"])
     )
