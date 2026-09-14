@@ -362,7 +362,8 @@ def main() -> None:
             r = rel[rel.series == series_id][["obs_date", "first_release"]].copy()
             r["obs_date"] = pd.to_datetime(r["obs_date"]).dt.normalize()
             m = s.to_frame("val").join(r.set_index("obs_date"), how="left")
-            m["_avail"] = m["first_release"].fillna(m.index)
+            _idx_series = pd.Series(m.index, index=m.index)
+            m["_avail"] = m["first_release"].fillna(_idx_series)
             return m.groupby("_avail")["val"].last().sort_index()
 
         vix_a = _avail_obs(vix, "VIXCLS")

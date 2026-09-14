@@ -67,9 +67,12 @@ STEPS = [
 ]
 
 
-def run_chain() -> list[dict]:
+def run_chain(from_step: int = 1) -> list[dict]:
     log = []
     for i, (name, cmd, extra_env) in enumerate(STEPS, 1):
+        if i < from_step:
+            print(f"{name}: skipped (--from-step)", flush=True)
+            continue
         env = {**os.environ, **extra_env}
         t0 = time.time()
         print(f"\n{'=' * 88}\n{name}\n{'=' * 88}", flush=True)
@@ -173,8 +176,13 @@ def delta_combined() -> dict:
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from-step", type=int, default=1)
+    ap.add_argument("--report-only", action="store_true")
+    args = ap.parse_args()
     t0 = time.time()
-    run_log = run_chain()
+    run_log = run_chain(10**9 if args.report_only else args.from_step)
 
     report = {"chain": run_log}
     try:
