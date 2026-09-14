@@ -719,8 +719,13 @@ def compute_revision_momentum(
         return nan_result
 
     # Filter to actions STRICTLY BEFORE report_date (exclusive).
+    # (RC-16 R1 hotfix: coerce -- newly fetched FMP grade rows can carry
+    # string dates that break Timestamp comparison; unparseable -> NaT,
+    # which compares False and is excluded.)
+    _gd = pd.to_datetime(pd.Series(grades_df["date"]), errors="coerce")
     rd = pd.Timestamp(report_date)
-    pre = grades_df[grades_df["date"] < rd].copy()
+    pre = grades_df[_gd < rd].copy()
+    pre["date"] = _gd[_gd < rd]
 
     if pre.empty:
         return {
