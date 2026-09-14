@@ -102,7 +102,19 @@ def compute_pead_gates_full(train_matrix: pd.DataFrame) -> pd.DataFrame:
           f"of {len(train_matrix)} total")
     g_df = pd.DataFrame(out_arr).set_index("row_idx")
     train_matrix = train_matrix.join(g_df, how="left")
-    train_matrix["pass_g1"] = (train_matrix["car_10d"].fillna(-9) > GATE1_CAR_MIN).astype(int)
+    # RC-16 F4: rows with ANY missing gate input (future prices/volumes
+    # absent, or the per-ticker loop could not compute the window) are
+    # UNLABELLED — excluded from gate training entirely, never coerced
+    # to a negative label. One shared validity cohort for all three
+    # gates (audit variant-D semantics: complete labels only).
+    g_valid = (train_matrix["car_10d"].notna()
+               & train_matrix["inst_vol_ratio"].notna()
+               & train_matrix["maxdd_ma"].notna())
+    n_unlabelled = int((~g_valid).sum())
+    print(f"  RC-16 F4: {n_unlabelled} rows unlabelled (missing gate input) "
+          f"of {len(train_matrix)} — excluded from gate training")
+    train_matrix = train_matrix[g_valid].copy()
+    train_matrix["pass_g1"] = (train_matrix["car_10d"] > GATE1_CAR_MIN).astype(int)
     train_matrix["pass_g2"] = (train_matrix["inst_vol_ratio"] > GATE2_VOL_RATIO_MIN).astype(int)
     train_matrix["pass_g3"] = (train_matrix["maxdd_ma"] > GATE3_MAXDD_MIN).astype(int)
     # The 3 gates combined label:

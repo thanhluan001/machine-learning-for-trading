@@ -60,9 +60,13 @@ def main() -> None:
     })
     for f in FEATURES:
         sp400[f] = v4[f]
-    sp400["pass_g1"] = (sp400.car_10d.fillna(-9) > G1 + COST_SP400).astype(int)
+    # RC-16 F4: any missing gate input -> UNLABELLED (excluded), never negative
+    sp400_valid = (sp400.car_10d.notna() & sp400.inst_vol_ratio.notna() & sp400.maxdd_ma.notna())
+    print(f"  RC-16 F4: {int((~sp400_valid).sum())} sp400 rows unlabelled (missing gate input)")
+    sp400 = sp400[sp400_valid].copy()
+    sp400["pass_g1"] = (sp400.car_10d > G1 + COST_SP400).astype(int)
     sp400["pass_g2"] = (sp400.inst_vol_ratio > G2).astype(int)
-    sp400["pass_g3"] = (sp400.maxdd_ma.fillna(-9) > G3 + COST_SP400).astype(int)
+    sp400["pass_g3"] = (sp400.maxdd_ma > G3 + COST_SP400).astype(int)
     sp400["pead_pass"] = (sp400.pass_g1 & sp400.pass_g2 & sp400.pass_g3).astype(int)
     print(f"SP400 side: {len(sp400):,} events | g1 {sp400.pass_g1.mean():.3f} "
           f"g2 {sp400.pass_g2.mean():.3f} g3 {sp400.pass_g3.mean():.3f} "
@@ -142,9 +146,13 @@ def main() -> None:
     })
     for f in FEATURES:
         sp600[f] = s6[f]
-    sp600["pass_g1"] = (sp600.car_10d.fillna(-9) > G1 + COST_SP600).astype(int)
-    sp600["pass_g2"] = (sp600.inst_vol_ratio.fillna(0) > G2).astype(int)
-    sp600["pass_g3"] = (sp600.maxdd_ma.fillna(-9) > G3 + COST_SP600).astype(int)
+    # RC-16 F4: any missing gate input -> UNLABELLED (excluded), never negative
+    sp600_valid = (sp600.car_10d.notna() & sp600.inst_vol_ratio.notna() & sp600.maxdd_ma.notna())
+    print(f"  RC-16 F4: {int((~sp600_valid).sum())} sp600 rows unlabelled (missing gate input)")
+    sp600 = sp600[sp600_valid].copy()
+    sp600["pass_g1"] = (sp600.car_10d > G1 + COST_SP600).astype(int)
+    sp600["pass_g2"] = (sp600.inst_vol_ratio > G2).astype(int)
+    sp600["pass_g3"] = (sp600.maxdd_ma > G3 + COST_SP600).astype(int)
     sp600["pead_pass"] = (sp600.pass_g1 & sp600.pass_g2 & sp600.pass_g3).astype(int)
     print(f"SP600 side: {len(sp600):,} events | g1 {sp600.pass_g1.mean():.3f} "
           f"g2 {sp600.pass_g2.mean():.3f} g3 {sp600.pass_g3.mean():.3f} "
