@@ -792,8 +792,12 @@ def compute_consecutive_surprises_pre(earnings_df: pd.DataFrame) -> float:
 def compute_macro_features(report_date: pd.Timestamp, macro_cache: dict) -> dict:
     """Compute unemployment_roc21, fed_funds, vix via backward lookup.
 
-    Uses pre-loaded macro_cache for speed.
-    No look-ahead (FRED data always lags).
+    RC-16 F1: the join key is the observation's FIRST RELEASE date
+    (from /macros/fred_release_dates, ALFRED vintages), not its
+    observation date. UNRATE lags ~34 days; an observation dated month
+    M is public only after its release (first Friday of M+1). The old
+    observation-date join was confirmed look-ahead (audit 2026-09-14;
+    verified: 92% of daily cutoffs differ under the corrected join).
     """
     result = {"unemployment_roc21": np.nan, "fed_funds": np.nan, "vix": np.nan}
     rd = pd.Timestamp(report_date)
@@ -802,7 +806,7 @@ def compute_macro_features(report_date: pd.Timestamp, macro_cache: dict) -> dict
         if name not in macro_cache:
             continue
         m = macro_cache[name]
-        mask = m["Date"] <= rd
+        mask = m["_avail"] <= rd          # publication-aware (RC-16 F1)
         if not mask.any():
             continue
         if name == "unemployment":
@@ -816,9 +820,15 @@ def compute_macro_features(report_date: pd.Timestamp, macro_cache: dict) -> dict
 
 
 def preload_macro_cache() -> dict:
-    """Pre-load and pre-process all macro data once."""
+    """Pre-load and pre-process all macro data once.
+
+    RC-16 F1: attaches each observation's first-release date (_avail)
+    from /macros/fred_release_dates. Joins everywhere use _avail.
+    """
     cache = {}
+    series_ids = {"unemployment": "UNRATE", "fed_funds": "DFF", "vix": "VIXCLS"}
     with pd.HDFStore(DB_FILE, mode="r") as store:
+        rel = store["/macros/fred_release_dates"] if "/macros/fred_release_dates" in store.keys() else None
         for name, key in MACRO_KEYS.items():
             if key not in store:
                 continue
@@ -829,6 +839,16 @@ def preload_macro_cache() -> dict:
             m[name] = pd.to_numeric(m[close_col], errors="coerce")
             if name == "unemployment":
                 m["unemployment_roc21"] = m[name].pct_change(21).replace([np.inf, -np.inf], np.nan)
+            if rel is not None:
+                r = rel[rel.series == series_ids[name]][["obs_date", "first_release"]]
+                m = m.merge(r, left_on="Date", right_on="obs_date", how="left").drop(columns=["obs_date"], errors="ignore")
+                # unknown release dates: fall back to obs date ONLY where the
+                # observation predates the vintage coverage (pre-2011 window,
+                # irrelevant to the 2015+ matrix)
+                m["_avail"] = m["first_release"].fillna(m["Date"])
+                m = m.drop(columns=["first_release"], errors="ignore")
+            else:
+                m["_avail"] = m["Date"]
             cache[name] = m
     return cache
 

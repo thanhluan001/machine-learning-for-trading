@@ -218,6 +218,12 @@ def _apply_timing_correct_information(df: pd.DataFrame) -> pd.DataFrame:
             "fed_funds": ("/macros/fred_fed_funds_rate", "fed_funds"),
             "unemployment": ("/macros/fred_unemployment_rate", "unemployment_roc21"),
         }
+        # RC-16 F1: publication-aware joins. Each macro observation is
+        # usable only from its FIRST RELEASE date (ALFRED vintages,
+        # /macros/fred_release_dates). UNRATE lags ~34 days; the old
+        # observation-date join was confirmed look-ahead (audit 2026-09-14).
+        rel = store["/macros/fred_release_dates"] if "/macros/fred_release_dates" in store.keys() else None
+        rel_map = {"unemployment": "UNRATE", "fed_funds": "DFF", "vix": "VIXCLS"}
         left = out.sort_values("_feature_date").copy()
         for name, (key, target) in macro_specs.items():
             if key not in store.keys():
@@ -229,7 +235,14 @@ def _apply_timing_correct_information(df: pd.DataFrame) -> pd.DataFrame:
             macro[name] = pd.to_numeric(macro[value_col], errors="coerce")
             if name == "unemployment":
                 macro[target] = macro[name].pct_change(21).replace([np.inf, -np.inf], np.nan)
-            right = macro[["Date", target]].rename(columns={"Date": "_feature_date"})
+            if rel is not None:
+                r = rel[rel.series == rel_map[name]][["obs_date", "first_release"]]
+                macro = macro.merge(r, left_on="Date", right_on="obs_date",
+                                    how="left").drop(columns=["obs_date"], errors="ignore")
+                macro["_avail"] = macro["first_release"].fillna(macro["Date"])
+            else:
+                macro["_avail"] = macro["Date"]
+            right = macro[["_avail", target]].rename(columns={"_avail": "_feature_date"})
             # HDF5 can return microsecond-resolution timestamps while the
             # constructed feature dates are nanosecond-resolution. Normalize
             # both merge keys before merge_asof.

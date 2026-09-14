@@ -294,18 +294,36 @@ def compute_sp600_features(sym, pt, etf, rdate, px, ev, gdf, bench_s, etf_px, ma
 
 
 def macro_snapshot(feature_date) -> dict:
+    """RC-16 F1: publication-aware macro snapshot.
+
+    Two fixes vs the previous version:
+    1. joins on each observation's FIRST RELEASE date (ALFRED vintages,
+       /macros/fred_release_dates) — the observation-date join was
+       confirmed look-ahead (UNRATE lags ~34 days).
+    2. unemployment_roc21 is now pct_change(21) over the observation
+       series (matching training semantics) — the previous version
+       returned the raw LEVEL, a live-vs-training semantics bug found
+       during the F1 audit pass.
+    """
     with pd.HDFStore(DB, "r") as s:
-        def series(key, col):
-            df = s[key]
+        rel = s["/macros/fred_release_dates"] if "/macros/fred_release_dates" in s.keys() else None
+        def series(key, col, sid=None):
+            df = s[key].copy()
             df["Date"] = pd.to_datetime(df["Date"]).dt.normalize()
-            return df.set_index("Date")[col].astype(float)
-        vix = series("/macros/fred_vix_close", "vix_close")
-        ff = series("/macros/fred_fed_funds_rate", "fed_funds_rate")
-        un = series("/macros/fred_unemployment_rate", "unemployment_rate").sort_index()
+            df = df.sort_values("Date").set_index("Date")
+            out = df[col].astype(float)
+            if rel is not None and sid is not None:
+                r = rel[rel.series == sid].set_index("obs_date")["first_release"]
+                out.index = out.index.map(lambda d: r.get(d, d))  # release-date axis
+            return out
+        vix = series("/macros/fred_vix_close", "vix_close", "VIXCLS").sort_index()
+        ff = series("/macros/fred_fed_funds_rate", "fed_funds_rate", "DFF").sort_index()
+        un = series("/macros/fred_unemployment_rate", "unemployment_rate", "UNRATE").sort_index()
+        un_roc = un.pct_change(21)
     return {
         "vix": float(vix.asof(feature_date)),
         "fed_funds": float(ff.asof(feature_date)),
-        "unemployment_roc21": float(un.asof(feature_date)) if pd.notna(un.asof(feature_date)) else np.nan,
+        "unemployment_roc21": float(un_roc.asof(feature_date)) if pd.notna(un_roc.asof(feature_date)) else np.nan,
     }
 
 
