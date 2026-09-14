@@ -165,3 +165,30 @@ Promotion:   hypothetical tracking first (mirror+schedule NAV series in
 - Live failure signatures (§5.4) observed over a tracking period.
 - Operator decision that a -61%-class sleeve outcome is unsuitable for
   the risk budget at any available sizing.
+
+---
+
+## SPEC AMENDMENTS v1.1 (2026-09-13, pre-official-run — design window)
+
+1. **Execution vehicle = theme ETF/proxy prices.** The invested portion is
+   executed in the panel's own instruments (SMH, ICLN/TAN, MSTR/COIN, ...).
+   Rationale: the entire evidence base (watcher panels, modern-era probe,
+   advisory ratio) was measured on these series — trading them aligns
+   execution with measurement. Documented (not fixed): crypto has no ETF
+   proxy in-panel (MSTR/COIN single names accepted); bellwether-share vs
+   ETF-composition tracking error is tolerated.
+
+2. **Re-entry = drip + ratchet** (replaces the schedule's symmetric cash
+   release): cash_target = max(CPPI_cash(dd), cash_held − 2.5%/week),
+   drip active only when dd < 15%. The schedule raises cash instantly;
+   the drip is the only release. Kills the bear-rally leak by
+   construction; costs V-recovery participation (~7 months from deep
+   cash) — accepted per operator preference.
+
+3. **Amendment queue (deferred, evidence-gated):**
+   - vol-overshoot fast leg (realized NAV vol > 2x trailing median →
+     light scaling inside the deadzone). Opens only if a live episode
+     post-mortem shows the first-leg deductible dominating the damage.
+   - Any threshold recalibration follows the calibration protocol
+     (audit table after each episode; changes via pre-registered
+     amendment, never mid-episode).
