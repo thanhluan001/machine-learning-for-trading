@@ -1,0 +1,89 @@
+======================================================================
+STAGE 2 -- Feature Matrix Builder  [Phase E v2: permaTicker-keyed]
+DB file: C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\01_data\db.h5
+Output key: /features/train_matrix  
+======================================================================
+[1/6] Loading inputs ...
+  gated: 20,464 rows | permatickers: 967 | earnings full: 87,609
+[2/6] Loading per-permaTicker earnings slices (full timeline) ...
+[3/6] Pre-loading benchmarks (IJH + sector ETFs) ...
+  Sector ETFs in use: ['IJH', 'IJJ', 'IJK', 'IJS', 'XLB', 'XLF', 'XLRE', 'XLU']
+  Benchmark cache loaded: ['/macros/IJH', '/macros/IJJ', '/macros/IJK', '/macros/IJS', '/macros/XLB', '/macros/XLF', '/macros/XLRE', '/macros/XLU']
+[4/6] Processing 810 permaTickers ...
+  progress: 50/810 (rows=1,035, t_fail=0, elapsed=243s, eta=3698s)
+  progress: 100/810 (rows=2,023, t_fail=7, elapsed=457s, eta=3244s)
+  progress: 150/810 (rows=3,611, t_fail=7, elapsed=676s, eta=2974s)
+  progress: 200/810 (rows=5,126, t_fail=22, elapsed=894s, eta=2726s)
+  progress: 250/810 (rows=6,554, t_fail=22, elapsed=1110s, eta=2487s)
+  progress: 300/810 (rows=7,877, t_fail=22, elapsed=1327s, eta=2256s)
+  progress: 350/810 (rows=9,448, t_fail=22, elapsed=1549s, eta=2035s)
+  progress: 400/810 (rows=10,778, t_fail=25, elapsed=1767s, eta=1812s)
+  progress: 450/810 (rows=12,492, t_fail=25, elapsed=1992s, eta=1594s)
+  progress: 500/810 (rows=14,134, t_fail=29, elapsed=2213s, eta=1372s)
+  progress: 550/810 (rows=15,592, t_fail=29, elapsed=2437s, eta=1152s)
+  progress: 600/810 (rows=16,689, t_fail=32, elapsed=2660s, eta=931s)
+  progress: 650/810 (rows=17,816, t_fail=32, elapsed=2881s, eta=709s)
+  progress: 700/810 (rows=18,785, t_fail=33, elapsed=3097s, eta=487s)
+  progress: 750/810 (rows=19,817, t_fail=33, elapsed=3309s, eta=265s)
+  progress: 800/810 (rows=20,328, t_fail=53, elapsed=3518s, eta=44s)
+  progress: 810/810 (rows=20,411, t_fail=53, elapsed=3559s, eta=0s)
+[5/6] Assembling train_matrix DataFrame ...
+  Assembled: 20,411 rows, 39 columns
+[6/6] Writing /features/train_matrix ...
+  Wrote 20,411 rows to /features/train_matrix_v6c_base
+======================================================================
+STAGE 2 — FEATURE MATRIX BUILD REPORT (Phase E)
+======================================================================
+  Rows in train_matrix:        20,411
+  Columns:                      39
+  Distinct permaTickers:        810
+  Distinct canonical_tickers:   809
+  Distinct calendar weeks:      730
+  Date range:                   2012-03-31 00:00:00 -> 2026-07-27 00:00:00
+  T-match failures (drops):     53
+  First 10 T-match failures (permaTicker, report_date):
+    US000000000505  2024-10-29
+    US000000000505  2025-02-26
+    US000000000505  2025-04-29
+    US000000000505  2025-07-29
+    US000000000505  2025-10-28
+    US000000000505  2026-02-18
+    US000000000505  2026-04-28
+    US000000001364  2022-08-24
+    US000000001364  2022-11-09
+    US000000001364  2023-02-08
+  Build wall-clock elapsed:     3561.2s
+
+Per-feature non-NaN coverage (NaNs allowed per features.md sec 4; just audit):
+  sue_score                            17730 / 20411   ( 86.9%)
+  eps_surprise_pct                     19173 / 20411   ( 93.9%)
+  consecutive_surprises                20410 / 20411   (100.0%)
+  sue_acceleration                     17585 / 20411   ( 86.2%)
+  sue_lag_1                            17633 / 20411   ( 86.4%)
+  sue_lag_2                            17530 / 20411   ( 85.9%)
+  car_drift_historical_q1              19326 / 20411   ( 94.7%)
+  is_bmo                               20411 / 20411   (100.0%)
+  volume_vma20_ratio_pre_event         19983 / 20411   ( 97.9%)
+  suv_day_1                            19983 / 20411   ( 97.9%)
+  pre_event_idiosyncratic_vol          19992 / 20411   ( 97.9%)
+  opening_gap_t1                       20369 / 20411   ( 99.8%)
+  intraday_range_t                     20411 / 20411   (100.0%)
+  pre_event_volume_trend               19985 / 20411   ( 97.9%)
+  rel_ret_3d                           20000 / 20411   ( 98.0%)
+  rel_ret_5d                           20000 / 20411   ( 98.0%)
+  rel_ret_10d                          19998 / 20411   ( 98.0%)
+  rel_ret_20d                          19992 / 20411   ( 97.9%)
+  rel_ret_30d                          19983 / 20411   ( 97.9%)
+  sector_adjusted_ret_20d              19973 / 20411   ( 97.9%)
+  sue_abs_x_inverse_vol                17604 / 20411   ( 86.2%)
+  car_10d                              20349 / 20411   ( 99.7%)
+  car_60d_pass1                        20181 / 20411   ( 98.9%)
+  revision_momentum_30d                19707 / 20411   ( 96.6%)
+  revision_momentum_60d                19707 / 20411   ( 96.6%)
+  revision_momentum_90d                19707 / 20411   ( 96.6%)
+  revision_ordinal_momentum_90d        19707 / 20411   ( 96.6%)
+  revision_intensity_90d               19707 / 20411   ( 96.6%)
+  grade_dispersion_90d                 19707 / 20411   ( 96.6%)
+  n_analysts_covering                  19707 / 20411   ( 96.6%)
+  last_action_days_before_earnings     18567 / 20411   ( 91.0%)
+======================================================================

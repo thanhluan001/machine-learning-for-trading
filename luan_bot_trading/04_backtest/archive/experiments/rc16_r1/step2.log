@@ -1,0 +1,61 @@
+========================================================================================
+FREEZING phase_g_v4_timing_correct
+========================================================================================
+  AMC price cutoff: T-1
+  BMO price cutoff: T-2
+  Features: 23 | theta=0.2
+  DB: C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\01_data\db.h5
+
+[1] Loading train matrix and computing labels ...
+  (RC-16 R1: loaded base matrix from /features/train_matrix_v6c_base)
+
+[*] Computing 3 PEAD gates over 16901 rows ...
+  distinct permaTickers: 777
+  100/777 permaTickers processed
+  200/777 permaTickers processed
+  300/777 permaTickers processed
+  400/777 permaTickers processed
+  500/777 permaTickers processed
+  600/777 permaTickers processed
+  700/777 permaTickers processed
+  computed gate signals for 16665 events of 16901 total
+  RC-16 F4: 236 rows unlabelled (missing gate input) of 16901 — excluded from gate training
+  rows=16,665 | BMO=7,862 | AMC=8,803
+
+[2] Recomputing BMO price features with T-2 cutoff ...
+{
+  "bmo_rows": 7862,
+  "recomputed": 7861,
+  "changed_by_feature": {
+    "pre_event_idiosyncratic_vol": 7861,
+    "pre_event_volume_trend": 7861,
+    "rel_ret_3d": 7861,
+    "rel_ret_5d": 7861,
+    "rel_ret_10d": 7861,
+    "rel_ret_20d": 7861,
+    "rel_ret_30d": 7859,
+    "sector_adjusted_ret_20d": 7856
+  }
+}
+
+[3] Preparing strategy data and running four-fold walk-forward CV ...
+  v4 OOS statistics:
+    n: 68
+    wr: 48.529411764705884
+    avg: -0.6332325721342844
+    nav: -14.661181677744938
+    prec_pead: 26.400000000000002
+    rec_pead: 8.89487870619946
+    f1_pead: 13.306451612903224
+    min_fold: -18.65946026181764
+    fold_range: 37.637215227700096
+    fold_navs: [np.float64(4.521952032830301), np.float64(-18.65946026181764), np.float64(-15.634226368211879), np.float64(18.977754965882454)]
+
+[4] Writing separate matrix: /features/train_matrix_v6c
+
+[5] Training final v4 classifier on all timing-correct rows ...
+
+  Classifier: C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc16_r1\v6c_model_probe\classifier.json
+  Metadata:   C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc16_r1\v6c_model_probe\meta.json
+  v3 artifact was not modified.
+========================================================================================

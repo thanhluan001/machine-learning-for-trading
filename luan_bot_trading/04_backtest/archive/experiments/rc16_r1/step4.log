@@ -1,0 +1,20 @@
+  RC-16 F4: 0 sp400 rows unlabelled (missing gate input)
+SP400 side: 16,665 events | g1 0.299 g2 0.373 g3 0.400 pead 0.106
+SP600 signals: car10 nan=3, volr nan=12, mdd nan=3, no-price=0
+  RC-16 F4: 12 sp600 rows unlabelled (missing gate input)
+SP600 side: 17,026 events | g1 0.274 g2 0.373 g3 0.355 pead 0.055
+
+collision (pt,report_date) pairs: 186
+
+feature NaN signature (top 8):
+   sector_adjusted_ret_20d                19.1%
+   sue_lag_2                              9.4%
+   sue_lag_1                              8.7%
+   car_drift_historical_q1                3.7%
+   last_action_days_before_earnings       3.6%
+   consecutive_surprises_pre              2.3%
+   revision_momentum_90d                  1.6%
+   n_analysts_covering                    1.6%
+
+COMBINED: 33,598 events | SP400 16,665 | SP600 16,933 | 2015-01-03 .. 2026-07-22
+wrote /features/train_matrix_v7c

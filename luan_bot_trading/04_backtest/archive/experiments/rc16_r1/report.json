@@ -1,0 +1,180 @@
+{
+  "chain": [],
+  "delta_base": {
+    "old_rows": 20299,
+    "new_rows": 20411,
+    "old_tickers": 810,
+    "new_tickers": 810,
+    "old_range": [
+      "2012-03-31",
+      "2026-07-16"
+    ],
+    "new_range": [
+      "2012-03-31",
+      "2026-07-27"
+    ],
+    "car_drift_old_60d_unmasked": {
+      "n": 20299,
+      "non_nan": 20211,
+      "nan_pct": 0.43,
+      "mean": -0.008482,
+      "std": 0.146297
+    },
+    "car_drift_new_45d_masked": {
+      "n": 20411,
+      "non_nan": 19326,
+      "nan_pct": 5.32,
+      "mean": -0.006094,
+      "std": 0.126508
+    },
+    "car_drift_filled_rate_by_year": {
+      "2012": {
+        "old": 0.9896,
+        "new": 0.8986,
+        "n": 957
+      },
+      "2013": {
+        "old": 0.985,
+        "new": 0.8895,
+        "n": 1267
+      },
+      "2014": {
+        "old": 0.9914,
+        "new": 0.8919,
+        "n": 1286
+      },
+      "2015": {
+        "old": 0.9932,
+        "new": 0.9009,
+        "n": 1332
+      },
+      "2016": {
+        "old": 0.9933,
+        "new": 0.9355,
+        "n": 1334
+      },
+      "2017": {
+        "old": 0.9939,
+        "new": 0.9446,
+        "n": 1317
+      },
+      "2018": {
+        "old": 0.9971,
+        "new": 0.9424,
+        "n": 1390
+      },
+      "2019": {
+        "old": 0.9972,
+        "new": 0.9511,
+        "n": 1452
+      },
+      "2020": {
+        "old": 0.9973,
+        "new": 0.9744,
+        "n": 1487
+      },
+      "2021": {
+        "old": 0.9967,
+        "new": 0.9661,
+        "n": 1534
+      },
+      "2022": {
+        "old": 0.9993,
+        "new": 0.9759,
+        "n": 1537
+      },
+      "2023": {
+        "old": 1.0,
+        "new": 0.9711,
+        "n": 1524
+      },
+      "2024": {
+        "old": 0.9981,
+        "new": 0.9754,
+        "n": 1546
+      },
+      "2025": {
+        "old": 1.0,
+        "new": 0.9762,
+        "n": 1555
+      },
+      "2026": {
+        "old": 0.9987,
+        "new": 0.9757,
+        "n": 781
+      }
+    },
+    "label_end_col_present": true,
+    "label_end_na": 62
+  },
+  "delta_timing": {
+    "old_rows": 16789,
+    "new_rows": 16665,
+    "row_delta_pct": -0.74,
+    "old_pead_rate": 0.1068,
+    "new_pead_rate": 0.1084,
+    "old_gate_rates": {
+      "pass_g1": 0.3025,
+      "pass_g2": 0.3683,
+      "pass_g3": 0.4043
+    },
+    "new_gate_rates": {
+      "pass_g1": 0.3042,
+      "pass_g2": 0.3732,
+      "pass_g3": 0.4095
+    },
+    "old_bmo": 7918,
+    "new_bmo": 7862,
+    "macro_joined_rows": 16587,
+    "macro_deltas": {
+      "vix": {
+        "pct_rows_changed": 10.29,
+        "mean_abs_delta": 0.07900218
+      },
+      "fed_funds": {
+        "pct_rows_changed": 15.77,
+        "mean_abs_delta": 0.00548924
+      },
+      "unemployment_roc21": {
+        "pct_rows_changed": 91.49,
+        "mean_abs_delta": 0.10477556
+      }
+    },
+    "car_drift_old": {
+      "n": 16789,
+      "non_nan": 16741,
+      "nan_pct": 0.29,
+      "mean": -0.00928,
+      "std": 0.152045
+    },
+    "car_drift_new": {
+      "n": 16665,
+      "non_nan": 16149,
+      "nan_pct": 3.1,
+      "mean": -0.006545,
+      "std": 0.13148
+    },
+    "label_end_na": 0,
+    "label_end_lag_days_median": 15.0
+  },
+  "delta_combined": {
+    "old_rows": 33604,
+    "new_rows": 33598,
+    "old_sp400": 16696,
+    "new_sp400": 16665,
+    "old_sp600": 16908,
+    "new_sp600": 16933,
+    "old_pead_rate": 0.0799,
+    "new_pead_rate": 0.0804,
+    "old_range": [
+      "2015-01-03",
+      "2026-07-01"
+    ],
+    "new_range": [
+      "2015-01-03",
+      "2026-07-22"
+    ],
+    "label_end_col_present": true
+  },
+  "total_seconds": 1
+}

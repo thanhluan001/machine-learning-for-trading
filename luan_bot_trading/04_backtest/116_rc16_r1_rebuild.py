@@ -110,14 +110,18 @@ def delta_base() -> dict:
            "new_range": [str(new.report_date.min().date()), str(new.report_date.max().date())],
            "car_drift_old_60d_unmasked": _summ(old.car_drift_historical_q1),
            "car_drift_new_45d_masked": _summ(new.car_drift_historical_q1)}
-    # maturity effect by year (new NaN that old had filled = window past cutoff)
-    o = old.set_index(pd.to_datetime(old.report_date)).car_drift_historical_q1.notna()
-    n = new.set_index(pd.to_datetime(new.report_date)).car_drift_historical_q1.notna()
-    yy = pd.DataFrame({"old_filled": o.values, "new_filled": n.values},
-                      index=o.index).groupby(lambda d: d.year).mean()
+    # maturity effect by year, joined on identity (frames differ in size)
+    ko = ["permaTicker", "report_date"]
+    j = old[ko + ["car_drift_historical_q1"]].merge(
+        new[ko + ["car_drift_historical_q1"]], on=ko, suffixes=("_old", "_new"))
+    j["yr"] = pd.to_datetime(j.report_date).dt.year
+    yy = j.groupby("yr").agg(
+        old_filled=("car_drift_historical_q1_old", lambda s: s.notna().mean()),
+        new_filled=("car_drift_historical_q1_new", lambda s: s.notna().mean()),
+        joined=("report_date", "size"))
     out["car_drift_filled_rate_by_year"] = {
-        str(y): {"old": round(float(r.old_filled), 4), "new": round(float(r.new_filled), 4)}
-        for y, r in yy.iterrows()}
+        str(y): {"old": round(float(r.old_filled), 4), "new": round(float(r.new_filled), 4),
+                 "n": int(r.joined)} for y, r in yy.iterrows()}
     out["label_end_col_present"] = "label_end" in new.columns
     if "label_end" in new.columns:
         le = pd.to_datetime(new.label_end)
