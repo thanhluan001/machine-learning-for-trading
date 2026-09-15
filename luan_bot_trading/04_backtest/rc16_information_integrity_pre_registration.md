@@ -1,6 +1,9 @@
 # RC-16 Pre-Registration — Information-Integrity Contract Fixes and Revalidation
 
 **Status:** REGISTERED 2026-09-14, before any corrected result is computed.
+**OUTCOME:** CLOSED 2026-09-15 — G1/G2/G3 all FAIL. Cause of death:
+car_drift_historical_q1 information artifact (F2 = 91.2% of damage).
+See archive/findings/rc16_information_integrity_findings.md.
 **Trigger:** independent audit (`PEAD_TRADING_AUDIT_EN.md`, 2026-09-14).
 Four confirmed data-contract defects + one packaging defect. This
 registration pre-specifies the fixes, the retrain protocol, the
