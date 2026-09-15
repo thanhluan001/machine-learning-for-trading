@@ -1,6 +1,9 @@
 # RC-17 Pre-Registration — No-Drift Baseline: Do the Remaining 22 Features Carry Anything?
 
 **Status:** REGISTERED 2026-09-15, before any result is computed.
+**OUTCOME:** CLOSED 2026-09-15 — G1/G2/G3 all FAIL (v6n -1.58%, v4n -0.42%,
+v7n -0.72%; no arm significant). PEAD line pauses per pre-committed rule.
+See archive/findings/rc17_nodrift_findings.md.
 **Trigger:** RC-16 closure (G1-G3 FAIL; 91.2% of the V6 damage attributed to
 the `car_drift_historical_q1` leak). RC-16 deliberately did not test the
 null: a model family with the drift feature REMOVED entirely. This

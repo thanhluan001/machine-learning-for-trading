@@ -1794,3 +1794,35 @@ damage decomposition -> v6c/v7c to shadow if passing. Live V6 paper
 book unchanged throughout. H1 2026 and all prior windows are consumed
 diagnostics; forward ledgers are the only clean tests. Registration:
 rc16_information_integrity_pre_registration.md.
+
+### RC-16 information-integrity revalidation — CLOSED 2026-09-15 (G1-G3 FAIL)
+Executed as registered: F1-F4 contracts fixed (each mildly POSITIVE:
++0.5/+0.5/+0.0pp), matrices rebuilt (v6c 16,665 / v7c 33,598 rows),
+retrains with frozen HPs, gauntlet with one-factor attribution. RESULT:
+v6c avg trade -1.914%, week-block CI [-1.744, -0.067] — significantly
+NEGATIVE; v4c +0.48% / v7c +0.54% (both insignificant). CAUSE OF DEATH:
+car_drift_historical_q1 information artifact — the 60-session window
+used post-cutoff bars (window 60 vs quarterly cycle 63 minus T-1/T-2
+cutoff: chronically 1-3 sessions of look-ahead, ~28% of rows outright);
+F2 carried -5.03pp of the -5.51pp total (91.2%). The historical V4/V6/V7
+backtest edges were carried by this leak. Consequences (as pre-registered):
+frozen V6 paper book = process data only; nothing promoted; live scoring
+stays on corrected contracts; forward ledgers are the only clean tests.
+Findings: archive/findings/rc16_information_integrity_findings.md.
+
+### RC-17 no-drift baseline — CLOSED 2026-09-15 (G1-G3 FAIL; PEAD line PAUSES)
+Pre-registered single question: with car_drift_historical_q1 REMOVED
+entirely (22 features), do the remaining features carry anything?
+Arms v6n/v4n/v7n on the corrected matrices, frozen HPs/thresholds,
+identical folds/bootstrap as RC-16. RESULT: v6n -1.58% (CI [-1.68,+0.12]),
+v4n -0.42%, v7n -0.72% — all fail; G4: removing the honest drift feature
+changes nothing (v6n-v6c +0.15pp, CI includes 0). CONCLUSION: the leak
+carried the historical edge, and the remaining 22-feature construction
+has no honest edge either (point estimates mildly negative across all
+families). Per pre-committed rule: the 23-feature PEAD construction at
+this universe/label definition is retired from the research queue — no
+re-tuning, no threshold archaeology, no BMO/AMC adoption. Nightly paper
+book continues as process data only. Revival requires NEW features or
+labels under a new registration. Registration:
+rc17_nodrift_pre_registration.md; findings:
+archive/findings/rc17_nodrift_findings.md.

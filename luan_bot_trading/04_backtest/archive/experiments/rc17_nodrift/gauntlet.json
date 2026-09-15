@@ -1,0 +1,133 @@
+{
+  "runs": {
+    "v6n": {
+      "stats": {
+        "executed": 129,
+        "win_rate_pct": 44.2,
+        "avg_trade_pct": -1.581,
+        "weeks": 66,
+        "weekly_mean_pct": -0.772,
+        "nav_pct": -42.76,
+        "raw_picks_precision": 16.3
+      },
+      "boot": {
+        "mean_pct": -0.7724,
+        "ci95_pct": [
+          -1.6838,
+          0.1224
+        ]
+      }
+    },
+    "v4n": {
+      "stats": {
+        "executed": 69,
+        "win_rate_pct": 47.8,
+        "avg_trade_pct": -0.419,
+        "weeks": 42,
+        "weekly_mean_pct": -0.172,
+        "nav_pct": -9.68,
+        "raw_picks_precision": 21.7
+      },
+      "boot": {
+        "mean_pct": -0.1722,
+        "ci95_pct": [
+          -1.2664,
+          0.9992
+        ]
+      }
+    },
+    "v7n": {
+      "stats": {
+        "executed": 131,
+        "win_rate_pct": 47.3,
+        "avg_trade_pct": -0.723,
+        "weeks": 69,
+        "weekly_mean_pct": -0.343,
+        "nav_pct": -26.33,
+        "raw_picks_precision": 17.6
+      },
+      "boot": {
+        "mean_pct": -0.3432,
+        "ci95_pct": [
+          -1.3834,
+          0.7768
+        ]
+      }
+    }
+  },
+  "verdict": {
+    "gates": {
+      "G1": {
+        "arm": "v6n",
+        "pass": false,
+        "boot": {
+          "mean_pct": -0.7724,
+          "ci95_pct": [
+            -1.6838,
+            0.1224
+          ]
+        }
+      },
+      "G2": {
+        "arm": "v4n",
+        "pass": false,
+        "boot": {
+          "mean_pct": -0.1722,
+          "ci95_pct": [
+            -1.2664,
+            0.9992
+          ]
+        }
+      },
+      "G3": {
+        "arm": "v7n",
+        "pass": false,
+        "boot": {
+          "mean_pct": -0.3432,
+          "ci95_pct": [
+            -1.3834,
+            0.7768
+          ]
+        }
+      }
+    },
+    "G4_vs_rc16_c": {
+      "v6n_minus_v6c": {
+        "paired_weeks": 55,
+        "mean_diff_pct": 0.146,
+        "ci95_pct": [
+          -0.6048,
+          0.9006
+        ],
+        "prob_pos": 0.3455
+      },
+      "v4n_minus_v4c": {
+        "paired_weeks": 35,
+        "mean_diff_pct": -0.3662,
+        "ci95_pct": [
+          -1.7694,
+          0.917
+        ],
+        "prob_pos": 0.3143
+      },
+      "v7n_minus_v7c": {
+        "paired_weeks": 63,
+        "mean_diff_pct": -0.5267,
+        "ci95_pct": [
+          -1.4851,
+          0.3868
+        ],
+        "prob_pos": 0.254
+      }
+    }
+  },
+  "config": {
+    "n_boot": 10000,
+    "seed": 20260807,
+    "thresh": 0.33,
+    "v4_theta": 0.2,
+    "features": 22,
+    "removed": "car_drift_historical_q1",
+    "common_keys": 16587
+  }
+}
