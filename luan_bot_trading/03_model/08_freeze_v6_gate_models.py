@@ -6,14 +6,17 @@ V6 policy HPs and the complete persisted v4 timing-correct training matrix.
 """
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 import pandas as pd
 import xgboost as xgb
 
 HERE = Path(__file__).resolve().parent
 DB = HERE.parent / "01_data" / "db.h5"
-MATRIX = "/features/train_matrix_v4_timing_correct"
-OUT = HERE / "models" / "phase_g_v6_gate_decomposition"
+# RC-16 R2: env overrides so the corrected-contract retrain (v6c) never
+# clobbers the frozen V6 model dir. HPs stay exactly as frozen.
+MATRIX = os.environ.get("RC16_R2_MATRIX", "/features/train_matrix_v4_timing_correct")
+OUT = Path(os.environ.get("RC16_R2_OUT", str(HERE / "models" / "phase_g_v6_gate_decomposition")))
 FEATURES = [
     "sue_lag_1", "sue_lag_2", "car_drift_historical_q1",
     "pre_event_idiosyncratic_vol", "pre_event_volume_trend",

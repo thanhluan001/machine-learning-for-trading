@@ -16,6 +16,7 @@ rc13_v7_threshold_sweep.json (0.33 robust, plateau 0.28-0.43).
 """
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -23,8 +24,10 @@ import xgboost as xgb
 
 HERE = Path(__file__).resolve().parent
 DB = HERE.parent / "01_data" / "db.h5"
-MATRIX = "/features/train_matrix_combined"
-OUT = HERE / "models" / "phase_g_v7_combined"
+# RC-16 R2: env overrides so the corrected-contract retrain (v7c) never
+# clobbers the frozen V7 model dir. HPs stay exactly as frozen.
+MATRIX = os.environ.get("RC16_R2_MATRIX", "/features/train_matrix_combined")
+OUT = Path(os.environ.get("RC16_R2_OUT", str(HERE / "models" / "phase_g_v7_combined")))
 FEATURES = [
     "sue_lag_1", "sue_lag_2", "car_drift_historical_q1",
     "pre_event_idiosyncratic_vol", "pre_event_volume_trend",
