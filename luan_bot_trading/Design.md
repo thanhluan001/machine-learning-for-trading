@@ -1826,3 +1826,20 @@ book continues as process data only. Revival requires NEW features or
 labels under a new registration. Registration:
 rc17_nodrift_pre_registration.md; findings:
 archive/findings/rc17_nodrift_findings.md.
+
+### RC-18 new-feature construction under a leak firewall — REGISTERED 2026-09-15
+Motivation: PEAD phenomenon real in the data (top-SUE-quintile +1.16% mean
+10d CAR vs misses -1.62%) but unpredicted honestly by the retired 23
+features. Quantified lesson: car_drift's leak carried 91.2% of the V6 edge
+at 4.3-6.6% gain share — 24.2% of rows had the leaked window overlap the
+LABEL bars directly, 40.5% covered entry-day bars. Feature importance
+measures splitting, not provenance. RC-18 mandates a structural leak
+firewall: (F0a) provenance spec before code, (F0b) truncation-equivalence
+property test (recompute-from-truncated-store must equal matrix value,
+>=100 seeded events — the test that would have caught RC-16 on day one),
+(F0c) full-window-or-NaN maturity + print-time data forbidden as inputs.
+Nine candidate features across five pre-listed families (honest drift
+personality, revision dynamics, pre-event tape, sector context, surprise
+context). P1 univariate diagnostics on beats -> P2 gate (>=2 families with
+CI-excluding-0 quintile spreads) -> P3 combined model vs v6n with frozen
+HPs/thresholds. Registration: rc18_new_features_pre_registration.md.
