@@ -114,6 +114,17 @@ P3  Combined model: surviving features added to the 22 retired features,
     review >= 8 fresh OOS weeks. Fail -> closure memo names the cause.
 ```
 
+## Amendments
+
+- **Amendment 1 (DRAFT 2026-09-16):** adds **Family F — learned PEAD-behavior
+  similarity (read-across)**: similarity learned from post-beat early-drift
+  co-movement (not taxonomy), feature = similarity-weighted fresh early drift
+  of already-reported peers that beat, aggregation exposing net/agreement/
+  dispersion/effective-count, three pre-specified similarity estimators
+  (taxonomy baseline, shrunk co-movement, low-dim embedding), with
+  orthogonalization and taxonomy-beating as gates. See
+  `rc18_amendment_1_peer_similarity.md`. Frozen before any computation.
+
 ## Constraints and standing caveats
 
 - No threshold/HP/feature edits mid-program; amendments require a new
