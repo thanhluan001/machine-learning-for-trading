@@ -24,9 +24,9 @@ dependencies:
   - brotli-python=1.2.0=py311hc5da9e4_1
   - bzip2=1.0.8=h0ad9c76_9
   - c-blosc2=3.1.4=h2af8807_0
-  - ca-certificates=2026.6.17=h4c7d964_0
+  - ca-certificates=2026.7.22=h4c7d964_0
   - cairo=1.18.4=h477c42c_1
-  - certifi=2026.6.17=pyhd8ed1ab_0
+  - certifi=2026.7.22=pyhd8ed1ab_0
   - charset-normalizer=3.4.7=pyhd8ed1ab_0
   - colorama=0.4.6=pyhd8ed1ab_1
   - comm=0.2.3=pyhe01879c_0
@@ -70,11 +70,11 @@ dependencies:
   - lcms2=2.19.1=hf2c6c5f_1
   - lerc=4.1.0=hd936e49_0
   - libaec=1.1.5=haf901d7_0
-  - libblas=3.11.0=8_h8455456_mkl
+  - libblas=3.11.0=11_h0adab6e_openblas
   - libbrotlicommon=1.2.0=hfd05255_1
   - libbrotlidec=1.2.0=hfd05255_1
   - libbrotlienc=1.2.0=hfd05255_1
-  - libcblas=3.11.0=8_h2a3cdd5_mkl
+  - libcblas=3.11.0=11_h2a8eebe_openblas
   - libclang13=22.1.8=default_ha2db4b5_2
   - libcurl=8.20.0=h8206538_0
   - libdeflate=1.25=h51727cc_0
@@ -89,8 +89,9 @@ dependencies:
   - libiconv=1.18=hc1393d2_2
   - libintl=0.22.5=h5728263_3
   - libjpeg-turbo=3.1.4.1=hfd05255_0
-  - liblapack=3.11.0=8_hf9ab0e9_mkl
+  - liblapack=3.11.0=11_hd232482_openblas
   - liblzma=5.8.3=hfd05255_0
+  - libopenblas=0.3.34=pthreads_h952cde7_2
   - libpng=1.6.58=h7351971_0
   - libraqm=0.10.5=h781ae3c_0
   - libsodium=1.0.22=h6a83c73_1
@@ -112,17 +113,17 @@ dependencies:
   - matplotlib=3.11.0=py311h1ea47a8_0
   - matplotlib-base=3.11.0=py311h736ca4f_0
   - matplotlib-inline=0.2.2=pyhd8ed1ab_0
-  - mkl=2026.0.0=hac47afa_908
   - msgpack-python=1.2.1=py311h275cad7_1
   - multitasking=0.0.13=pyhd8ed1ab_0
   - munkres=1.1.4=pyhd8ed1ab_1
   - narwhals=2.22.1=pyhcf101f3_0
   - nest-asyncio2=1.7.2=pyhcf101f3_0
-  - numexpr=2.14.1=mkl_py311hc8bcaf1_2
+  - nomkl=1.0=h5ca1d4c_0
+  - numexpr=2.14.2=py311h670de69_101
   - numpy=2.4.6=py311h65cb7f3_0
   - onemkl-license=2026.0.0=h57928b3_908
   - openjpeg=2.5.4=h0e57b4f_0
-  - openssl=3.6.3=hf411b9b_0
+  - openssl=3.6.4=hf411b9b_0
   - packaging=26.2=pyhc364b38_0
   - pandas=3.0.3=py311h0610301_0
   - pandas-datareader=0.10.0=pyhd8ed1ab_1
@@ -203,3 +204,4 @@ dependencies:
       - scipy==1.17.1
       - tqdm==4.68.3
       - yahooquery==2.4.1
+prefix: C:\Users\thanh\miniforge3\envs\trading

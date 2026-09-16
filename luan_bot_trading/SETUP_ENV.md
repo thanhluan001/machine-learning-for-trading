@@ -13,6 +13,12 @@ conda activate trading
 win-64, created 2026-09-01). If it fights your platform, use the pip
 pins instead:
 
+> **Known environment incidents:** see [ENVIRONMENT_INCIDENTS.md](ENVIRONMENT_INCIDENTS.md).
+> Incident 001 (2026-09-16): mkl 2026.0.0 GEMM delay-load crash — the env now
+> pins `libblas=*=*openblas`; do NOT let a solver flip it back to mkl builds,
+> and re-run the verification snippet in the incident log after any BLAS
+> change. environment.yml was re-exported 2026-09-16 from the fixed env.
+
 ```bash
 conda create -n trading python=3.11
 conda activate trading

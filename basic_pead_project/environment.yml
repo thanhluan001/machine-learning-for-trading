@@ -70,11 +70,11 @@ dependencies:
   - lcms2=2.19.1
   - lerc=4.1.0
   - libaec=1.1.5
-  - libblas=3.11.0
+  - libblas=3.11.0=*openblas   # mkl 2026.x GEMM crash on some CPUs -- see ENVIRONMENT_INCIDENTS 001 in the main repo
   - libbrotlicommon=1.2.0
   - libbrotlidec=1.2.0
   - libbrotlienc=1.2.0
-  - libcblas=3.11.0
+  - libcblas=3.11.0=*openblas
   - libclang13=22.1.8
   - libcurl=8.20.0
   - libdeflate=1.25
@@ -89,7 +89,7 @@ dependencies:
   - libiconv=1.18
   - libintl=0.22.5
   - libjpeg-turbo=3.1.4.1
-  - liblapack=3.11.0
+  - liblapack=3.11.0=*openblas
   - liblzma=5.8.3
   - libpng=1.6.58
   - libraqm=0.10.5
