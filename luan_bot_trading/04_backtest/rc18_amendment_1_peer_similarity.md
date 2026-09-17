@@ -219,3 +219,30 @@ D. The gap
    no prior effect size to borrow -- treat the expected effect as small and
    let P2 decide.
 ```
+
+---
+
+## Amendment 2 (post-hoc, 2026-09-16, user-approved) — P2 condition 2 re-specified
+
+```text
+ORIGINAL:     "at least one learned estimator (S-a or S-b) beats the
+              taxonomy baseline S-c on that diagnostic."
+RE-SPECIFIED: "at least one learned estimator is orthogonalized
+              quintile-spread CI-positive on its own domain, AND the
+              common-set comparison against S-c is reported alongside."
+```
+
+Disclosure: made AFTER the P1 / P1(b) results were inspected, with the
+user's explicit decision. Reasoning: P1 showed S-b(h=3) is CI-positive on
+its domain (+0.64pp [+0.10,+1.19], 86% coverage) but only TIES S-c on the
+~25%-coverage common set (+0.448 vs +0.440). The original condition
+conflated per-event superiority with justifying the learned complexity:
+S-b's justification is coverage extension (86% vs 25% of beats), which a
+common-set comparison cannot express by construction. The per-event
+question stays answered (tie) and reported. The decisive test remains
+P3's pre-registered gates (mean trade > 0 with CI excluding 0; paired
+weekly diff vs v6n with CI excluding 0), which no amendment touches.
+
+P2 verdict under the amended condition: **PASS** — F1_sb_h3 (family F),
+A2 (family A), both orthogonalized-CI-positive; S-b CI-positive on its
+own domain; common-set tie reported. P3 is now legal to run.
