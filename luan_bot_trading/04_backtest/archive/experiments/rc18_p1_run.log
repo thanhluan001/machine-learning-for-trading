@@ -1,0 +1,40 @@
+events 16,665 loaded+drifts (14s)
+instances 38,324 (14s)
+SVD checkpoints: 129 (22s)
+beat events: 10,670
+features sc_h1: defined 30% of beats (24s)
+features sc_h3: defined 24% of beats (25s)
+features sa_h1: defined 60% of beats (86s)
+features sa_h3: defined 51% of beats (139s)
+features sb_h1: defined 87% of beats (147s)
+features sb_h3: defined 85% of beats (154s)
+F1_sc_h1: n=3,296 raw 1.0158 [[0.0781, 1.9606]] | ortho 0.92 [[-0.0148, 1.8616]]
+F2_sc_h1: n=3,296 raw None [None] | ortho None [None]
+F3_sc_h1: n=3,296 raw None [None] | ortho None [None]
+F4_sc_h1: n=3,296 raw None [None] | ortho None [None]
+F1_sc_h3: n=2,638 raw 0.3689 [[-0.8183, 1.524]] | ortho 0.2604 [[-0.9317, 1.4139]]
+F2_sc_h3: n=2,638 raw None [None] | ortho None [None]
+F3_sc_h3: n=2,638 raw None [None] | ortho None [None]
+F4_sc_h3: n=2,638 raw None [None] | ortho None [None]
+F1_sa_h1: n=6,492 raw -0.1657 [[-0.8599, 0.5094]] | ortho -0.2178 [[-0.9067, 0.4518]]
+F2_sa_h1: n=6,492 raw -0.2675 [[-0.9464, 0.4174]] | ortho -0.322 [[-1.0023, 0.3618]]
+F3_sa_h1: n=6,492 raw None [None] | ortho None [None]
+F4_sa_h1: n=6,492 raw None [None] | ortho None [None]
+F1_sa_h3: n=5,450 raw 0.0784 [[-0.7525, 0.9392]] | ortho -0.0048 [[-0.8273, 0.855]]
+F2_sa_h3: n=5,450 raw None [None] | ortho None [None]
+F3_sa_h3: n=5,450 raw None [None] | ortho None [None]
+F4_sa_h3: n=5,450 raw None [None] | ortho None [None]
+F1_sb_h1: n=9,327 raw 0.3342 [[-0.1688, 0.8375]] | ortho 0.3273 [[-0.1732, 0.8276]]
+F2_sb_h1: n=9,327 raw 0.2591 [[-0.2273, 0.7467]] | ortho 0.2443 [[-0.2407, 0.7321]]
+F3_sb_h1: n=9,327 raw -0.0052 [[-0.5585, 0.5491]] | ortho 0.0115 [[-0.5451, 0.5654]]
+F4_sb_h1: n=9,327 raw -0.2839 [[-0.8233, 0.2275]] | ortho -0.2618 [[-0.8006, 0.2493]]
+F1_sb_h3: n=9,136 raw 0.6593 [[0.1213, 1.2114]] | ortho 0.6423 [[0.1044, 1.1929]]
+F2_sb_h3: n=9,136 raw 0.3784 [[-0.1784, 0.9466]] | ortho 0.3487 [[-0.2057, 0.9147]]
+F3_sb_h3: n=9,136 raw -0.081 [[-0.6214, 0.4568]] | ortho -0.0597 [[-0.5976, 0.4729]]
+F4_sb_h3: n=9,136 raw -0.098 [[-0.6591, 0.4242]] | ortho -0.0804 [[-0.6383, 0.4396]]
+interaction[sc]: low-disp spread 0.7756 vs high-disp 0.409
+interaction[sa]: low-disp spread -0.0097 vs high-disp -0.1971
+interaction[sb]: low-disp spread 0.0229 vs high-disp 0.5446
+compare sa vs sc: common n=3,283 -0.0148 vs 1.0184
+compare sb vs sc: common n=2,962 0.6894 vs 1.1793
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc18_p1\report.json (181s)
