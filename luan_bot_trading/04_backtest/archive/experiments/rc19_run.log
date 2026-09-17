@@ -1,0 +1,89 @@
+events 16,665 (20s)
+A2 defined 95.4% (21s)
+SVD checkpoints 129 (33s)
+F1_sb_h3 defined 77.8% (43s)
+matrix 16,587 | car_10d nan 0.0% | F1 nan 22.2% | A2 nan 4.7%
+v6n: {"executed": 129, "win_rate_pct": 44.2, "avg_trade_pct": -1.581, "weeks": 66, "nav_pct": -42.76, "raw_precision": 16.3, "g1_rate": 35.7}
+rc19: {"executed": 158, "win_rate_pct": 53.8, "avg_trade_pct": 0.718, "weeks": 79, "nav_pct": 21.42, "raw_precision": 21.5, "g1_rate": 36.1}
+  CI: {"mean_pct": 0.3592, "ci95_pct": [-0.6852, 1.4003]}
+rc19_cost: {"executed": 190, "win_rate_pct": 54.7, "avg_trade_pct": 1.066, "weeks": 79, "nav_pct": 51.73, "raw_precision": 19.5, "g1_rate": 31.1}
+rc19_pos: {"executed": 190, "win_rate_pct": 53.7, "avg_trade_pct": 0.037, "weeks": 79, "nav_pct": -5.78, "raw_precision": 20.0, "g1_rate": 32.1}
+decoupling: spearman=-0.0386 | deciles=[{"n": 106, "mean_car_pct": 0.72, "mean_score": 0.3330000042915344}, {"n": 106, "mean_car_pct": -0.34, "mean_score": 0.3400000035762787}, {"n": 106, "mean_car_pct": -1.73, "mean_score": 0.34599998593330383}, {"n": 106, "mean_car_pct": 0.31, "mean_score": 0.3529999852180481}, {"n": 106, "mean_car_pct": -0.62, "mean_score": 0.35899999737739563}, {"n": 106, "mean_car_pct": -1.95, "mean_score": 0.3659999966621399}, {"n": 106, "mean_car_pct": 0.14, "mean_score": 0.37599998712539673}, {"n": 106, "mean_car_pct": -2.07, "mean_score": 0.3869999945163727}, {"n": 106, "mean_car_pct": -1.31, "mean_score": 0.40299999713897705}, {"n": 106, "mean_car_pct": -1.77, "mean_score": 0.4390000104904175}]
+VERDICT: {
+ "G1_primary_positive": {
+  "pass": false,
+  "boot": {
+   "mean_pct": 0.3592,
+   "ci95_pct": [
+    -0.6852,
+    1.4003
+   ]
+  }
+ },
+ "G2_beats_v6n": {
+  "pass": false,
+  "paired": {
+   "paired_weeks": 60,
+   "mean_diff_pct": 0.8459,
+   "ci95_pct": [
+    -0.4943,
+    2.2312
+   ],
+   "prob_pos": 0.5333
+  }
+ },
+ "decoupling_spearman": -0.0386,
+ "deciles": [
+  {
+   "n": 106,
+   "mean_car_pct": 0.72,
+   "mean_score": 0.3330000042915344
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -0.34,
+   "mean_score": 0.3400000035762787
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -1.73,
+   "mean_score": 0.34599998593330383
+  },
+  {
+   "n": 106,
+   "mean_car_pct": 0.31,
+   "mean_score": 0.3529999852180481
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -0.62,
+   "mean_score": 0.35899999737739563
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -1.95,
+   "mean_score": 0.3659999966621399
+  },
+  {
+   "n": 106,
+   "mean_car_pct": 0.14,
+   "mean_score": 0.37599998712539673
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -2.07,
+   "mean_score": 0.3869999945163727
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -1.31,
+   "mean_score": 0.40299999713897705
+  },
+  {
+   "n": 106,
+   "mean_car_pct": -1.77,
+   "mean_score": 0.4390000104904175
+  }
+ ]
+}
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc19\gauntlet.json (57s)

@@ -1880,3 +1880,20 @@ power cannot certify even a +1.2pp improvement. No shadow, no promotion.
 The two features + firewall machinery archived for any future
 construction; label redesign remains the deepest unregistered question.
 Findings: archive/findings/rc18_new_features_findings.md.
+
+### RC-19 — CLOSED 2026-09-16 (G1/G2 FAIL on power; FIRST POSITIVE expectancy)
+Registered 0915d54, spec frozen (single pass_g1 classifier, 24 features,
+frozen V6 g1 HPs, thr 0.33, 16,587 keys, paired v6n baseline). Result:
+158 trades, 53.8% win, +0.718% avg trade, +21.4% NAV — the first positive
+expectancy of the honest program; label redesign (drop volume/drawdown
+from target) moved the sign from −1.58% to +0.72%. G1 FAIL (weekly CI
+[−0.685,+1.400] includes 0); G2 FAIL (paired +0.846pp/wk, CI
+[−0.494,+2.231], prob_pos 53%). Secondary cost-label arm +1.07%/trade
+NAV +51.7% — DECLARED non-gating, stays non-gating (no post-hoc
+promotion). Cause named: (1) power — 79wk CI half-width ±1.04pp;
+(2) decoupling persists at score level (spearman −0.039, deciles
+non-monotone) — expectancy emerges from threshold+weekly selection, not
+score ranking of CAR. Door forward: RC-20 candidate = same frozen spec
+replicated on combined v7c universe (~2x sample) for power; feature
+ledger as complement. Findings:
+archive/findings/rc19_pure_drift_findings.md.
