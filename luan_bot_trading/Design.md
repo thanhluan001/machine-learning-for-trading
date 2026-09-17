@@ -1861,3 +1861,22 @@ from peers NTNX (+4.6% day-1) and OKTA (+26.1% day-1) vs GWRE car_10d
 trained on matured history only). P1 (CAR-first diagnostics, orthogonalized,
 taxonomy-beating gates) now legal to run. Artifacts:
 archive/experiments/rc18_p0/report.json.
+
+### RC-18 — CLOSED 2026-09-16 (P3 G1/G2 FAIL; features real, construction negative)
+Full arc: P0 firewall passed (truncation 300+120+240, negative control
+caught every real leak). P1: F1_sb_h3 (SVD read-across, 3-day peer
+partial) ortho +0.64pp [+0.10,+1.19], 86% coverage — the user's
+collaborative-filtering construct, validated at diagnostic level; P1(b):
+A2 follow-through personality +0.56pp [+0.005,+1.11] (families A/D
+completed for the >=2-family gate). Amendment 2 (post-hoc, user-approved)
+re-specified P2 condition 2 (coverage-extension justification); P2 PASS.
+P3 (24-feature combined model, frozen HPs/thresholds, vs v6n baseline):
+features added +1.21pp avg trade (−1.581 → −0.372), win rate 44.2 → 53.5,
+raw precision 16.3 → 23.2 — but G1 FAIL (avg < 0, CI includes 0) and G2
+FAIL (paired diff +0.585pp, CI [−0.50,+2.40]). CAUSE OF DEATH: (1) the
+22-feature base is negative and the label-vs-return decoupling (label
+predictable, label doesn't pay) remains the binding defect; (2) ~65-week
+power cannot certify even a +1.2pp improvement. No shadow, no promotion.
+The two features + firewall machinery archived for any future
+construction; label redesign remains the deepest unregistered question.
+Findings: archive/findings/rc18_new_features_findings.md.

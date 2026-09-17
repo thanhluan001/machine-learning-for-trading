@@ -1,0 +1,74 @@
+{
+  "runs": {
+    "v6n": {
+      "stats": {
+        "executed": 129,
+        "win_rate_pct": 44.2,
+        "avg_trade_pct": -1.581,
+        "weeks": 66,
+        "nav_pct": -42.76,
+        "raw_precision": 16.3
+      },
+      "boot": {
+        "mean_pct": -0.7724,
+        "ci95_pct": [
+          -1.6838,
+          0.1224
+        ]
+      }
+    },
+    "v6c18": {
+      "stats": {
+        "executed": 142,
+        "win_rate_pct": 53.5,
+        "avg_trade_pct": -0.372,
+        "weeks": 67,
+        "nav_pct": -17.73,
+        "raw_precision": 23.2
+      },
+      "boot": {
+        "mean_pct": -0.1972,
+        "ci95_pct": [
+          -1.2283,
+          0.8165
+        ]
+      }
+    }
+  },
+  "verdict": {
+    "G1_combined_positive": {
+      "pass": false,
+      "boot": {
+        "mean_pct": -0.1972,
+        "ci95_pct": [
+          -1.2283,
+          0.8165
+        ]
+      }
+    },
+    "G2_beats_v6n": {
+      "pass": false,
+      "paired": {
+        "paired_weeks": 56,
+        "mean_diff_pct": 0.5853,
+        "ci95_pct": [
+          -0.4994,
+          2,
+          4
+        ],
+        "prob_pos": 0.5179
+      }
+    }
+  },
+  "common_keys": 16587,
+  "features_added": [
+    "F1_sb_h3",
+    "A2"
+  ],
+  "config": {
+    "n_boot": 10000,
+    "seed": 20260807,
+    "thresh": 0.33
+  },
+  "seconds": 61
+}
