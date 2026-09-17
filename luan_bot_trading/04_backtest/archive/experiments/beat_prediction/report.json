@@ -1,0 +1,116 @@
+{
+  "base_rate": 0.6806757484162147,
+  "n": 27191,
+  "oos_auc": 0.673143204021518,
+  "deciles": [
+    {
+      "dec": 1,
+      "n": 565,
+      "p_beat": 0.44699999690055847,
+      "beat_rate": 45.8,
+      "harvest": -0.5,
+      "car10": -0.852
+    },
+    {
+      "dec": 2,
+      "n": 565,
+      "p_beat": 0.5210000276565552,
+      "beat_rate": 51.5,
+      "harvest": -0.455,
+      "car10": -0.892
+    },
+    {
+      "dec": 3,
+      "n": 564,
+      "p_beat": 0.5669999718666077,
+      "beat_rate": 56.7,
+      "harvest": -0.03,
+      "car10": -0.508
+    },
+    {
+      "dec": 4,
+      "n": 565,
+      "p_beat": 0.6060000061988831,
+      "beat_rate": 61.2,
+      "harvest": 0.384,
+      "car10": -0.534
+    },
+    {
+      "dec": 5,
+      "n": 565,
+      "p_beat": 0.640999972820282,
+      "beat_rate": 65.8,
+      "harvest": 0.315,
+      "car10": -0.447
+    },
+    {
+      "dec": 6,
+      "n": 564,
+      "p_beat": 0.6819999814033508,
+      "beat_rate": 69.1,
+      "harvest": -0.439,
+      "car10": -0.642
+    },
+    {
+      "dec": 7,
+      "n": 565,
+      "p_beat": 0.7229999899864197,
+      "beat_rate": 71.5,
+      "harvest": 0.95,
+      "car10": -0.626
+    },
+    {
+      "dec": 8,
+      "n": 564,
+      "p_beat": 0.7639999985694885,
+      "beat_rate": 77.3,
+      "harvest": 0.252,
+      "car10": -0.194
+    },
+    {
+      "dec": 9,
+      "n": 565,
+      "p_beat": 0.8059999942779541,
+      "beat_rate": 81.8,
+      "harvest": 0.286,
+      "car10": 0.226
+    },
+    {
+      "dec": 10,
+      "n": 565,
+      "p_beat": 0.878000020980835,
+      "beat_rate": 90.6,
+      "harvest": 0.185,
+      "car10": -0.412
+    }
+  ],
+  "ceiling": {
+    "harvest_pct": 2.099,
+    "car10_pct": -0.218
+  },
+  "gain": {
+    "consecutive_surprises_pre": 0.19110000133514404,
+    "sue_lag_1": 0.1688999980688095,
+    "sue_lag_2": 0.0731000006198883,
+    "sector_adjusted_ret_20d": 0.04969999939203262,
+    "unemployment_roc21": 0.04259999841451645,
+    "rel_ret_30d": 0.04039999842643738,
+    "rel_ret_10d": 0.0364999994635582,
+    "pre_event_idiosyncratic_vol": 0.036400001496076584,
+    "revision_momentum_60d": 0.03460000082850456,
+    "rel_ret_20d": 0.03240000084042549,
+    "fed_funds": 0.031599998474121094,
+    "rel_ret_3d": 0.029100000858306885,
+    "vix": 0.028599999845027924,
+    "revision_momentum_90d": 0.027300000190734863,
+    "revision_intensity_90d": 0.026599999517202377,
+    "revision_ordinal_momentum_90d": 0.026499999687075615,
+    "pre_event_volume_trend": 0.02630000002682209,
+    "rel_ret_5d": 0.025499999523162842,
+    "last_action_days_before_earnings": 0.025200000032782555,
+    "revision_momentum_30d": 0.024800000712275505,
+    "n_analysts_covering": 0.022600000724196434,
+    "grade_dispersion_90d": 0.0
+  },
+  "seconds": 27
+}
