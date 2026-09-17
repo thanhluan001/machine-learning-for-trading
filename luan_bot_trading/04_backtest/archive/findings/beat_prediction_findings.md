@@ -110,3 +110,66 @@ surprises, momentum), all public and priced; PEAD pays for UNEXPECTED
 performance. New information (transcripts/guidance, options-implied
 expectations, intraday reaction) is required — not new models on these
 inputs.
+
+---
+
+## ADDENDUM — accuracy of the beat model, and the precision→return gradient
+
+### Accuracy is dominated by the 68% base rate
+
+```text
+OOS n=5,647; base rate 67.2%  =>  naive "always beat" = 67.2% accuracy,
+                                  67.2% precision, 100% recall, AUC 0.500
+
+thr   pred_beat   TP    FP   FN    TN   acc%   prec%  rec%  spec%
+0.5      5,013  3,500 1,513  292   342   68.0   69.8   92.3   18.4
+0.6      3,766  2,809   957  983   898   65.6   74.6   74.1   48.4
+0.7      2,290  1,840   450 1,952 1,405   57.5   80.3   48.5   75.7
+0.8        914    805   109 2,987 1,746   45.2   88.1   21.2   94.1
+0.9        147    140     7 3,652 1,848   35.2   95.2    3.7   99.6
+```
+
+Accuracy adds +0.8pp over the naive rule at thr 0.5 and falls BELOW it at
+higher thresholds — accuracy is the wrong lens for a 68%-base-rate target.
+The informative view is precision/recall: 74.6%/74.1% at 0.6;
+80.3%/48.5% at 0.7; 88.1%/21.2% at 0.8; 95.2%/3.7% at 0.9. Top decile:
+90.6% precision, 13.5% of all beats captured; top-2 deciles 25.7%.
+
+### Does precision buy return? Monotone — and that is new
+
+```text
+thr    n     prec%   harvest%    SE     t      car_10d%
+all  5,647   67.2    +0.095    0.16   0.59    -0.488
+0.5  5,013   69.8    +0.146    0.17   0.86    -0.425
+0.6  3,766   74.6    +0.268    0.19   1.41    -0.389
+0.7  2,290   80.3    +0.394    0.24   1.64    -0.284
+0.8    914   88.1    +0.597    0.38   1.57    -0.149
+0.9    147   95.2    +1.328    1.09   1.22    -0.333
+```
+
+The harvest rises monotonically with the beat-probability threshold —
+the first monotone economic gradient this program has produced, measured
+out-of-sample. But NO slice is individually significant (t = 0.6–1.6),
+and the top slice has only 147 events.
+
+### The source of the gradient is miss-avoidance, not drift-finding
+
+```text
+WITHIN beats (n=3,792), p_beat quintiles:
+  q1 +2.816%  q2 +2.702%  q3 +1.897%  q4 +1.885%  q5 +1.195%
+  (AUC p_beat -> harvest>0 = 0.481; -> car_10d>0 = 0.511; -> car_10d>3% = 0.513)
+```
+
+Within beats the model cannot rank drift at all (AUC ≈ 0.48–0.51) and the
+gradient is NEGATIVE — the confident beats are the priced ones. The
+aggregate gradient therefore comes entirely from cutting the miss rate
+(45.8% → 4.8% across deciles), not from finding bigger drifters.
+
+### Status
+
+A pre-registered "high-confidence beat" strategy (threshold fixed in
+advance, e.g. 0.8) is the first candidate in this program with a
+monotone, out-of-sample, economically sensible gradient. Power is the
+binding constraint: thr 0.8 gives 914 trades at +0.597% (SE 0.38, t=1.57);
+certification needs roughly 1.5–2x more trades at that effect size.
+Threshold selection here is post-hoc and must be frozen before any test.
