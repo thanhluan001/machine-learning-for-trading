@@ -339,11 +339,42 @@ log(f"SP600-only weekly selection: transfer {len(ex_t)} trades avg {ex_t['pregap
     f"| mixed {len(ex_m)} trades avg {ex_m['pregap_return'].astype(float).mean()*100:+.3f}%")
 ov_raw = len(set(zip(raw_t.permaTicker, raw_t.report_date)) & set(zip(raw_m.permaTicker, raw_m.report_date)))
 log(f"raw >=0.33 pool overlap: {ov_raw} of transfer {len(raw_t)} / mixed {len(raw_m)}")
+ov_exec = len(set(zip(ex_t.permaTicker, ex_t.entry_date)) & set(zip(ex_m.permaTicker, ex_m.entry_date)))
+log(f"EXECUTED overlap: {ov_exec} (transfer {len(ex_t)} / mixed {len(ex_m)})")
+
+# score distribution shift (calibration, not information)
+qs = [0.05, 0.25, 0.5, 0.75, 0.9, 0.95]
+log("SP600 score quantiles:")
+for nm, c in (("transfer", "score_t"), ("mixed", "score_m")):
+    v = sp6[c].dropna().to_numpy()
+    log(f"  {nm}: " + " ".join(f"q{int(q*100)}={np.quantile(v,q):.3f}" for q in qs) +
+        f" | mean={v.mean():.3f} | frac>=0.33={(v>=THRESH).mean():.3f}")
+
+# per-week candidate availability and slot utilisation
+for nm, c in (("transfer", "score_t"), ("mixed", "score_m")):
+    cand = sp6[(sp6[c] >= THRESH) & (~sp6["sector"].isin(bt.EXCLUDE_SECTORS)) & sp6["pregap_return"].notna()].copy()
+    cand["entry_date"] = pd.to_datetime(cand["entry_date"])
+    iso = cand["entry_date"].dt.isocalendar()
+    cand["wk"] = iso.year.astype(str) + "-W" + iso.week.astype(str).str.zfill(2)
+    per_wk = cand.groupby("wk").size()
+    all_wks = pd.to_datetime(sp6["entry_date"]).dt.isocalendar()
+    weeks_all = (all_wks.year.astype(str) + "-W" + all_wks.week.astype(str).str.zfill(2)).nunique()
+    hist = {f"ge{k}": int((per_wk >= k).sum()) for k in (1, 2, 3, 4, 8)}
+    log(f"{nm}: weeks_with_events={weeks_all} | weeks_with_candidates={len(per_wk)} | "
+        f"weeks_zero={weeks_all - len(per_wk)} | {hist} | median_cand/wk={per_wk.median():.0f}")
+    exw = pd.to_datetime((ex_m if nm == "mixed" else ex_t)["entry_date"]).dt.isocalendar()
+    ex_wk = (exw.year.astype(str) + "-W" + exw.week.astype(str).str.zfill(2)).value_counts()
+    log(f"  executed trades/wk: mean={ex_wk.mean():.2f} median={ex_wk.median():.0f} max={ex_wk.max()} weeks_active={len(ex_wk)}")
+
+sp6[["permaTicker", "report_date", "entry_date", "exit_date", "pregap_return", "score_t", "score_m",
+     "pass_g1", "car_10d", "sector", "fold"]].to_hdf(HERE / "archive" / "experiments" / "rc21_why" / "sp600_scores.h5",
+                                                     key="s", format="table")
 
 out = {"per_fold": rows, "means": agg.to_dict(), "spearman_sp600": sp,
        "sp600_only_selection": {"transfer": {"n": int(len(ex_t)), "avg_pct": round(float(ex_t['pregap_return'].astype(float).mean()*100), 3)},
                                  "mixed": {"n": int(len(ex_m)), "avg_pct": round(float(ex_m['pregap_return'].astype(float).mean()*100), 3)}},
-       "pool_overlap": {"n": int(ov_raw), "transfer_pool": int(len(raw_t)), "mixed_pool": int(len(raw_m))}}
+       "pool_overlap": {"n": int(ov_raw), "transfer_pool": int(len(raw_t)), "mixed_pool": int(len(raw_m))},
+       "executed_overlap": int(ov_exec)}
 o = HERE / "archive" / "experiments" / "rc21_why"
 o.mkdir(parents=True, exist_ok=True)
 with open(o / "report.json", "w") as f:
