@@ -1941,10 +1941,14 @@ rc19 +0.718, v7n −1.350). RESULT: trades +45–48% for all arms, but
 treatment expectancy COLLAPSES — rc19 +0.718→−1.163 (NAV +21.4→−54.5),
 rc20 +0.383→−0.806, rc21 +1.722→+0.015 (NAV +82.5→−25.9); baselines
 IMPROVE (v6n −1.581→−0.445). Every gate FALSE under both selectors.
-Mechanism: (1) concentration — the edge lives in the week's best few
-names; extra trades average −1.4 to −2.1% (shared trades keep +1.57% on
-rc21) — capacity-of-signal limit; (2) allocation look-ahead — the second
-simulator integrity defect after RC-16's feature leak. CONSEQUENCE:
+Mechanism (CORRECTED after the candidate-pool diagnostic): the pool
+mean is ~0 (rc19 +0.18 SE 0.37; rc21 +0.34 SE 0.32), score deciles and
+the top-k-per-week curve show NO gradient — the score does not rank
+returns, so "concentration" is refuted; the extra trades' negative
+average was t≈−1 noise. The old selector's positive averages come from
+allocation/timing (which weeks it filled + week-level look-ahead), not
+pool quality or ranking. Plus the second simulator integrity defect
+(allocation look-ahead) after RC-16's feature leak. CONSEQUENCE:
 RC-19/20/21 positive point estimates are not achievable expectations; the
 proposed rc19 shadow book is dead as stated. Findings:
 archive/findings/rc22_simulator_alignment_findings.md.
