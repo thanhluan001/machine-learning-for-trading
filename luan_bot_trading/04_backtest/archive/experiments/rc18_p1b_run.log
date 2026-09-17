@@ -1,0 +1,8 @@
+events 16,665 | drifts r1/r11/r45 (15s) | r45 NaN 0.5%
+defined on beats: A1 93.3% | A2 96.1% | D1 93.4% | D2 93.4% (19s)
+truncation-equivalence (A/D): {'pass': 240, 'fail': 0} (62s)
+A1: n=9,952 raw -0.1691 [[-0.9104, 0.5758]] | ortho -0.1551 [[-0.8952, 0.5899]]
+A2: n=10,254 raw 0.572 [[0.0168, 1.1191]] | ortho 0.5612 [[0.0054, 1.1079]]
+D1: n=9,964 raw None [None] | ortho None [None]
+D2: n=9,964 raw 0.3353 [[-0.2669, 0.9569]] | ortho 0.2967 [[-0.3071, 0.9199]]
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc18_p1b\report.json (70s)

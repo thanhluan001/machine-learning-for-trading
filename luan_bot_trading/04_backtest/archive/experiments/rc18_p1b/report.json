@@ -1,0 +1,154 @@
+{
+  "diagnostics": {
+    "A1": {
+      "n": 9952,
+      "raw": {
+        "n": 9952,
+        "spread_pct": -0.1691,
+        "ci95_pct": [
+          -0.9104,
+          0.5758
+        ],
+        "excl0": false,
+        "pead_top": 0.1582,
+        "pead_bot": 0.1336
+      },
+      "ortho_outcome": {
+        "n": 9952,
+        "spread_pct": -0.1551,
+        "ci95_pct": [
+          -0.8952,
+          0.5899
+        ],
+        "excl0": false,
+        "pead_top": 0.1582,
+        "pead_bot": 0.1336
+      },
+      "ortho_feature": {
+        "n": 9952,
+        "spread_pct": -0.2304,
+        "ci95_pct": [
+          -1.0591,
+          0.5763
+        ],
+        "excl0": false,
+        "pead_top": 0.1622,
+        "pead_bot": 0.1356
+      }
+    },
+    "A2": {
+      "n": 10254,
+      "raw": {
+        "n": 10254,
+        "spread_pct": 0.572,
+        "ci95_pct": [
+          0.0168,
+          1.1191
+        ],
+        "excl0": true,
+        "pead_top": 0.2179,
+        "pead_bot": 0.0804
+      },
+      "ortho_outcome": {
+        "n": 10254,
+        "spread_pct": 0.5612,
+        "ci95_pct": [
+          0.0054,
+          1.1079
+        ],
+        "excl0": true,
+        "pead_top": 0.2179,
+        "pead_bot": 0.0804
+      },
+      "ortho_feature": {
+        "n": 10254,
+        "spread_pct": 0.5806,
+        "ci95_pct": [
+          0.0368,
+          1.107
+        ],
+        "excl0": true,
+        "pead_top": 0.2165,
+        "pead_bot": 0.08
+      }
+    },
+    "D1": {
+      "n": 9964,
+      "raw": null,
+      "ortho_outcome": null,
+      "ortho_feature": {
+        "n": 9964,
+        "spread_pct": 0.252,
+        "ci95_pct": [
+          -0.3002,
+          0.7975
+        ],
+        "excl0": false,
+        "pead_top": 0.1315,
+        "pead_bot": 0.0973
+      }
+    },
+    "D2": {
+      "n": 9964,
+      "raw": {
+        "n": 9964,
+        "spread_pct": 0.3353,
+        "ci95_pct": [
+          -0.2669,
+          0.9569
+        ],
+        "excl0": false,
+        "pead_top": 0.0917,
+        "pead_bot": 0.1226
+      },
+      "ortho_outcome": {
+        "n": 9964,
+        "spread_pct": 0.2967,
+        "ci95_pct": [
+          -0.3071,
+          0.9199
+        ],
+        "excl0": false,
+        "pead_top": 0.0917,
+        "pead_bot": 0.1226
+      },
+      "ortho_feature": {
+        "n": 9964,
+        "spread_pct": 0.371,
+        "ci95_pct": [
+          -0.2422,
+          0.9901
+        ],
+        "excl0": false,
+        "pead_top": 0.0933,
+        "pead_bot": 0.1229
+      }
+    }
+  },
+  "truncation": {
+    "pass": 240,
+    "fail": 0
+  },
+  "coverage_beats": {
+    "A1": 0.9327085285848172,
+    "A2": 0.9610121836925961,
+    "D1": 0.9338331771321462,
+    "D2": 0.9338331771321462
+  },
+  "config": {
+    "n_boot": 10000,
+    "seed": 20260807,
+    "confounders": [
+      "rel_ret_5d",
+      "rel_ret_20d",
+      "sector_adjusted_ret_20d",
+      "revision_momentum_30d",
+      "revision_momentum_60d",
+      "revision_momentum_90d"
+    ],
+    "A1": "mean r45 of last<=4 matured beat episodes",
+    "A2": "mean r11*sign(r1) of last<=8 matured episodes",
+    "D": "same-sector peers, 40-session window, mat11<=cut"
+  },
+  "seconds": 70
+}
