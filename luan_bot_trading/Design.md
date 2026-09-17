@@ -1927,3 +1927,24 @@ time (T1 is the right question; amending = gate-shopping). Clean path:
 pre-registered FORWARD SHADOW BOOK on the frozen rc19 calibration
 (both universes, paper, evaluation registered before first shadow
 trade). Findings: archive/findings/rc21_transfer_findings.md.
+
+### RC-22 — CLOSED 2026-09-16 (simulator alignment; the positive point estimates were accounting artifacts)
+Registered 6be0476. Verified defect: select_weekly releases slots only when
+exit_date precedes the next week's earliest entry; 5-session holds always
+straddle the ISO week (0.0% same-week) so every position blocked its slot
+for the whole following bucket (~50% utilisation), AND the weekly batch
+allocation chose the week's top-4 from the WHOLE week's candidate list — a
+mild allocation look-ahead unavailable in real time. Fix: select_continuous
+(slot frees at exit close, same-day re-entry, same-day information only).
+Pipeline verified: OLD arms reproduce RC-17/19/20 exactly (v6n −1.581,
+rc19 +0.718, v7n −1.350). RESULT: trades +45–48% for all arms, but
+treatment expectancy COLLAPSES — rc19 +0.718→−1.163 (NAV +21.4→−54.5),
+rc20 +0.383→−0.806, rc21 +1.722→+0.015 (NAV +82.5→−25.9); baselines
+IMPROVE (v6n −1.581→−0.445). Every gate FALSE under both selectors.
+Mechanism: (1) concentration — the edge lives in the week's best few
+names; extra trades average −1.4 to −2.1% (shared trades keep +1.57% on
+rc21) — capacity-of-signal limit; (2) allocation look-ahead — the second
+simulator integrity defect after RC-16's feature leak. CONSEQUENCE:
+RC-19/20/21 positive point estimates are not achievable expectations; the
+proposed rc19 shadow book is dead as stated. Findings:
+archive/findings/rc22_simulator_alignment_findings.md.
