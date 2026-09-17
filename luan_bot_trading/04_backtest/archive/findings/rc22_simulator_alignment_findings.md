@@ -102,3 +102,50 @@ min-score is anti-informative about returns.
    deployable edge in any construction tested.
 
 Artifacts: `archive/experiments/rc22/report.json`, `executed.h5`.
+
+---
+
+## CORRECTION ADDENDUM (2026-09-16, same session, after the concentration diagnostic)
+
+The "Mechanism" section above overclaims. A follow-up diagnostic on the
+saved candidate sets (score >= 0.33 pools, `archive/experiments/rc22/candidates.h5`)
+shows:
+
+```text
+POOL MEANS (5-session pregap_return, ALL candidates >= 0.33):
+  rc19  n=1,060  +0.18% (SE 0.37)     rc20  n=906  +0.10% (SE 0.54)
+  rc21  n=2,221  +0.34% (SE 0.32)     v6n   n=538  −0.32% (SE 0.51)
+
+=> the pool is NOT negative; it is ~0 with small SEs.
+
+SCORE-DECILE MEANS WITHIN POOL (5 = highest score):
+  rc19: +1.34 / −1.03 / +0.06 / +0.50 / +0.03     (no gradient)
+  rc20: +0.17 / −0.44 / +0.30 / −0.77 / +1.27     (no gradient)
+  rc21: −0.19 / +0.81 / +1.16 / −0.00 / −0.07     (no gradient)
+
+TOP-k-PER-WEEK CURVE (k-th highest score each week):
+  rc19: k1 −1.07 (1.52)  k2 +0.63 (1.39)  k3 +1.13 (1.47)  k4 −1.64 (1.87)
+  rc20: k1 +1.30 (1.83)  k2 +0.01 (1.96)  k3 −0.35 (2.61)  k4 −1.46 (2.80)
+  rc21: k1 +3.61 (1.81)  k2 −0.39 (1.70)  k3 +0.62 (2.14)  k4 −1.92 (1.69)
+```
+
+**Therefore:**
+1. The score does NOT rank returns within the candidate pool — quintiles
+   are flat/non-monotone and the top-k curve has no gradient (rc21's k1
+   t≈2.0 is one of twelve such comparisons; rc19's k1 is negative).
+   "Concentration" is not supported: there is no evidence the top-ranked
+   candidates are better.
+2. The pool mean is ~0, not negative. The extra trades' negative average
+   (t≈−1, see above) was noise.
+3. The positive averages of the OLD-selector books (+0.72% rc19, +1.72%
+   rc21) are therefore NOT explained by pool quality or score ranking —
+   they come from the allocation/timing pattern of the old selector
+   (which weeks it filled, and the mild week-level look-ahead). That
+   difference (+1.72% vs +0.34% pool) is itself not significant (t≈0.8).
+4. Per-trade SD is 13–20%; with 100–300 trades, SE ≈ 1–1.7%. This sample
+   can only certify edges of roughly ≥2%/trade. Any realistic PEAD edge
+   (0.5–1.5%) is below the detection floor of the entire program.
+
+Corrected conclusion: the honest simulator yields ~0 for every arm; the
+historical positive point estimates are allocation artifacts of
+uncertified size; and the concentration remedy is refuted by the data.

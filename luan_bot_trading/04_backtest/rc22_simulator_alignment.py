@@ -406,8 +406,10 @@ arms = {
 log(f"arms fitted ({time.time()-t0:.0f}s)")
 
 res = {}
+RAW = {}
 for nm, pred in arms.items():
     raw = candidates(pred)
+    RAW[nm] = raw
     for sel_nm, sel_fn in (("old", select_weekly_old), ("new", select_continuous)):
         pieces = [sel_fn(raw[raw["fold"] == fi], bt.N_SLOTS) for fi in range(1, 5)
                   if not raw[raw["fold"] == fi].empty]
@@ -436,6 +438,11 @@ with open(OUT / "report.json", "w") as f:
                         for nm, v in res.items()},
                "gates": gates, "config": {"n_boot": N_BOOT, "seed": SEED, "thresh": THRESH},
                "seconds": round(time.time() - t0)}, f, indent=2, default=str)
+with pd.HDFStore(OUT / "candidates.h5", "w") as st:
+    for nm, raw in RAW.items():
+        keep = [c for c in ("permaTicker", "fold", "entry_date", "exit_date", "pregap_return",
+                            "score", "pass_g1", "car_10d", "is_sp400") if c in raw.columns]
+        st.put(f"/{nm}", raw[keep], format="table")
 with pd.HDFStore(OUT / "executed.h5", "w") as st:
     for nm, v in res.items():
         for s in ("old", "new"):
