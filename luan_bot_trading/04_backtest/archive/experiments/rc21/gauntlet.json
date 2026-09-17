@@ -1,0 +1,33 @@
+{
+  "transfer": {
+    "executed": 193,
+    "win_rate_pct": 50.8,
+    "avg_trade_pct": 2.06,
+    "weeks": 91,
+    "nav_pct": 115.03,
+    "raw_precision": 8.8,
+    "g1_rate": 33.7
+  },
+  "boot": {
+    "mean_pct": 1.0924,
+    "ci95_pct": [
+      -0.3308,
+      2.6181
+    ]
+  },
+  "T1_pass": false,
+  "sanity_sp400": {
+    "picked": 1031,
+    "avg_trade_pct": 0.118
+  },
+  "truncation_spotcheck": {
+    "n": 10,
+    "fails": 0
+  },
+  "config": {
+    "n_boot": 10000,
+    "seed": 20260807,
+    "thresh": 0.33
+  },
+  "seconds": 129
+}

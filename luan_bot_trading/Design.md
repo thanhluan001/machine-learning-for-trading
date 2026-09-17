@@ -1912,3 +1912,18 @@ PATTERN: pure-drift label beats 3-gate composite in all three tests
 (+1.77, +2.30, +1.60pp — never reversed); 3-gate label costs ~1.6-2.3pp
 wherever used. NOT established: construction clears zero after costs.
 Findings: archive/findings/rc20_combined_findings.md.
+
+### RC-21 — CLOSED 2026-09-16 (T1 FAIL by 0.33pp; strongest result of the program)
+Registered 9f14a85 (pure transfer: SP400 rc19 calibration applied
+UNCHANGED to SP600; train SP400 label_end<=sve per fold, apply to SP600
+test windows; RC-20 declared feature pipeline). Firewall 10/10 PASS.
+TRANSFER: 193 trades, 50.8% win, +2.060% avg, NAV +115.0% (91 weeks),
+weekly CI [-0.331,+2.618] -> T1 FAIL (lower bound misses by 0.33pp).
+Cause: positive-but-uncertified. The SP400 calibration transfers WELL
+(no SP400 overfit; SP600 the stronger universe). Sanity: same models on
+SP400 test slices +0.118% (consistent with RC-19/20). Fourth
+consecutive positive-point/CI-includes-0. NO amendment offered this
+time (T1 is the right question; amending = gate-shopping). Clean path:
+pre-registered FORWARD SHADOW BOOK on the frozen rc19 calibration
+(both universes, paper, evaluation registered before first shadow
+trade). Findings: archive/findings/rc21_transfer_findings.md.

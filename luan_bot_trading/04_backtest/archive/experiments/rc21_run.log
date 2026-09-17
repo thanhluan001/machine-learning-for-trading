@@ -1,0 +1,15 @@
+prices 1,674 (28s)
+TRAIN side: 16,587 | F1 nan 22.2% (52s)
+APP side: 16,933 | F1 nan 18.7% | A2 nan 14.9% (121s)
+truncation spot-check: 10 SP600 events, 0 mismatch
+fold 1: train 13,484 | app 1,109 | picks(>=.33) 453 (127s)
+fold 2: train 14,252 | app 1,107 | picks(>=.33) 621 (128s)
+fold 3: train 15,026 | app 1,122 | picks(>=.33) 617 (128s)
+fold 4: train 15,805 | app 1,108 | picks(>=.33) 740 (128s)
+TRANSFER: {"executed": 193, "win_rate_pct": 50.8, "avg_trade_pct": 2.06, "weeks": 91, "nav_pct": 115.03, "raw_precision": 8.8, "g1_rate": 33.7}
+  CI: {"mean_pct": 1.0924, "ci95_pct": [-0.3308, 2.6181]}
+  sanity (SP400 test slices, top-picks pool): {"picked": 1031, "avg_trade_pct": 0.118}
+T1: FAIL
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc21\gauntlet.json (129s)
+  d = pd.to_datetime(df["Date"]).to_numpy().astype("datetime64[D]")
+  b6 = pd.to_datetime(ijr["Date"]).to_numpy().astype("datetime64[D]")
