@@ -1,0 +1,133 @@
+{
+  "per_fold": [
+    {
+      "fold": 1,
+      "model": "transfer",
+      "auc_sp600": 0.535,
+      "auc_sp400": 0.5463,
+      "sp600_pass_rate": 0.408,
+      "sp600_pool_avg_car": -1.724,
+      "sp400_pass_rate": 0.249,
+      "sp400_pool_avg_car": -0.017
+    },
+    {
+      "fold": 1,
+      "model": "mixed",
+      "auc_sp600": 0.5386,
+      "auc_sp400": 0.5521,
+      "sp600_pass_rate": 0.09,
+      "sp600_pool_avg_car": -0.949,
+      "sp400_pass_rate": 0.056,
+      "sp400_pool_avg_car": -0.503
+    },
+    {
+      "fold": 2,
+      "model": "transfer",
+      "auc_sp600": 0.4727,
+      "auc_sp400": 0.5182,
+      "sp600_pass_rate": 0.561,
+      "sp600_pool_avg_car": -0.578,
+      "sp400_pass_rate": 0.404,
+      "sp400_pool_avg_car": -0.976
+    },
+    {
+      "fold": 2,
+      "model": "mixed",
+      "auc_sp600": 0.4697,
+      "auc_sp400": 0.4976,
+      "sp600_pass_rate": 0.116,
+      "sp600_pool_avg_car": -0.916,
+      "sp400_pass_rate": 0.129,
+      "sp400_pool_avg_car": -0.264
+    },
+    {
+      "fold": 3,
+      "model": "transfer",
+      "auc_sp600": 0.565,
+      "auc_sp400": 0.5554,
+      "sp600_pass_rate": 0.55,
+      "sp600_pool_avg_car": -0.992,
+      "sp400_pass_rate": 0.356,
+      "sp400_pool_avg_car": -0.921
+    },
+    {
+      "fold": 3,
+      "model": "mixed",
+      "auc_sp600": 0.5788,
+      "auc_sp400": 0.5672,
+      "sp600_pass_rate": 0.139,
+      "sp600_pool_avg_car": -1.883,
+      "sp400_pass_rate": 0.128,
+      "sp400_pool_avg_car": -1.347
+    },
+    {
+      "fold": 4,
+      "model": "transfer",
+      "auc_sp600": 0.5441,
+      "auc_sp400": 0.5143,
+      "sp600_pass_rate": 0.668,
+      "sp600_pool_avg_car": 0.218,
+      "sp400_pass_rate": 0.51,
+      "sp400_pool_avg_car": -1.397
+    },
+    {
+      "fold": 4,
+      "model": "mixed",
+      "auc_sp600": 0.5408,
+      "auc_sp400": 0.5031,
+      "sp600_pass_rate": 0.181,
+      "sp600_pool_avg_car": 1.073,
+      "sp400_pass_rate": 0.224,
+      "sp400_pool_avg_car": -0.783
+    }
+  ],
+  "means": {
+    "fold": {
+      "mixed": 2.5,
+      "transfer": 2.5
+    },
+    "auc_sp600": {
+      "mixed": 0.532,
+      "transfer": 0.5292
+    },
+    "auc_sp400": {
+      "mixed": 0.53,
+      "transfer": 0.5336
+    },
+    "sp600_pass_rate": {
+      "mixed": 0.1315,
+      "transfer": 0.5468
+    },
+    "sp600_pool_avg_car": {
+      "mixed": -0.6688,
+      "transfer": -0.769
+    },
+    "sp400_pass_rate": {
+      "mixed": 0.1342,
+      "transfer": 0.3798
+    },
+    "sp400_pool_avg_car": {
+      "mixed": -0.7242,
+      "transfer": -0.8278
+    }
+  },
+  "spearman_sp600": {
+    "transfer": -0.0441,
+    "mixed": -0.0391
+  },
+  "sp600_only_selection": {
+    "transfer": {
+      "n": 193,
+      "avg_pct": 2.06
+    },
+    "mixed": {
+      "n": 127,
+      "avg_pct": 2.361
+    }
+  },
+  "pool_overlap": {
+    "n": 536,
+    "transfer_pool": 2194,
+    "mixed_pool": 556
+  }
+}

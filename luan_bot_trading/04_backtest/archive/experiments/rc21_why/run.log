@@ -1,0 +1,17 @@
+SP400 side 16,587 (59s)
+frames ready (136s)
+fold 1 done (139s)
+fold 2 done (140s)
+fold 3 done (141s)
+fold 4 done (142s)
+PER-FOLD MEANS:
+          fold  auc_sp600  auc_sp400  sp600_pass_rate  sp600_pool_avg_car  sp400_pass_rate  sp400_pool_avg_car
+model                                                                                                         
+mixed      2.5     0.5320     0.5300           0.1315             -0.6688           0.1342             -0.7242
+transfer   2.5     0.5292     0.5336           0.5468             -0.7690           0.3798             -0.8278
+spearman(score, car_10d) on SP600 OOS rows: {'transfer': -0.0441, 'mixed': -0.0391}
+SP600-only weekly selection: transfer 193 trades avg +2.060% | mixed 127 trades avg +2.361%
+raw >=0.33 pool overlap: 536 of transfer 2194 / mixed 556
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc21_why\report.json
+  d = pd.to_datetime(df["Date"]).to_numpy().astype("datetime64[D]")
+  b6 = pd.to_datetime(ijr["Date"]).to_numpy().astype("datetime64[D]")
