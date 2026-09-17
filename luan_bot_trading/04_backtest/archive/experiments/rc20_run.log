@@ -1,0 +1,47 @@
+sp400 rows 16,665 | T join miss 0
+sp600 rows 16,933 | time known 88.9% | beat rate 58.1% (36s)
+prices: 1,674 (sp600 added, overlap skipped 8)
+drifts done (54s) | r3 nan 0.1% | r11 nan 0.1%
+cutoffs set (54s) | is_bmo unknown 5.6%
+A2 defined 90.4% (56s)
+SVD checkpoints 129 (81s)
+F1_sb_h3 defined 80.5% (106s)
+truncation spot-check: 30 events, 0 mismatch
+matrix 33,598 | F1 nan 19.5% | A2 nan 9.6%
+v7n: {"executed": 106, "win_rate_pct": 43.4, "avg_trade_pct": -1.35, "weeks": 59, "nav_pct": -36.81, "raw_precision": 13.2, "g1_rate": 39.6, "sp400_n": 65, "sp400_avg": -1.911, "sp600_n": 41, "sp600_avg": -0.462}
+  CI: {"mean_pct": -0.6065, "ci95_pct": [-2.1118, 0.9138]}
+rc20: {"executed": 151, "win_rate_pct": 50.3, "avg_trade_pct": 0.253, "weeks": 75, "nav_pct": -4.74, "raw_precision": 14.6, "g1_rate": 37.1, "sp400_n": 69, "sp400_avg": -1.245, "sp600_n": 82, "sp600_avg": 1.513}
+  CI: {"mean_pct": 0.1271, "ci95_pct": [-1.2498, 1.5531]}
+VERDICT: {
+ "G1_rc20_positive": {
+  "pass": false,
+  "boot": {
+   "mean_pct": 0.1271,
+   "ci95_pct": [
+    -1.2498,
+    1.5531
+   ]
+  }
+ },
+ "G2_beats_v7n": {
+  "pass": false,
+  "paired": {
+   "paired_weeks": 50,
+   "mean_diff_pct": 1.5856,
+   "ci95_pct": [
+    -0.7292,
+    3.8905
+   ],
+   "prob_pos": 0.54
+  }
+ },
+ "truncation_spotcheck": {
+  "n": 30,
+  "fails": 0
+ }
+}
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc20\gauntlet.json (126s)
+C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\rc20_combined_replication.py:98: UserWarning: no explicit representation of timezones available for np.datetime64
+  d = pd.to_datetime(df["Date"]).to_numpy().astype("datetime64[D]")
+C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\rc20_combined_replication.py:135: UserWarning: no explicit representation of timezones available for np.datetime64
+  b6 = pd.to_datetime(ijr["Date"]).to_numpy().astype("datetime64[D]")

@@ -1,0 +1,81 @@
+{
+  "runs": {
+    "v7n": {
+      "executed": 106,
+      "win_rate_pct": 43.4,
+      "avg_trade_pct": -1.35,
+      "weeks": 59,
+      "nav_pct": -36.81,
+      "raw_precision": 13.2,
+      "g1_rate": 39.6,
+      "sp400_n": 65,
+      "sp400_avg": -1.911,
+      "sp600_n": 41,
+      "sp600_avg": -0.462
+    },
+    "rc20": {
+      "executed": 151,
+      "win_rate_pct": 50.3,
+      "avg_trade_pct": 0.253,
+      "weeks": 75,
+      "nav_pct": -4.74,
+      "raw_precision": 14.6,
+      "g1_rate": 37.1,
+      "sp400_n": 69,
+      "sp400_avg": -1.245,
+      "sp600_n": 82,
+      "sp600_avg": 1.513
+    }
+  },
+  "boot": {
+    "v7n": {
+      "mean_pct": -0.6065,
+      "ci95_pct": [
+        -2.1118,
+        0.9138
+      ]
+    },
+    "rc20": {
+      "mean_pct": 0.1271,
+      "ci95_pct": [
+        -1.2498,
+        1.5531
+      ]
+    }
+  },
+  "verdict": {
+    "G1_rc20_positive": {
+      "pass": false,
+      "boot": {
+        "mean_pct": 0.1271,
+        "ci95_pct": [
+          -1.2498,
+          1.5531
+        ]
+      }
+    },
+    "G2_beats_v7n": {
+      "pass": false,
+      "paired": {
+        "paired_weeks": 50,
+        "mean_diff_pct": 1.5856,
+        "ci95_pct": [
+          -0.7292,
+          3.8905
+        ],
+        "prob_pos": 0.54
+      }
+    },
+    "truncation_spotcheck": {
+      "n": 30,
+      "fails": 0
+    }
+  },
+  "config": {
+    "n_boot": 10000,
+    "seed": 20260807,
+    "thresh": 0.33,
+    "matrix": "train_matrix_v7c full"
+  },
+  "seconds": 126
+}

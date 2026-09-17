@@ -1897,3 +1897,18 @@ score ranking of CAR. Door forward: RC-20 candidate = same frozen spec
 replicated on combined v7c universe (~2x sample) for power; feature
 ledger as complement. Findings:
 archive/findings/rc19_pure_drift_findings.md.
+
+### RC-20 — CLOSED 2026-09-16 (G1/G2 FAIL; sign replicates, certification fails)
+Registered ca93391 (combined-universe replication of the frozen RC-19
+stack, SP600 feature-side deviations declared). Firewall: 30/30
+truncation spot-check on combined universe, 0 mismatch. Result: rc20
+151 trades, 50.3% win, +0.253% avg (SP400-exec −1.245 / SP600-exec
++1.513) vs v7n −1.350%; G1 FAIL (CI [−1.250,+1.553]), G2 FAIL (paired
++1.586pp/wk, CI [−0.729,+3.891]). CAUSE: replication partial (SP400
++0.718% did not survive combined retrain), transfer better than
+expected (SP600 side is the strong side), power still binding (third
+consecutive positive-point-estimate/CI-includes-zero). REPLICATED
+PATTERN: pure-drift label beats 3-gate composite in all three tests
+(+1.77, +2.30, +1.60pp — never reversed); 3-gate label costs ~1.6-2.3pp
+wherever used. NOT established: construction clears zero after costs.
+Findings: archive/findings/rc20_combined_findings.md.
