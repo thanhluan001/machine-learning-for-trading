@@ -1,0 +1,39 @@
+{
+  "rc19_22": {
+    "executed": 148,
+    "win_rate_pct": 50.7,
+    "avg_trade_pct": 0.185,
+    "weeks": 77,
+    "nav_pct": 0.87,
+    "raw_precision": 17.6,
+    "g1_rate": 35.8
+  },
+  "paired_22_vs_v6n": {
+    "paired_weeks": 64,
+    "mean_diff_pct": 0.4565,
+    "ci95_pct": [
+      -0.5566,
+      1.5229
+    ],
+    "prob_pos": 0.4219
+  },
+  "paired_22_vs_24": {
+    "paired_weeks": 73,
+    "mean_diff_pct": -0.1822,
+    "ci95_pct": [
+      -1.0048,
+      0.6282
+    ],
+    "prob_pos": 0.3836
+  },
+  "paired_24_vs_v6n": {
+    "paired_weeks": 60,
+    "mean_diff_pct": 0.8459,
+    "ci95_pct": [
+      -0.4854,
+      2.214
+    ],
+    "prob_pos": 0.5333
+  },
+  "note": "diagnostic only, non-gating"
+}
