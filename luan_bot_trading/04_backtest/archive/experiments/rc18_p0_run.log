@@ -1,0 +1,11 @@
+RC-18 P0 — leak firewall self-test
+events 16,665 | tickers 770
+price nodes 932 (12s)
+drifts computed (13s) | r1 NaN 0.0% | r3 NaN 0.0%
+coverage h=1: SIC-4 30.9%, SIC-3 39.4%, SIC-2 61.0%, sector 89.7%, any 99.4%
+coverage h=3: SIC-4 24.6%, SIC-3 32.0%, SIC-2 51.2%, sector 83.0%, any 98.8%
+instances 34,567 (689s)
+truncation-equivalence: pass 300 / fail 0
+negative control (leaky variant must be caught): 42/60 caught
+GWRE example: {"taxonomy": {"F1": 0.15360410448794393, "F2": 1.0, "F3": 0.10783504785966547, "F4": 2.0, "has_peer": true, "n_peers": 2}, "shrunk": {"F1": 0.1259836335318033, "F2": 1.0, "F3": 0.10076044242311187, "F4": 1.8768666472551896, "has_peer": true, "n_peers": 2}, "peers": [{"ticker": "NTNX", "report": "2026-05-27", "r1": 0.04577}, {"ticker": "OKTA", "report": "2026-05-28", "r1": 0.26144}]}
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc18_p0\report.json (789s)

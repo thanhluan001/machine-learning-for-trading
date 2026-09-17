@@ -1842,4 +1842,22 @@ Nine candidate features across five pre-listed families (honest drift
 personality, revision dynamics, pre-event tape, sector context, surprise
 context). P1 univariate diagnostics on beats -> P2 gate (>=2 families with
 CI-excluding-0 quintile spreads) -> P3 combined model vs v6n with frozen
-HPs/thresholds. Registration: rc18_new_features_pre_registration.md.
+HPs/thresholds. Registration:
+rc18_new_features_pre_registration.md.
+
+### RC-18 P0 (leak firewall) — PASSED 2026-09-16
+Amendment 1 frozen (family F: learned PEAD-behavior similarity), then P0
+implemented and self-tested (rc18_p0_firewall.py). Results:
+truncation-equivalence 300/300 PASS (100 seeded events x {taxonomy,
+shrunk-co-movement, SVD-embedding} estimators, full-vs-truncated-at-cutoff
+recomputation identical); negative control: deliberately leaky peer-window
+variant caught in 42/60 sampled events (the 18 "misses" are cases where no
+post-cutoff bars existed to leak — the harness detects leaks whenever leaks
+exist). Coverage at exact gap requirements: h=1 SIC-4 30.9% / SIC-3 39.4%
+/ SIC-2 61.0% / sector 89.7% / any 99.4%; h=3: 24.6/32.0/51.2/83.0/98.8%.
+34,567 S-a training instances. GWRE counterexample computed live: F1=+15.4%
+from peers NTNX (+4.6% day-1) and OKTA (+26.1% day-1) vs GWRE car_10d
+-39.7%. Two-clock discipline enforced in code (peer signal fresh, estimator
+trained on matured history only). P1 (CAR-first diagnostics, orthogonalized,
+taxonomy-beating gates) now legal to run. Artifacts:
+archive/experiments/rc18_p0/report.json.

@@ -1,0 +1,62 @@
+{
+  "coverage": {
+    "h=1|SIC-4": 0.309,
+    "h=1|SIC-3": 0.3944,
+    "h=1|SIC-2": 0.6104,
+    "h=1|sector": 0.8968,
+    "h=1|any": 0.9939,
+    "h=3|SIC-4": 0.2463,
+    "h=3|SIC-3": 0.3197,
+    "h=3|SIC-2": 0.512,
+    "h=3|sector": 0.8295,
+    "h=3|any": 0.9881
+  },
+  "instances": 34567,
+  "truncation": {
+    "pass": 300,
+    "fail": 0
+  },
+  "truncation_fail_detail": [],
+  "negative_control": {
+    "tested": 60,
+    "leak_caught": 42
+  },
+  "gwre_example": {
+    "taxonomy": {
+      "F1": 0.15360410448794393,
+      "F2": 1.0,
+      "F3": 0.10783504785966547,
+      "F4": 2.0,
+      "has_peer": true,
+      "n_peers": 2
+    },
+    "shrunk": {
+      "F1": 0.1259836335318033,
+      "F2": 1.0,
+      "F3": 0.10076044242311187,
+      "F4": 1.8768666472551896,
+      "has_peer": true,
+      "n_peers": 2
+    },
+    "peers": [
+      {
+        "ticker": "NTNX",
+        "report": "2026-05-27",
+        "r1": 0.04577
+      },
+      {
+        "ticker": "OKTA",
+        "report": "2026-05-28",
+        "r1": 0.26144
+      }
+    ]
+  },
+  "config": {
+    "K": 10,
+    "SHRINK_K": 5,
+    "TOPK": 10,
+    "EMB_DIM": 8,
+    "SEED": 20260807
+  },
+  "seconds": 789
+}
