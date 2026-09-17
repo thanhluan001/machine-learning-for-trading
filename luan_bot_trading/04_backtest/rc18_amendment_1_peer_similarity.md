@@ -1,7 +1,6 @@
 # RC-18 Amendment 1 — Family F: Learned PEAD-Behavior Similarity (Read-Across)
 
-**Status:** DRAFT for review, 2026-09-16. To be frozen (committed) BEFORE any
-feature is computed. Supersedes nothing; extends `rc18_new_features_pre_registration.md`
+**Status:** FROZEN 2026-09-16 (user-approved; committed before any computation). Supersedes nothing; extends `rc18_new_features_pre_registration.md`
 with a new family F. All firewall rules (F0a/b/c) apply unchanged.
 
 **Trigger:** (a) the RC-18 threshold probe found the score predicts the 3-gate
