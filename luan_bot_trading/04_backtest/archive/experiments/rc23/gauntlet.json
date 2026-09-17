@@ -1,0 +1,32 @@
+{
+  "rule": {
+    "n": 302,
+    "mean_excess_pct": 0.969,
+    "se_pct": 0.71,
+    "t": 1.36,
+    "ci95_pct": [
+      -0.427,
+      2.358
+    ],
+    "G1_pass": false
+  },
+  "baseline_p080": {
+    "n": 914,
+    "mean_excess_pct": 0.022
+  },
+  "diagnostics": {
+    "beat_rate": 0.894,
+    "sp400_n": 190,
+    "sp400_ex_pct": 0.663,
+    "sp600_n": 112,
+    "sp600_ex_pct": 1.49,
+    "raw_mean_pct": 1.671
+  },
+  "config": {
+    "p_beat_thr": 0.8,
+    "rr20_thr": 0.0369,
+    "n_boot": 10000,
+    "seed": 20260807
+  },
+  "seconds": 43
+}

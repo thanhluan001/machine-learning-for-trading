@@ -1,0 +1,46 @@
+prices/benches loaded (21s)
+events 27,191 | beat defined 88.8% (36s)
+fold 1: train 18,467 test 1,371 (43s)
+fold 2: train 19,838 test 1,401 (43s)
+fold 3: train 21,239 test 1,431 (43s)
+fold 4: train 22,670 test 1,444 (43s)
+rule picks: 302 (unconditioned p>=0.8: 914)
+
+G1: mean excess = +0.969%  SE 0.71  t=1.36
+    CI95 [-0.427, +2.358]  -> FAIL
+
+{
+ "rule": {
+  "n": 302,
+  "mean_excess_pct": 0.969,
+  "se_pct": 0.71,
+  "t": 1.36,
+  "ci95_pct": [
+   -0.427,
+   2.358
+  ],
+  "G1_pass": false
+ },
+ "baseline_p080": {
+  "n": 914,
+  "mean_excess_pct": 0.022
+ },
+ "diagnostics": {
+  "beat_rate": 0.894,
+  "sp400_n": 190,
+  "sp400_ex_pct": 0.663,
+  "sp600_n": 112,
+  "sp600_ex_pct": 1.49,
+  "raw_mean_pct": 1.671
+ },
+ "config": {
+  "p_beat_thr": 0.8,
+  "rr20_thr": 0.0369,
+  "n_boot": 10000,
+  "seed": 20260807
+ },
+ "seconds": 43
+}
+wrote C:\Users\thanh\Projects\machine-learning-for-trading\luan_bot_trading\04_backtest\archive\experiments\rc23\gauntlet.json (43s)
+  b6 = pd.to_datetime(ijr["Date"]).to_numpy().astype("datetime64[D]")
+  d = pd.to_datetime(df["Date"]).to_numpy().astype("datetime64[D]")

@@ -1982,3 +1982,26 @@ Only productive direction: NEW INFORMATION (transcripts/guidance,
 options-implied, intraday/order flow, short interest, peer text) — data
 programs, not modeling programs. Findings:
 archive/findings/feature_set_audit_findings.md.
+
+### BEAT MODEL + PAYOFF STRUCTURE + MARKET ADJUSTMENT + RC-23 — 2026-09-16 (research line closed)
+Beat prediction (user proposal): OOS AUC(beat)=0.6731 (SP400 0.694, SP600
+0.649) — the first real model of the program — but entirely via priced
+serial-surprise information (ablation: without sue_lag_1/2 +
+consecutive_surprises_pre, AUC collapses 0.685 -> 0.529). Excess
+expectancy of its picks ~0 (p>=0.8: +0.022% excess; the raw +0.646% was
+market beta). Payoff structure: low-confidence payoffs symmetric
+(+3.56/-3.55) -> short side +0.277% (t=0.49); high-confidence asymmetric
+(+1.30/-4.17) -> long side, but the edge is beta. Excess beat/miss
+asymmetry is real (+1.671 vs -4.265). THIRD integrity issue found:
+pregap_return is RAW while the label is excess — all raw numbers include
+beta; excess evaluation mandated. RC-23 (registered 3c4f5b4): the one
+surviving conditioning (p_beat>=0.80 & rel_ret_20d>=0.0369) G1 FAIL:
++0.969% excess, CI [-0.427,+2.358], n=302 — power as pre-stated; forward
+accumulation needs ~11 years to certify. Every candidate now closed;
+coherent picture: features empty, beat predictable-but-priced, drift in
+unpredictable surprises, three measurement-layer integrity issues found
+and fixed. Only productive direction: new information sources.
+Findings: archive/findings/beat_prediction_findings.md,
+archive/findings/short_side_findings.md,
+archive/findings/market_adjustment_findings.md,
+archive/findings/rc23_momentum_beat_findings.md.
