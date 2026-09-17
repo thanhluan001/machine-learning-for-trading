@@ -1952,3 +1952,33 @@ pool quality or ranking. Plus the second simulator integrity defect
 RC-19/20/21 positive point estimates are not achievable expectations; the
 proposed rc19 shadow book is dead as stated. Findings:
 archive/findings/rc22_simulator_alignment_findings.md.
+
+### RAW-PICK EXPECTANCY — 2026-09-16 (picks mean = 0, no portfolio layer)
+All events scoring >=0.33, no slots/weeks: rc19 +0.180% (SE 0.372), rc20
++0.105% (SE 0.535), rc21 +0.341% (SE 0.317) vs UNCONDITIONAL +0.220%
+(SE 0.158) and REJECTED (<0.33) +0.08 to +0.24%. Indistinguishable from
+zero, from random, and from rejected events (rc20 if anything worse than
+random). The LABEL is strongly informative (pass_g1=1 -> +5.229% vs
+pass_g1=0 -> -1.944% on the 5-session harvest) but the MODEL barely
+enriches it (30.2% base -> 28.9-37.6% of picks; AUC ~0.53) and its
+failing picks lose more than the universe's (-3.456% vs -1.944%).
+Bottleneck = predictive skill. Findings:
+archive/findings/raw_pick_expectancy_findings.md.
+
+### FEATURE-SET AUDIT — 2026-09-16 (THE PIVOTAL FINDING: the feature set is empty)
+Back-to-basics univariate audit of all 24 deploy features vs pass_g1 and
+the 5-session harvest (27,191 events, week-block bootstrap 10k, BH-FDR).
+Median AUC(pass_g1) = 0.4993; best single feature 0.5409
+(pre_event_idiosyncratic_vol); best |t| on the harvest spread 1.72
+(rel_ret_5d, negative); ZERO features survive FDR q<0.10; 12 redundant
+pairs (|rho|>0.7) so ~14 independent weak variables; XGBoost gain uniform
+(0.031-0.061) = fitting noise. F1_sb_h3 in the deploy configuration:
++0.088% (t=0.27), AUC 0.5014 — its RC-18 edge does not appear here.
+CONSEQUENCE: the post-leak program (RC-16 -> RC-22) searched an empty
+feature space; this explains AUC~0.53, raw picks ~ random, positive
+numbers only via allocation artifacts, and every CI including zero. The
+baggage from the look-ahead era is the feature set's emptiness itself.
+Only productive direction: NEW INFORMATION (transcripts/guidance,
+options-implied, intraday/order flow, short interest, peer text) — data
+programs, not modeling programs. Findings:
+archive/findings/feature_set_audit_findings.md.
