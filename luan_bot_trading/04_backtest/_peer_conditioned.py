@@ -313,6 +313,48 @@ for lab, sub in (("bottom 2 quintiles", M[M.pq <= 2]), ("q3", M[M.pq == 3]),
         print(f"{lab:16} {len(sub):>5} {sub[sub.fq==5].ex.mean():>+8.2f} {sub[sub.fq==1].ex.mean():>+8.2f} "
               f"{obs:>+8.2f} {se:>5.2f} {obs/se:>5.2f} [{lo5:>+6.2f},{hi95:>+6.2f}]")
 
+print("=== USER MECHANISM: E[drift | BEAT] by F1 — is drift proportional to peers? ===")
+rng2 = np.random.default_rng(SEED)
+def cond_beat_table(lab, sub):
+    B_ = sub[sub.beat==1].copy()
+    if len(B_)<100: return
+    B_ = B_.assign(fq=pd.qcut(B_.F1.rank(method="first"),5,labels=False)+1)
+    parts=[]
+    for q,g in B_.groupby("fq"):
+        parts.append(f"q{int(q)}:{g.ex.mean():+.2f}[{len(g)}]")
+    print(f"  {lab:26} beats n={len(B_):>4}: " + "  ".join(parts))
+    # regression slope: ex ~ F1 (slope near 1 = drift proportional to peer drift)
+    x,y = B_.F1.to_numpy()*100, B_.ex.to_numpy()
+    ok=np.isfinite(x)&np.isfinite(y); x,y=x[ok],y[ok]
+    sl,ic = np.polyfit(x,y,1)
+    # week-clustered slope SE
+    df_=B_.iloc[ok]
+    bo=[]
+    wks=df_.wk.unique()
+    for _ in range(2000):
+        sel=rng2.choice(wks,len(wks),replace=True)
+        parts2=[df_[df_.wk==w] for w in sel]
+        dd=pd.concat(parts2)
+        xx,yy=dd.F1.to_numpy()*100, dd.ex.to_numpy()
+        if xx.std()>0: bo.append(np.polyfit(xx,yy,1)[0])
+    se_sl=np.std(bo,ddof=1) if len(bo)>10 else np.nan
+    print(f"    slope(dex/dF1) = {sl:.2f}  SE {se_sl:.2f}  t {sl/se_sl:+.2f}   (1.0 = proportional)")
+
+cond_beat_table("low p_beat (bottom half)", M[M.p_beat<=M.p_beat.quantile(0.5)])
+cond_beat_table("high p_beat (top half)", M[M.p_beat>=M.p_beat.quantile(0.5)])
+print()
+print("=== and the miss side: E[drift | MISS] by F1 within low-p_beat ===")
+L=M[(M.p_beat<=M.p_beat.quantile(0.5))&(M.beat==0)].copy()
+L=L.assign(fq=pd.qcut(L.F1.rank(method="first"),5,labels=False)+1)
+print("  " + "  ".join(f"q{int(q)}:{g.ex.mean():+.2f}[{len(g)}]" for q,g in L.groupby("fq")))
+print()
+print("=== tradeable slice: low-p x top F1 tercile — full EV decomposition ===")
+T=M[(M.p_beat<=M.p_beat.quantile(0.5))&(M.F1>=M.F1.quantile(0.67))].copy()
+print(f"  n={len(T)}  beat_rate={T.beat.mean()*100:.1f}%  E[ex|beat]={T[T.beat==1].ex.mean():+.2f}%  E[ex|miss]={T[T.beat==0].ex.mean():+.2f}%  EV={T.ex.mean():+.3f}%")
+T=M[(M.p_beat<=M.p_beat.quantile(0.4))&(M.F1>=M.F1.quantile(0.8))].copy()
+if len(T)>50: print(f"  stricter (p<40%, F1 top20%): n={len(T)} beat_rate={T.beat.mean()*100:.1f}%  E[ex|beat]={T[T.beat==1].ex.mean():+.2f}%  E[ex|miss]={T[T.beat==0].ex.mean():+.2f}%  EV={T.ex.mean():+.3f}%")
+
+
 print("\n=== 3. does F1 predict the BEAT within low-p_beat events? ===")
 from sklearn.metrics import roc_auc_score
 for lab, sub in (("p_beat bottom 40%", M[M.p_beat <= M.p_beat.quantile(0.4)]),
