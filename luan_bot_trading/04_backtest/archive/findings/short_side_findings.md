@@ -62,3 +62,39 @@ improve the t-statistic (1.54 combined vs 1.69 long-only).
 The single best candidate remains LONG p_beat >= 0.8: n=914, +0.646%/trade
 (t=1.69), still short of certification (needs ~1.5-2x the sample at that
 effect size), threshold to be frozen before any test.
+
+---
+
+## ADDENDUM — payoff-structure decomposition (answers the user's long/short logic)
+
+```text
+bucket    n     P(beat)   E[r|beat]   E[r|miss]   long EV   short EV
+p>=0.9    147    95.2%      +1.55      −2.14      +1.374    −1.374
+p>=0.8    914    88.1%      +1.30      −4.17      +0.646    −0.646
+p>=0.7   2290    80.3%      +1.63      −4.54      +0.415    −0.415
+p<0.5     634    46.1%      +3.56      −3.55      −0.277    +0.277
+p<0.4      79    39.2%      +1.94      −5.63      −2.663    +2.663
+```
+
+User's proposed logic was: long high-confidence beats, short low-confidence
+beats; if the short turns out to be a beat, "we pay a small percent because
+it is not a surprise". **The data refutes the second half**: shorting
+p<0.5 and being wrong costs +3.56% — the LARGEST beat drift in the book,
+because a low-confidence beat is a SURPRISE beat and surprises drift
+hardest (decile-1 beats +3.62% vs decile-10 beats +0.78%).
+
+The payoff structure is a mirror at the two ends of confidence:
+
+```text
+LOW  confidence (p<0.5): payoffs SYMMETRIC   (+3.56 / −3.55) -> coin flip
+                         short EV = 0.539*3.55 − 0.461*3.56 = +0.277% (t=0.49)
+HIGH confidence (p>=0.8): payoffs ASYMMETRIC (+1.30 / −4.17)
+                         long EV = 0.881*1.30 − 0.119*4.17 = +0.646% (t=1.69)
+```
+
+The miss-punishment asymmetry the user identified is real — but it is a
+property of the HIGH-confidence bucket, and it pays the LONG side: a
+confident beat that beats earns little (priced) while a confident beat
+that misses is punished 3x harder (expectations were high). The correct
+trade is therefore long high-confidence beats only; adding the short leg
+lowers the t-statistic (1.54 vs 1.69).
