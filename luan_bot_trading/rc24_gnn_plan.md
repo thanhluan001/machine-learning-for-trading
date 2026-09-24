@@ -157,41 +157,159 @@ D5  nothing else — v1 runs on data we own
 
 ---
 
-## 3. Model & training protocol
+## 3. Model architecture & training protocol
+
+### 3.1 What a GNN actually does, in this pipeline's language
+
+F1_sb_h3 was a **hand-crafted message**: weight each recent reporting peer by
+a fixed similarity, average their drifts, ship one number. A GAT is the same
+operation with the weights **learned** — and learned *per event, per
+question*: which neighbors' outcomes matter for THIS stock's surprise, given
+THIS stock's volatility, coverage, and sector state. Each layer is one round
+of "every node asks its neighbors what they know, weights the answers, and
+updates itself." Two layers means the target also hears from *neighbors of
+neighbors* — a peer's own peers (the propagation chain we can't hand-code).
+
+### 3.2 The sample: one event = one graph
 
 ```text
-architecture      exactly your spec: CompanyEmbeddingLayer (industry embed
-                  16-d + continuous proj 32-d → hidden 64) + signed outcome
-                  encoder + GATConv(64, 4 heads) → GATConv(64, 1) → MLP head
-sample            one target event = one graph: target node + all reporters
-                  in [T−10 sessions, T); edges E1/E2/E3 restricted to the
-                  subgraph; unreported/late peers masked (no leakage)
-label             beat = 1 (definitions as in §2.5)
-loss              BCEWithLogitsLoss (68/32 imbalance is mild; no reweighting
-                  unless calibration checks fail)
-splits            label_end maturity folds — the SAME DEFAULT_FOLDS as every
-                  baseline this session, for comparability
-training          CPU-only (trading env), early stopping on the fold's
-                  validation slice, dropout as specced; 3 seeds, report mean
-                  and spread; HP search LIMITED to one pass over
-                  {hidden 32/64, heads 2/4, dropout 0.1/0.2} — frozen after
-environment       pip install torch (CPU) torch-geometric into the trading
-                  env; version-pin in environment.yml; note in
-                  ENVIRONMENT_INCIDENTS.md if any BLAS conflict appears
-                  (torch has its own — verify no MKL GEMM issue resurfaces)
+nodes   target stock i (reports at T) + every stock j that reported in
+        [T − 10 sessions, T). The same physical stock appears in many
+        event graphs — as peer in some, target in others.
+edges   DIRECTED j → i, aligned with causality: messages flow from the
+        already-informed (reported) to the not-yet-informed (unreported).
+        Constructed only along report-time order — no future reporter can
+        send a message backward. Self-loop on every node (a stock must
+        always hear itself; without it, a target with no peers in window
+        produces a zero vector).
+types   E1 same fine industry · E2 same sector ETF · E3 return corr ≥ 0.35
+isolation: events with zero peers (≈1–14% by window width) degrade to the
+        tabular baseline — disclosed, not hidden
 ```
 
-### Baselines (the bar, all on identical splits)
+### 3.3 Architecture (v1 — Gemini spec with the amendments below)
 
 ```text
-B0  XGBoost-22                        AUC(beat) ≈ 0.673  (known)
-B1  XGBoost-22 + F1_sb_h3 + A2        (the existing peer features)
-B2  GNN with outcomes zeroed          (graph structure alone, no spillover —
-                                       isolates the peer-outcome contribution)
+              ONE SAMPLE = ONE EVENT GRAPH (target i, time T)
+
+ ┌────────────────────────── PER NODE ───────────────────────────┐
+ │ fine industry id  ─► nn.Embedding(~150→16) ┐                  │
+ │ sector-ETF id     ─► nn.Embedding(11→8)    ├─ concat ─► Linear(→64)
+ │ 20 continuous     ─► Linear(20→32)+LN+ReLU┘        = base h   │
+ │                                                                │
+ │ signed outcomes (surprise%, r1, r3×mask) ─► MLP(→64) = outcome h│
+ │        × per-peer horizon mask (two-clock rule; zero if the     │
+ │          3-day window is not fully printed before T)           │
+ │ node x = [ base h ‖ outcome h ] → Linear(→64) → LayerNorm      │
+ └────────────────────────────────────────────────────────────────┘
+
+ LAYER 1: GATv2Conv(64→16 × 4 heads, edge_dim=8)
+          per-edge attention over [x_j ‖ x_i ‖ edge_attr]
+          edge_attr = [edge-type embed ‖ |ρ| ‖ Δt (sessions since
+                       peer's report — the freshness clock)]
+          x = LayerNorm(x + GATv2(x)); ELU; dropout 0.1
+ LAYER 2: GATv2Conv(64→64, 1 head), same form (residual, LN, ELU)
+
+ READOUT: TARGET node's final vector ONLY (peer nodes are never
+          classified — they exist to inform)
+ HEAD:    Linear(64→32) → ReLU → dropout → Linear(32→1) → logit
+ LOSS:    BCEWithLogitsLoss on target nodes only
 ```
 
-**B2 is the critical ablation**: if the GNN beats B0/B1 but not B2, the gain
-is the node features, not propagation — the thesis fails.
+**Parameter budget ≈ 18–22k** (embedding ~2.4k, continuous proj ~0.8k,
+outcome encoder ~1.2k, two GATv2 layers ~9k, head ~2k). Deliberately small:
+~30k training events is not roomy for a deep model, and the signal we chase
+is worth ~0.3–0.6pp of AUC. Small model = the main overfitting control.
+
+### 3.4 Changes vs the Gemini spec, and why
+
+```text
+ 1. GATConv → GATv2Conv. Original GAT's attention is static (limited by
+    construction); GATv2 fixes it, same API. Free upgrade, standard now.
+ 2. The spec defined edge types in the DATA section but its code never used
+    them — GATv2Conv(edge_dim=8) with an edge-type embedding actually feeds
+    edge type into attention. (Variant if this underperforms: R-GAT — one
+    GAT pass per edge type, messages summed; one-line flag in PyG style.)
+ 3. Directed edges along report-time order + self-loops (§3.2) — causality
+    becomes the message-flow direction, and isolated targets stay sane.
+ 4. edge_attr also carries |ρ| (correlation strength) and Δt (sessions
+    since the peer reported). Δt encodes the measured decay: h=3 partials
+    carried the signal, h=10 was zero. The model gets the clock we
+    hand-tuned in the peer work.
+ 5. Outcome injection: base + outcome → concat + project. A sum forces the
+    two blocks into the same space; concat lets the network learn the mix.
+ 6. BatchNorm → LayerNorm. BN statistics wobble with graph size and the
+    train/eval switch; LN is the stable choice on variable-size graphs.
+ 7. Residual connections on both GAT blocks — cheap stability at depth 2.
+ 8. Explicit target-only readout (the spec's mock implied it; now stated:
+    peers are never classification targets in v1).
+ 9. Optional regularizer: DropEdge (drop 10% of edges during training) —
+    prevents over-reliance on a single loud peer. Off by default, flag on
+    if val spread across seeds is large.
+```
+
+### 3.5 Training protocol
+
+```text
+sample/label       one graph per event; label = beat (§2.5 definitions)
+splits             label_end maturity folds — the SAME DEFAULT_FOLDS as
+                  every baseline this session, for comparability
+optimizer          AdamW, lr 1e-3, weight decay 1e-4, cosine decay;
+                  ≤100 epochs, early stop on fold-val AUC (patience 10)
+batch              128 graphs (PyG batches = disjoint union)
+seeds              3; report mean ± spread
+HP pass            ONE frozen pass: {hidden 32/64, heads 2/4, dropout
+                  0.1/0.2} — then frozen, no archaeology
+calibration        isotonic on the validation slice after training — the
+                  XGBoost lesson: score compression ([0.39,0.88]) is what
+                  killed threshold usability; calibrate before any slicing
+loss/imbalance     68/32 is mild; no reweighting unless calibration fails
+environment        torch (CPU) + torch-geometric pinned in the trading env;
+                  BLAS-conflict check into ENVIRONMENT_INCIDENTS.md (torch
+                  ships its own MKL — verify no GEMM clash with the env's
+                  OpenBLAS before the first run)
+```
+
+### 3.6 Baselines & ablations (identical splits — the ladder that isolates
+ what the GNN adds)
+
+```text
+B0   XGBoost-22                       AUC(beat) ≈ 0.673 (known)
+B1   XGBoost-22 + F1_sb_h3 + A2       (the existing hand-crafted peer feats)
+B1+  XGBoost-22 + hand-aggregated peer outcomes for the SAME window the
+     GNN sees (mean signed surprise, miss rate, mean r1 drop, by sector and
+     by correlation-top-10) — THE REAL BAR: if the GNN can't beat crude
+     aggregation of the same information, learned aggregation adds nothing
+B2   GNN with outcome payloads zeroed (graph + node features only) —
+     isolates spillover from structure
+B4   outcome-shuffle negative control: permute which peer beat/missed
+     within each graph; performance must collapse to ≈ B2, else something
+     is leaking through the masking machinery
+B5   (optional, v1.1) global set-attention over ALL reporters in window,
+     no edges — if this matches the GNN, the explicit graph is unnecessary
+     and "season state" is the real signal
+DIAG attention inspection: per event, attention-weighted peer-outcome sum
+     vs F1_sb_h3 — does the model rediscover our hand-crafted feature, and
+     where does it go beyond it? (interpretability, reported either way)
+```
+
+**The two decisive rungs are B1+ and B2**: B1+ asks *does learning the
+aggregation beat aggregating*, B2 asks *does the peer information matter at
+all beyond graph structure*. A GNN that clears B0/B1 but neither of those
+has NOT validated the propagation thesis — it validated the node features.
+
+### 3.7 What this architecture cannot see (stated, not hidden)
+
+```text
+· intra-window SEQUENCING is compressed into Δt features — a peer that
+  reported 9 sessions ago vs 1 session ago differ only by one scalar; no
+  ordering model of the season
+· no cross-event memory beyond sue_lag_1/2 and consecutive_surprises_pre
+  (the same serial block the beat model already owns — priced)
+· isolated targets (no peers in window) reduce to a tabular model
+· ~20k parameters on ~30k events: this scale cannot find subtle structure;
+  if the effect needs subtlety, v1 fails honestly
+```
 
 ---
 
